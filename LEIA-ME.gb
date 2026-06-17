@@ -1,0 +1,91 @@
+# Fantasy PvP — App multi-usuário
+
+Um único app que serve TODAS as partidas. Cada jogo é só uma pasta de dados.
+Multi-usuário via Supabase: cada pessoa monta seu time, todos veem o mesmo ranking.
+
+## Estrutura
+
+```
+fantasy-pvp/
+  index.html          ← o app (nunca muda)
+  engine.js           ← motor de pontuação v2.4.0 (nunca muda)
+  app.js              ← telas, login, Supabase (nunca muda)
+  config.js           ← VOCÊ cola as chaves do Supabase aqui
+  SETUP_SUPABASE.sql  ← roda 1x no Supabase pra criar as tabelas
+  data/
+    jogos.json        ← lista de salas (você edita a cada jogo novo)
+    aut-jor-2026/
+      prepool.json    ← squad + preços
+      match.json      ← stats reais (status "pending" até o jogo acabar)
+    ned-jpn-2026/
+      prepool.json
+      match.json      ← já preenchido (jogo finalizado, de exemplo)
+```
+
+---
+
+## SETUP (uma vez só)
+
+### 1. Criar o banco no Supabase
+1. Crie conta grátis em https://supabase.com → **New Project**
+2. Menu lateral → **SQL Editor** → cole TODO o `SETUP_SUPABASE.sql` → **RUN**
+3. Menu → **Settings → API** → copie:
+   - **Project URL** (ex: `https://abcd.supabase.co`)
+   - **anon public** key (string longa)
+
+### 2. Colar as chaves
+Abra `config.js` e substitua:
+```js
+const SUPABASE_URL = "https://abcd.supabase.co";   // sua Project URL
+const SUPABASE_KEY = "eyJhbG...";                   // sua anon key
+```
+
+### 3. Subir no GitHub + Netlify
+1. Crie um repositório no GitHub e suba a pasta `fantasy-pvp/` inteira
+2. Em https://netlify.com → **Add new site → Import from GitHub** → escolha o repo
+3. Build command: deixe vazio. Publish directory: `fantasy-pvp` (ou a raiz, se subiu só o conteúdo)
+4. Deploy → você ganha uma URL tipo `seunome.netlify.app`
+
+Pronto. Toda vez que você der push no GitHub, o Netlify atualiza sozinho.
+
+---
+
+## FLUXO DE CADA JOGO NOVO
+
+### Antes do jogo (pré-pool)
+1. Capture os squads dos 2 times no Proxyman:
+   `api.sofascore.com/api/v1/team/{ID}/players` (remova `If-None-Match` se vier 304)
+2. Rode o gerador:
+   ```
+   python gerar_prepool.py timeA.json timeB.json --codeA AUT --codeB JOR
+   ```
+   Ele cria `prepool.json`.
+3. Crie a pasta `data/{room-id}/` e ponha o `prepool.json` lá.
+4. Crie um `match.json` com `{"status":"pending"}`.
+5. Adicione a sala no `data/jogos.json` e crie a linha em `rooms` no Supabase
+   (SQL Editor: `insert into rooms (id, match_name, status) values ('id','Nome','open');`)
+6. Push no GitHub. A sala aparece no app.
+
+### O "F5 da vida" (depois do jogo)
+1. Capture FotMob (`matchfacts`) + SofaScore (`incidents`, `lineups`, `statistics`)
+2. Me mande os dados → eu gero o `match.json` com as stats reais (status `finished`)
+3. Substitua o `match.json` da pasta do jogo e dê push
+4. No Supabase, mude o status da sala: `update rooms set status='finished' where id='...';`
+5. O app calcula o ranking de todos automaticamente. É só isso.
+
+---
+
+## COMO OS USUÁRIOS USAM
+1. Abrem a URL do Netlify
+2. Login: apelido + senha (cria na hora, valida nas próximas)
+3. Escolhem a sala aberta → montam o time → salvam
+4. Quando o jogo acaba, voltam e veem o ranking + a apuração detalhada do próprio time
+
+---
+
+## NOTAS
+- O plano grátis do Supabase aguenta tranquilo 6-20 jogadores por sala.
+- A senha é um hash simples — serve pra evitar que peguem o apelido de outro,
+  não é segurança de banco. Não use senha "séria" aqui.
+- Preços travados na pré-pool não mudam depois. Forma = 1.0 neutro
+  (plugue o script de últimos-5-jogos no `gerar_prepool.py` quando quiser).
