@@ -314,6 +314,9 @@ function enterRound(roundId){go("round",null,roundId);}
 function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();window.scrollTo(0,0);}
 // jogador: confirmar entrada num jogo da rodada (gasta 1 ficha)
 function askEnterRoundGame(roomId){
+  // jogo já finalizado → mostra o RESULTADO (apuração/ranking), não a tela de montar
+  const g=window.GAMES.data[roomId];
+  if(g&&g.match&&g.match.status==="finished"){go("result",roomId);return;}
   const alreadyPicked=pickedRoom(roomId);
   // nível 2: time deste jogo travado → no máximo ver (se já montou)
   if(roomLockedInRound(roomId)){
@@ -571,10 +574,8 @@ function roundHTML(){
     return `<div class="roomrow" onclick="askEnterRoundGame('${j.room_id}')">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
       ${tag}
-      ${isAdmin()?`<div style="display:flex;gap:6px;align-items:center;margin-left:8px">
-        <span onclick="event.stopPropagation();setRoundRoomStatus('${j.room_id}','${locked?"open":"locked"}')" style="cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.04em;padding:5px 10px;border-radius:99px;border:1px solid ${locked?"var(--green)":"var(--amber)"};color:${locked?"var(--green)":"var(--amber)"};background:color-mix(in srgb,${locked?"var(--green)":"var(--amber)"} 12%,transparent)">${locked?"🔓 abrir":"🔒 travar"}</span>
-        <span onclick="event.stopPropagation();delRoomFromRound('${j.room_id}')" style="cursor:pointer;font-size:13px;color:var(--dim);padding:3px 6px" title="Remover da rodada">✕</span>
-      </div>`:""}
+      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:${locked?"var(--green)":"var(--amber)"};border-color:${locked?"var(--green)":"var(--amber)"}" title="${locked?"Destravar time":"Travar time"}" onclick="event.stopPropagation();setRoundRoomStatus('${j.room_id}','${locked?"open":"locked"}')">${locked?"🔓":"🔒"}</button>
+      <button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();delRoomFromRound('${j.room_id}')">✕</button>`:""}
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
@@ -1072,7 +1073,8 @@ function resultHTML(){
     if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
   }
-  html+=`<button class="btn ghost" onclick="go('home')">← Voltar às salas</button>`;
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  html+=`<button class="btn ghost" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}">← Voltar${inRound?" à rodada":" às salas"}</button>`;
   return html;
 }
 let _openRec={};
