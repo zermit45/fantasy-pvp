@@ -20,6 +20,7 @@ let APP={
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[],
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
+  profile:null,         // estatísticas do perfil (calculadas ao vivo)
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
   captain:null, tactic:null, tab:"ALL", warn:"", showRules:false, confirm:null,
@@ -140,6 +141,70 @@ async function unarchiveGame(roomId){
     toast("Jogo desarquivado — pode ser aberto de novo.");
     render();
   }catch(e){toast("Erro: "+e.message);}
+}
+
+// ============================================================
+// PERFIL / CONQUISTAS (Caminho A — calculado ao vivo, por grupo)
+// ============================================================
+const RARITY_ORDER=["Comum","Incomum","Raro","Épico","Mítico","Lendário"];
+// estatísticas agregadas do usuário no grupo atual, varrendo jogos arquivados (encerrados)
+async function loadProfileStats(username){
+  const stats={
+    games:0, wins:0, podiums:0, bestScore:0, bestGame:null, totalPoints:0,
+    archetypes:{}, traits:{}, rarities:{}, players:{}, bestPlayer:null
+  };
+  if(!SUPA.ready()||!APP.groupId)return stats;
+  // só jogos arquivados (encerrados oficialmente) deste catálogo
+  const arq=APP.jogos.filter(j=>isArchived(j.room_id));
+  for(const j of arq){
+    const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
+    let entries;
+    try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
+    catch(e){continue;}
+    if(!entries||!entries.length)continue;
+    const scored=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
+    const myIdx=scored.findIndex(s=>s.username===username);
+    if(myIdx<0)continue; // não participei deste jogo
+    const me=scored[myIdx];
+    stats.games++;
+    stats.totalPoints+=me.total;
+    if(myIdx===0)stats.wins++;
+    if(myIdx<3)stats.podiums++;
+    if(me.total>stats.bestScore){stats.bestScore=me.total;stats.bestGame=j.match_name;}
+    // arquétipos / traits / raridades / jogadores escalados (só os que entraram em campo)
+    for(const v of me.view){
+      if(!v||v.slot==="BENCH")continue;
+      const meta=v.r&&v.r.meta;if(!meta)continue;
+      const pl=ctx.byId[v.pid];
+      if(meta.arch&&meta.arch!=="—"){stats.archetypes[meta.arch]=(stats.archetypes[meta.arch]||0)+1;}
+      (meta.traits||[]).forEach(t=>{if(t!=="Regular"&&t!=="Não entrou em campo")stats.traits[t]=(stats.traits[t]||0)+1;});
+      if(meta.rarity)stats.rarities[meta.rarity]=(stats.rarities[meta.rarity]||0)+1;
+      if(pl){const key=pl.name;stats.players[key]=(stats.players[key]||0)+1;}
+    }
+  }
+  // jogador mais escalado
+  let top=null;for(const[name,n]of Object.entries(stats.players)){if(!top||n>top.n)top={name,n};}
+  stats.bestPlayer=top;
+  return stats;
+}
+// histórico de um atleta (quantas vezes teve cada arquétipo/selo) nos jogos arquivados
+function playerArchHistory(playerId){
+  const hist={archetypes:{},traits:{},best:null,games:0};
+  const arq=APP.jogos.filter(j=>isArchived(j.room_id));
+  for(const j of arq){
+    const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
+    if(!ctx.byId[playerId])continue; // esse atleta não está neste jogo
+    const meta=ctx.byId[playerId];
+    const raw=Object.assign({pos:meta.pos,team:meta.team},ctx.match.players?ctx.match.players[String(playerId)]:null||{min:0});
+    if(!raw.min)continue;
+    const r=ctx.eng.scorePlayer(raw,null);
+    if(!r.meta)continue;
+    hist.games++;
+    if(r.meta.arch&&r.meta.arch!=="—")hist.archetypes[r.meta.arch]=(hist.archetypes[r.meta.arch]||0)+1;
+    (r.meta.traits||[]).forEach(t=>{if(t!=="Regular")hist.traits[t]=(hist.traits[t]||0)+1;});
+    if(!hist.best||RARITY_ORDER.indexOf(r.meta.rarity)>RARITY_ORDER.indexOf(hist.best))hist.best=r.meta.rarity;
+  }
+  return hist;
 }
 
 // ---------- RODADAS (escolha N de M) ----------
@@ -719,14 +784,15 @@ function buildMatchCtx(){
   return makeEngine(m);
 }
 function scoreEntry(entry,eng){
-  const pp=APP.prepool,byId=APP._byId,m=APP.match;
+  return scoreEntryFor(entry,eng,{prepool:APP.prepool,match:APP.match,byId:APP._byId});
+}
+// versão pura: calcula um entry contra um jogo passado em ctx (não usa estado global)
+function scoreEntryFor(entry,eng,ctx){
+  const byId=ctx.byId,m=ctx.match;
   const slots=["GK","DEF","MID","ATT","FLEX","BENCH"];
-  // monta o objeto de stats de cada jogador escalado
-  function rawOf(pid){const meta=byId[pid];const raw=m.players?m.players[String(pid)]:null;return Object.assign({pos:meta.pos,team:meta.team},raw||{min:0});}
-  // 1ª passada SEM tática (pra decidir substituições por pontuação)
+  function rawOf(pid){const meta=byId[pid];if(!meta)return{pos:"MID",team:"?",min:0};const raw=m.players?m.players[String(pid)]:null;return Object.assign({pos:meta.pos,team:meta.team},raw||{min:0});}
   const res={};
   for(const sl of slots){const pid=entry.slots[sl];if(!pid){res[sl]=null;continue;}res[sl]=eng.scorePlayer(rawOf(pid),null);}
-  // substituição do banco
   let subOut=null;const benchPid=entry.slots.BENCH,benchMeta=benchPid?byId[benchPid]:null;
   if(benchMeta&&res.BENCH){
     if(benchMeta.pos==="GK"){
@@ -735,11 +801,8 @@ function scoreEntry(entry,eng){
     }
     else{const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}if(worst&&res.BENCH.total>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}}
   }
-  // squadSum: só os 5 que CONTAM (titulares de linha + GK, exclui o banco não-usado)
-  // e dentro deles, só quem TERMINOU em campo (o engine.squadSum filtra subbedOff/min=0)
   const titulares=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean).map(rawOf);
   const sq=eng.squadSum(titulares);
-  // 2ª passada COM tática (agora que temos o squadSum)
   let sum=0;const view=[];
   for(const sl of slots){
     const pid=entry.slots[sl];
@@ -751,6 +814,84 @@ function scoreEntry(entry,eng){
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
   }
   return {username:entry.username,total:Math.round(sum*10)/10,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
+}
+// constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
+function buildCtxFor(roomId){
+  const g=window.GAMES.data[roomId];if(!g)return null;
+  const pp=g.prepool,m=g.match;if(!m||m.status!=="finished")return null;
+  m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
+  if(m.team_stats)for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
+  const byId=Object.fromEntries(pp.players.map(p=>[p.id,p]));
+  return {prepool:pp,match:m,byId,eng:makeEngine(m)};
+}
+// ============================================================
+// MEDALHAS (derivadas das stats do perfil) + TELA DE PERFIL
+// ============================================================
+// cada medalha tem tiers; retorna a maior atingida (ou null)
+function computeMedals(st){
+  const tier=(val,steps,emoji,nameBase,unit)=>{
+    let got=null;
+    for(const[thr,name]of steps){if(val>=thr)got={emoji,name,desc:name+" · "+val+" "+unit};}
+    return got;
+  };
+  const m=[];
+  const archDistinct=Object.keys(st.archetypes).length;
+  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const add=x=>{if(x)m.push(x);};
+  add(tier(st.wins,[[1,"Primeira Vitória"],[3,"Vencedor"],[7,"Campeão de Sala"],[15,"Dominador"]],"🏆","wins","vitória(s)"));
+  add(tier(st.podiums,[[3,"Pódio Frequente"],[10,"Sempre no Topo"]],"🥇","pod","pódio(s)"));
+  add(tier(st.games,[[1,"Estreante"],[5,"Habitual"],[15,"Veterano"],[30,"Lenda Viva"]],"🎮","games","jogo(s)"));
+  add(tier(archDistinct,[[5,"Colecionador"],[12,"Curador"],[20,"Enciclopédia"]],"🃏","arch","arquétipos"));
+  add(tier(rareCount,[[1,"Sortudo"],[5,"Caçador de Raros"],[12,"Lapidador"]],"💎","rare","carta(s) rara(s)"));
+  add(tier(Math.floor(st.bestScore),[[20,"Boa Cartada"],[35,"Tacada de Mestre"],[50,"Jogo Perfeito"]],"📊","best","pts num jogo"));
+  return m;
+}
+function openProfile(){go("profile");}
+function profileHTML(){
+  const st=APP.profile;
+  if(!st)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
+  const medals=computeMedals(st);
+  const archDistinct=Object.keys(st.archetypes).length;
+  const TOTAL_ARCH=26; // total de arquétipos possíveis no engine
+  const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  let html=`<div class="card">
+    <div class="h1 disp" style="color:var(--amber)">${esc(APP.user.username)}</div>
+    <p class="p" style="margin-bottom:4px">Conquistas no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
+  </div>`;
+  // resumo em números
+  html+=`<div class="card"><div class="h2 disp">Resumo</div>
+    <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+      ${statBox("🎮",st.games,"jogos")}
+      ${statBox("🏆",st.wins,"vitórias")}
+      ${statBox("🥇",st.podiums,"pódios")}
+      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}
+      ${statBox("🃏",archDistinct+"/"+TOTAL_ARCH,"arquétipos")}
+      ${statBox("💎",rareCount,"raros")}
+    </div>
+    ${st.bestGame?`<p class="p" style="margin-top:10px">Sua melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
+    ${st.bestPlayer?`<p class="p" style="margin-top:4px">Jogador mais escalado: <b style="color:var(--amber)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+  </div>`;
+  // medalhas
+  html+=`<div class="card"><div class="h2 disp">Medalhas</div>`;
+  if(!medals.length)html+=`<p class="p" style="margin-top:8px">Nenhuma medalha ainda. Monte times nos jogos encerrados para começar a colecionar.</p>`;
+  else html+=`<div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div>`;
+  html+=`</div>`;
+  // coleção de arquétipos
+  if(topArch.length){
+    html+=`<div class="card"><div class="h2 disp">Seus arquétipos mais frequentes</div><div style="margin-top:10px">`;
+    topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
+    html+=`</div></div>`;
+  }
+  html+=`<button class="btn ghost" onclick="go('home')">← Voltar</button>`;
+  return html;
+}
+function statBox(emoji,val,label){
+  return `<div class="slot" style="cursor:default;text-align:center;min-height:auto;padding:12px 6px">
+    <div style="font-size:20px">${emoji}</div>
+    <div class="mono" style="font-size:18px;color:var(--amber);margin-top:4px">${val}</div>
+    <div style="font-size:9px;letter-spacing:.1em;color:var(--dim);margin-top:2px;text-transform:uppercase">${label}</div>
+  </div>`;
 }
 function resultHTML(){
   const pp=APP.prepool,m=APP.match;
@@ -792,6 +933,7 @@ function receiptHTML(v,idx){
       <div class="line total"><span>TOTAL DO SLOT</span><span class="v mono">${v.pts.toFixed(1)}</span></div>
       ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
       <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>
+      ${archHistoryHTML(v.pid)}
     </div>`;
   }
   return `<div class="receipt"><div class="rhead" onclick="toggleRec(${idx})">
@@ -801,6 +943,21 @@ function receiptHTML(v,idx){
     <div class="tot mono${v.pts<0?" neg":""}">${v.pts.toFixed(1)}</div></div>${body}</div>`;
 }
 function toggleRec(i){_openRec[i]=!_openRec[i];render();}
+// histórico colecionável do atleta nos jogos JÁ encerrados (arquivados)
+function archHistoryHTML(pid){
+  const h=playerArchHistory(pid);
+  if(!h||h.games<=0)return"";
+  const arch=Object.entries(h.archetypes).sort((a,b)=>b[1]-a[1]);
+  const traits=Object.entries(h.traits).sort((a,b)=>b[1]-a[1]);
+  if(!arch.length&&!traits.length)return"";
+  const fmt=arr=>arr.map(([k,n])=>`${esc(k)}${n>1?` ×${n}`:""}`).join(" · ");
+  return `<div class="metricbox" style="border-color:var(--blue);color:var(--blue)">
+    <div style="color:var(--dim);letter-spacing:.08em;font-size:10px;margin-bottom:4px">📚 HISTÓRICO NESTE FANTASY (${h.games} jogo${h.games>1?"s":""})</div>
+    ${arch.length?`<div style="color:var(--chalk)">Arquétipos: ${fmt(arch)}</div>`:""}
+    ${traits.length?`<div style="color:var(--dim);margin-top:2px">Selos: ${fmt(traits)}</div>`:""}
+    ${h.best?`<div style="margin-top:2px">Melhor carta: <b>${esc(h.best)}</b></div>`:""}
+  </div>`;
+}
 
 // ============================================================
 // RENDER
@@ -815,14 +972,16 @@ function render(){
   else if(APP.view==="room")panel=roomHTML();
   else if(APP.view==="build")panel=buildHTML();
   else if(APP.view==="result")panel=resultHTML();
+  else if(APP.view==="profile")panel=profileHTML();
   root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
 }
 function topbarHTML(){
+  const inGroup=APP.groupId&&APP.user;
   return `<div class="topbar">
     <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
-      ${APP.user?`<div class="userchip" onclick="logout()">👤 <b>${esc(APP.user.username)}</b> · sair</div>`:""}
+      ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
   </div>${APP.showRules?rulesModalHTML():""}`;
 }
@@ -866,6 +1025,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};}
+    if(view==="profile"){APP.profile=null;render();APP.profile=await loadProfileStats(APP.user.username);}
     render();window.scrollTo(0,0);
   };
   // tela inicial: grupos (se logado). carrega a lista antes.
