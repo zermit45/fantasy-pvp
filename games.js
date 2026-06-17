@@ -82,129 +82,129 @@ window.GAMES = {
      },
      {
       "id": 3,
-      "name": "Jude Bellingham",
-      "team": "ENG",
-      "pos": "MID",
-      "age": 22,
-      "mv": 123000000,
-      "price": 34
-     },
-     {
-      "id": 4,
       "name": "Harry Kane",
       "team": "ENG",
       "pos": "ATT",
       "age": 32,
       "mv": 65000000,
-      "price": 30
+      "price": 33
+     },
+     {
+      "id": 4,
+      "name": "Jude Bellingham",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 22,
+      "mv": 123000000,
+      "price": 33
      },
      {
       "id": 5,
-      "name": "Morgan Rogers",
-      "team": "ENG",
-      "pos": "MID",
-      "age": 23,
-      "mv": 77000000,
-      "price": 27
-     },
-     {
-      "id": 6,
-      "name": "Anthony Gordon",
-      "team": "ENG",
-      "pos": "ATT",
-      "age": 25,
-      "mv": 67000000,
-      "price": 26
-     },
-     {
-      "id": 7,
       "name": "Eberechi Eze",
       "team": "ENG",
       "pos": "MID",
       "age": 27,
       "mv": 69000000,
-      "price": 26
+      "price": 32
      },
      {
-      "id": 8,
-      "name": "Marc Guéhi",
-      "team": "ENG",
-      "pos": "DEF",
-      "age": 25,
-      "mv": 66000000,
-      "price": 26
-     },
-     {
-      "id": 9,
-      "name": "Elliot Anderson",
+      "id": 6,
+      "name": "Morgan Rogers",
       "team": "ENG",
       "pos": "MID",
       "age": 23,
-      "mv": 68000000,
-      "price": 25
+      "mv": 77000000,
+      "price": 32
      },
      {
-      "id": 10,
+      "id": 7,
+      "name": "Anthony Gordon",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 25,
+      "mv": 67000000,
+      "price": 31
+     },
+     {
+      "id": 8,
       "name": "Joško Gvardiol",
       "team": "CRO",
       "pos": "DEF",
       "age": 24,
       "mv": 64000000,
-      "price": 25
+      "price": 31
+     },
+     {
+      "id": 9,
+      "name": "Marc Guéhi",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 66000000,
+      "price": 31
+     },
+     {
+      "id": 10,
+      "name": "Elliot Anderson",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 23,
+      "mv": 68000000,
+      "price": 30
      },
      {
       "id": 11,
-      "name": "Nico O'Reilly",
-      "team": "ENG",
-      "pos": "DEF",
-      "age": 21,
-      "mv": 76000000,
-      "price": 25
-     },
-     {
-      "id": 12,
       "name": "Reece James",
       "team": "ENG",
       "pos": "DEF",
       "age": 26,
       "mv": 63000000,
-      "price": 25
+      "price": 30
      },
      {
-      "id": 13,
+      "id": 12,
       "name": "Kobbie Mainoo",
       "team": "ENG",
       "pos": "MID",
       "age": 21,
       "mv": 72000000,
-      "price": 24
+      "price": 29
+     },
+     {
+      "id": 13,
+      "name": "Nico O'Reilly",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 21,
+      "mv": 76000000,
+      "price": 29
      },
      {
       "id": 14,
-      "name": "Noni Madueke",
-      "team": "ENG",
-      "pos": "ATT",
-      "age": 24,
-      "mv": 54000000,
-      "price": 23
-     },
-     {
-      "id": 15,
-      "name": "Jarell Quansah",
-      "team": "ENG",
-      "pos": "DEF",
-      "age": 23,
-      "mv": 48000000,
-      "price": 21
-     },
-     {
-      "id": 16,
       "name": "Luka Vušković",
       "team": "CRO",
       "pos": "DEF",
       "age": 19,
       "mv": 64000000,
-      "price": 21
+      "price": 28
+     },
+     {
+      "id": 15,
+      "name": "Noni Madueke",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 24,
+      "mv": 54000000,
+      "price": 28
+     },
+     {
+      "id": 16,
+      "name": "Jarell Quansah",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 23,
+      "mv": 48000000,
+      "price": 27
      },
      {
       "id": 17,
@@ -213,7 +213,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 26,
       "mv": 43000000,
-      "price": 21
+      "price": 27
      },
      {
       "id": 18,
@@ -222,25 +222,25 @@ window.GAMES = {
       "pos": "DEF",
       "age": 28,
       "mv": 42000000,
-      "price": 20
+      "price": 26
      },
      {
       "id": 19,
-      "name": "Josip Stanišić",
-      "team": "CRO",
-      "pos": "DEF",
-      "age": 26,
-      "mv": 39000000,
-      "price": 20
-     },
-     {
-      "id": 20,
       "name": "Petar Sučić",
       "team": "CRO",
       "pos": "MID",
       "age": 22,
       "mv": 44000000,
-      "price": 20
+      "price": 26
+     },
+     {
+      "id": 20,
+      "name": "Josip Stanišić",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 39000000,
+      "price": 25
      },
      {
       "id": 21,
@@ -249,34 +249,34 @@ window.GAMES = {
       "pos": "ATT",
       "age": 28,
       "mv": 38000000,
-      "price": 19
+      "price": 25
      },
      {
       "id": 22,
-      "name": "Dean Henderson",
-      "team": "ENG",
-      "pos": "GK",
-      "age": 29,
-      "mv": 29000000,
-      "price": 17
-     },
-     {
-      "id": 23,
       "name": "Djed Spence",
       "team": "ENG",
       "pos": "DEF",
       "age": 25,
       "mv": 31000000,
-      "price": 17
+      "price": 24
      },
      {
-      "id": 24,
+      "id": 23,
       "name": "Ollie Watkins",
       "team": "ENG",
       "pos": "ATT",
       "age": 30,
       "mv": 26000000,
-      "price": 17
+      "price": 24
+     },
+     {
+      "id": 24,
+      "name": "Dean Henderson",
+      "team": "ENG",
+      "pos": "GK",
+      "age": 29,
+      "mv": 29000000,
+      "price": 23
      },
      {
       "id": 25,
@@ -285,7 +285,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 30,
       "mv": 22000000,
-      "price": 16
+      "price": 23
      },
      {
       "id": 26,
@@ -294,7 +294,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 23,
       "mv": 27000000,
-      "price": 16
+      "price": 22
      },
      {
       "id": 27,
@@ -303,7 +303,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 23,
       "mv": 28000000,
-      "price": 16
+      "price": 22
      },
      {
       "id": 28,
@@ -312,7 +312,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 23,
       "mv": 21000000,
-      "price": 14
+      "price": 21
      },
      {
       "id": 29,
@@ -321,7 +321,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 32,
       "mv": 13900000,
-      "price": 14
+      "price": 21
      },
      {
       "id": 30,
@@ -330,25 +330,25 @@ window.GAMES = {
       "pos": "DEF",
       "age": 32,
       "mv": 10900000,
-      "price": 12
+      "price": 20
      },
      {
       "id": 31,
-      "name": "Josip Šutalo",
-      "team": "CRO",
-      "pos": "DEF",
-      "age": 26,
-      "mv": 13100000,
-      "price": 11
-     },
-     {
-      "id": 32,
       "name": "Mateo Kovačić",
       "team": "CRO",
       "pos": "MID",
       "age": 32,
       "mv": 9700000,
-      "price": 11
+      "price": 20
+     },
+     {
+      "id": 32,
+      "name": "Josip Šutalo",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 13100000,
+      "price": 19
      },
      {
       "id": 33,
@@ -357,7 +357,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 28,
       "mv": 13000000,
-      "price": 11
+      "price": 19
      },
      {
       "id": 34,
@@ -366,7 +366,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 23,
       "mv": 10900000,
-      "price": 10
+      "price": 18
      },
      {
       "id": 35,
@@ -375,7 +375,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 10300000,
-      "price": 10
+      "price": 18
      },
      {
       "id": 36,
@@ -384,106 +384,106 @@ window.GAMES = {
       "pos": "MID",
       "age": 25,
       "mv": 9600000,
-      "price": 10
+      "price": 17
      },
      {
       "id": 37,
-      "name": "Dan Burn",
-      "team": "ENG",
-      "pos": "DEF",
-      "age": 34,
-      "mv": 4099999,
-      "price": 8
-     },
-     {
-      "id": 38,
-      "name": "Marco Pašalić",
-      "team": "CRO",
-      "pos": "MID",
-      "age": 25,
-      "mv": 7100000,
-      "price": 8
-     },
-     {
-      "id": 39,
       "name": "Mario Pašalić",
       "team": "CRO",
       "pos": "MID",
       "age": 31,
       "mv": 6200000,
-      "price": 8
+      "price": 16
      },
      {
-      "id": 40,
+      "id": 38,
       "name": "Nikola Moro",
       "team": "CRO",
       "pos": "MID",
       "age": 28,
       "mv": 7200000,
-      "price": 8
+      "price": 16
+     },
+     {
+      "id": 39,
+      "name": "Dan Burn",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 34,
+      "mv": 4099999,
+      "price": 15
+     },
+     {
+      "id": 40,
+      "name": "Marco Pašalić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 25,
+      "mv": 7100000,
+      "price": 15
      },
      {
       "id": 41,
-      "name": "Dominik Kotarski",
-      "team": "CRO",
-      "pos": "GK",
-      "age": 26,
-      "mv": 4800000,
-      "price": 7
-     },
-     {
-      "id": 42,
-      "name": "Dominik Livaković",
-      "team": "CRO",
-      "pos": "GK",
-      "age": 31,
-      "mv": 4099999,
-      "price": 7
-     },
-     {
-      "id": 43,
-      "name": "Ivor Pandur",
-      "team": "CRO",
-      "pos": "GK",
-      "age": 26,
-      "mv": 4800000,
-      "price": 7
-     },
-     {
-      "id": 44,
-      "name": "Kristijan Jakić",
-      "team": "CRO",
-      "pos": "MID",
-      "age": 29,
-      "mv": 5600000,
-      "price": 7
-     },
-     {
-      "id": 45,
       "name": "Luka Modrić",
       "team": "CRO",
       "pos": "MID",
       "age": 40,
       "mv": 3800000,
-      "price": 7
+      "price": 14
      },
      {
-      "id": 46,
+      "id": 42,
+      "name": "Kristijan Jakić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 29,
+      "mv": 5600000,
+      "price": 13
+     },
+     {
+      "id": 43,
       "name": "Marin Pongračić",
       "team": "CRO",
       "pos": "DEF",
       "age": 28,
       "mv": 5900000,
-      "price": 7
+      "price": 13
      },
      {
-      "id": 47,
+      "id": 44,
+      "name": "Dominik Livaković",
+      "team": "CRO",
+      "pos": "GK",
+      "age": 31,
+      "mv": 4099999,
+      "price": 12
+     },
+     {
+      "id": 45,
       "name": "Andrej Kramarić",
       "team": "CRO",
       "pos": "ATT",
       "age": 34,
       "mv": 2700000,
-      "price": 6
+      "price": 10
+     },
+     {
+      "id": 46,
+      "name": "Dominik Kotarski",
+      "team": "CRO",
+      "pos": "GK",
+      "age": 26,
+      "mv": 4800000,
+      "price": 10
+     },
+     {
+      "id": 47,
+      "name": "Ivor Pandur",
+      "team": "CRO",
+      "pos": "GK",
+      "age": 26,
+      "mv": 4800000,
+      "price": 10
      },
      {
       "id": 48,
@@ -492,7 +492,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 34,
       "mv": 2600000,
-      "price": 6
+      "price": 9
      },
      {
       "id": 49,
@@ -501,7 +501,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 28,
       "mv": 3800000,
-      "price": 6
+      "price": 8
      },
      {
       "id": 50,
@@ -510,24 +510,24 @@ window.GAMES = {
       "pos": "DEF",
       "age": 29,
       "mv": 2900000,
-      "price": 5
+      "price": 7
      },
      {
       "id": 51,
-      "name": "Ivan Perišić",
-      "team": "CRO",
-      "pos": "MID",
-      "age": 37,
-      "mv": 1200000,
-      "price": 4
-     },
-     {
-      "id": 52,
       "name": "Jordan Henderson",
       "team": "ENG",
       "pos": "MID",
       "age": 36,
       "mv": 1300000,
+      "price": 6
+     },
+     {
+      "id": 52,
+      "name": "Ivan Perišić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 37,
+      "mv": 1200000,
       "price": 4
      }
     ]
@@ -607,7 +607,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 26,
       "mv": 85000000,
-      "price": 34
+      "price": 33
      },
      {
       "id": 2,
@@ -616,7 +616,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 22,
       "mv": 21000000,
-      "price": 18
+      "price": 32
      },
      {
       "id": 3,
@@ -625,70 +625,70 @@ window.GAMES = {
       "pos": "ATT",
       "age": 27,
       "mv": 16500000,
-      "price": 17
+      "price": 31
      },
      {
       "id": 4,
-      "name": "Kamaldeen Sulemana",
-      "team": "GHA",
-      "pos": "ATT",
-      "age": 24,
-      "mv": 16500000,
-      "price": 17
-     },
-     {
-      "id": 5,
       "name": "Christopher Baah",
       "team": "GHA",
       "pos": "MID",
       "age": 21,
       "mv": 12700000,
-      "price": 14
+      "price": 31
      },
      {
-      "id": 6,
+      "id": 5,
       "name": "Iñaki Williams",
       "team": "GHA",
       "pos": "MID",
       "age": 32,
       "mv": 7300000,
-      "price": 14
+      "price": 31
+     },
+     {
+      "id": 6,
+      "name": "Kamaldeen Sulemana",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 24,
+      "mv": 16500000,
+      "price": 31
      },
      {
       "id": 7,
-      "name": "Caleb Yirenkyi",
-      "team": "GHA",
-      "pos": "MID",
-      "age": 20,
-      "mv": 10400000,
-      "price": 13
-     },
-     {
-      "id": 8,
       "name": "Ernest Nuamah",
       "team": "GHA",
       "pos": "ATT",
       "age": 22,
       "mv": 9500000,
-      "price": 13
+      "price": 30
      },
      {
-      "id": 9,
+      "id": 8,
       "name": "Kojo Peprah Oppong",
       "team": "GHA",
       "pos": "DEF",
       "age": 22,
       "mv": 9700000,
-      "price": 13
+      "price": 30
      },
      {
-      "id": 10,
+      "id": 9,
       "name": "Amir Murillo",
       "team": "PAN",
       "pos": "DEF",
       "age": 30,
       "mv": 6600000,
-      "price": 12
+      "price": 29
+     },
+     {
+      "id": 10,
+      "name": "Caleb Yirenkyi",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 20,
+      "mv": 10400000,
+      "price": 29
      },
      {
       "id": 11,
@@ -697,79 +697,79 @@ window.GAMES = {
       "pos": "DEF",
       "age": 26,
       "mv": 6300000,
-      "price": 11
+      "price": 28
      },
      {
       "id": 12,
-      "name": "Augustine Boakye",
-      "team": "GHA",
-      "pos": "ATT",
-      "age": 25,
-      "mv": 5400000,
-      "price": 11
-     },
-     {
-      "id": 13,
-      "name": "Jerome Opoku",
-      "team": "GHA",
-      "pos": "DEF",
-      "age": 27,
-      "mv": 5400000,
-      "price": 11
-     },
-     {
-      "id": 14,
       "name": "Jonas Adjei Adjetey",
       "team": "GHA",
       "pos": "DEF",
       "age": 22,
       "mv": 6400000,
-      "price": 11
+      "price": 28
      },
      {
-      "id": 15,
-      "name": "Adalberto Carrasquilla",
-      "team": "PAN",
-      "pos": "MID",
-      "age": 27,
-      "mv": 3800000,
-      "price": 10
-     },
-     {
-      "id": 16,
-      "name": "Elisha Owusu",
+      "id": 13,
+      "name": "Augustine Boakye",
       "team": "GHA",
-      "pos": "MID",
-      "age": 28,
-      "mv": 4300000,
-      "price": 10
+      "pos": "ATT",
+      "age": 25,
+      "mv": 5400000,
+      "price": 27
      },
      {
-      "id": 17,
-      "name": "Gideon Mensah",
+      "id": 14,
+      "name": "Jerome Opoku",
       "team": "GHA",
       "pos": "DEF",
       "age": 27,
-      "mv": 3700000,
-      "price": 10
+      "mv": 5400000,
+      "price": 27
      },
      {
-      "id": 18,
+      "id": 15,
       "name": "José Córdoba",
       "team": "PAN",
       "pos": "DEF",
       "age": 25,
       "mv": 4700000,
-      "price": 10
+      "price": 27
      },
      {
-      "id": 19,
+      "id": 16,
+      "name": "Adalberto Carrasquilla",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 27,
+      "mv": 3800000,
+      "price": 26
+     },
+     {
+      "id": 17,
+      "name": "Elisha Owusu",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 28,
+      "mv": 4300000,
+      "price": 26
+     },
+     {
+      "id": 18,
       "name": "Abdul Mumin",
       "team": "GHA",
       "pos": "DEF",
       "age": 28,
       "mv": 3200000,
-      "price": 9
+      "price": 25
+     },
+     {
+      "id": 19,
+      "name": "Gideon Mensah",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 3700000,
+      "price": 25
      },
      {
       "id": 20,
@@ -778,7 +778,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 25,
       "mv": 3100000,
-      "price": 9
+      "price": 24
      },
      {
       "id": 21,
@@ -787,43 +787,43 @@ window.GAMES = {
       "pos": "ATT",
       "age": 22,
       "mv": 3200000,
-      "price": 9
+      "price": 24
      },
      {
       "id": 22,
-      "name": "Andrés Andrade",
-      "team": "PAN",
-      "pos": "DEF",
-      "age": 27,
-      "mv": 2400000,
-      "price": 8
-     },
-     {
-      "id": 23,
       "name": "César Blackman",
       "team": "PAN",
       "pos": "DEF",
       "age": 28,
       "mv": 2600000,
-      "price": 8
+      "price": 23
      },
      {
-      "id": 24,
-      "name": "Jordan Ayew",
-      "team": "GHA",
-      "pos": "ATT",
-      "age": 34,
-      "mv": 1100000,
-      "price": 8
-     },
-     {
-      "id": 25,
+      "id": 23,
       "name": "José Luis Rodríguez",
       "team": "PAN",
       "pos": "MID",
       "age": 27,
       "mv": 2600000,
-      "price": 8
+      "price": 23
+     },
+     {
+      "id": 24,
+      "name": "Thomas Partey",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 33,
+      "mv": 1900000,
+      "price": 23
+     },
+     {
+      "id": 25,
+      "name": "Andrés Andrade",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 2400000,
+      "price": 22
      },
      {
       "id": 26,
@@ -832,178 +832,178 @@ window.GAMES = {
       "pos": "DEF",
       "age": 31,
       "mv": 2200000,
-      "price": 8
+      "price": 22
      },
      {
       "id": 27,
-      "name": "Thomas Partey",
-      "team": "GHA",
-      "pos": "MID",
-      "age": 33,
-      "mv": 1900000,
-      "price": 8
-     },
-     {
-      "id": 28,
-      "name": "Derrick Luckassen",
-      "team": "GHA",
-      "pos": "DEF",
-      "age": 30,
-      "mv": 1000000,
-      "price": 7
-     },
-     {
-      "id": 29,
       "name": "Ismael Díaz",
       "team": "PAN",
       "pos": "MID",
       "age": 29,
       "mv": 1700000,
-      "price": 7
+      "price": 21
      },
      {
-      "id": 30,
+      "id": 28,
+      "name": "Jordan Ayew",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 34,
+      "mv": 1100000,
+      "price": 21
+     },
+     {
+      "id": 29,
       "name": "Kwasi Sibo",
       "team": "GHA",
       "pos": "MID",
       "age": 27,
       "mv": 1500000,
-      "price": 7
+      "price": 20
      },
      {
-      "id": 31,
+      "id": 30,
       "name": "Lawrence Ati Zigi",
       "team": "GHA",
       "pos": "GK",
       "age": 29,
       "mv": 1600000,
-      "price": 7
+      "price": 20
+     },
+     {
+      "id": 31,
+      "name": "Derrick Luckassen",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 1000000,
+      "price": 19
      },
      {
       "id": 32,
-      "name": "Azarias Londoño",
-      "team": "PAN",
-      "pos": "MID",
-      "age": 24,
-      "mv": 970000,
-      "price": 6
-     },
-     {
-      "id": 33,
-      "name": "Carlos Harvey",
-      "team": "PAN",
-      "pos": "MID",
-      "age": 26,
-      "mv": 630000,
-      "price": 6
-     },
-     {
-      "id": 34,
-      "name": "Cristian Martínez",
-      "team": "PAN",
-      "pos": "MID",
-      "age": 29,
-      "mv": 825000,
-      "price": 6
-     },
-     {
-      "id": 35,
-      "name": "Edgardo Fariña",
-      "team": "PAN",
-      "pos": "DEF",
-      "age": 24,
-      "mv": 815000,
-      "price": 6
-     },
-     {
-      "id": 36,
-      "name": "Jorge Gutiérrez",
-      "team": "PAN",
-      "pos": "DEF",
-      "age": 27,
-      "mv": 825000,
-      "price": 6
-     },
-     {
-      "id": 37,
-      "name": "José Fajardo",
-      "team": "PAN",
-      "pos": "ATT",
-      "age": 32,
-      "mv": 525000,
-      "price": 6
-     },
-     {
-      "id": 38,
-      "name": "Orlando Mosquera",
-      "team": "PAN",
-      "pos": "GK",
-      "age": 31,
-      "mv": 725000,
-      "price": 6
-     },
-     {
-      "id": 39,
       "name": "Tomás Rodríguez",
       "team": "PAN",
       "pos": "ATT",
       "age": 27,
       "mv": 1000000,
-      "price": 6
+      "price": 19
      },
      {
-      "id": 40,
+      "id": 33,
       "name": "Yoel Bárcenas",
       "team": "PAN",
       "pos": "MID",
       "age": 32,
       "mv": 705000,
-      "price": 6
+      "price": 18
+     },
+     {
+      "id": 34,
+      "name": "Azarias Londoño",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 24,
+      "mv": 970000,
+      "price": 17
+     },
+     {
+      "id": 35,
+      "name": "Orlando Mosquera",
+      "team": "PAN",
+      "pos": "GK",
+      "age": 31,
+      "mv": 725000,
+      "price": 17
+     },
+     {
+      "id": 36,
+      "name": "Cristian Martínez",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 29,
+      "mv": 825000,
+      "price": 16
+     },
+     {
+      "id": 37,
+      "name": "Jorge Gutiérrez",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 825000,
+      "price": 16
+     },
+     {
+      "id": 38,
+      "name": "Edgardo Fariña",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 24,
+      "mv": 815000,
+      "price": 15
+     },
+     {
+      "id": 39,
+      "name": "José Fajardo",
+      "team": "PAN",
+      "pos": "ATT",
+      "age": 32,
+      "mv": 525000,
+      "price": 15
+     },
+     {
+      "id": 40,
+      "name": "Carlos Harvey",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 26,
+      "mv": 630000,
+      "price": 14
      },
      {
       "id": 41,
-      "name": "Cecilio Waterman",
-      "team": "PAN",
-      "pos": "ATT",
-      "age": 35,
-      "mv": 240000,
-      "price": 5
-     },
-     {
-      "id": 42,
-      "name": "César Samudio",
-      "team": "PAN",
-      "pos": "GK",
-      "age": 32,
-      "mv": 260000,
-      "price": 5
-     },
-     {
-      "id": 43,
       "name": "César Yanis",
       "team": "PAN",
       "pos": "MID",
       "age": 30,
       "mv": 425000,
-      "price": 5
+      "price": 13
      },
      {
-      "id": 44,
+      "id": 42,
       "name": "Fidel Escobar",
       "team": "PAN",
       "pos": "DEF",
       "age": 31,
       "mv": 370000,
-      "price": 5
+      "price": 13
      },
      {
-      "id": 45,
+      "id": 43,
+      "name": "Cecilio Waterman",
+      "team": "PAN",
+      "pos": "ATT",
+      "age": 35,
+      "mv": 240000,
+      "price": 12
+     },
+     {
+      "id": 44,
       "name": "Jiovany Ramos",
       "team": "PAN",
       "pos": "DEF",
       "age": 29,
       "mv": 410000,
-      "price": 5
+      "price": 12
+     },
+     {
+      "id": 45,
+      "name": "César Samudio",
+      "team": "PAN",
+      "pos": "GK",
+      "age": 32,
+      "mv": 260000,
+      "price": 11
      },
      {
       "id": 46,
@@ -1012,7 +1012,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 26,
       "mv": 340000,
-      "price": 5
+      "price": 10
      },
      {
       "id": 47,
@@ -1021,7 +1021,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 35,
       "mv": 145000,
-      "price": 5
+      "price": 9
      },
      {
       "id": 48,
@@ -1030,34 +1030,34 @@ window.GAMES = {
       "pos": "DEF",
       "age": 34,
       "mv": 185000,
-      "price": 5
+      "price": 9
      },
      {
       "id": 49,
-      "name": "Alberto Quintero",
-      "team": "PAN",
-      "pos": "MID",
-      "age": 38,
-      "mv": 77000,
-      "price": 4
-     },
-     {
-      "id": 50,
       "name": "Aníbal Godoy",
       "team": "PAN",
       "pos": "MID",
       "age": 36,
       "mv": 97000,
-      "price": 4
+      "price": 8
      },
      {
-      "id": 51,
+      "id": 50,
       "name": "Benjamin Asare",
       "team": "GHA",
       "pos": "GK",
       "age": 33,
       "mv": 93000,
-      "price": 4
+      "price": 7
+     },
+     {
+      "id": 51,
+      "name": "Alberto Quintero",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 38,
+      "mv": 77000,
+      "price": 6
      },
      {
       "id": 52,
@@ -1154,7 +1154,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 22,
       "mv": 47000000,
-      "price": 26
+      "price": 33
      },
      {
       "id": 3,
@@ -1163,52 +1163,52 @@ window.GAMES = {
       "pos": "MID",
       "age": 30,
       "mv": 23000000,
-      "price": 21
+      "price": 33
      },
      {
       "id": 4,
-      "name": "Luis Javier Suárez",
-      "team": "COL",
-      "pos": "ATT",
-      "age": 28,
-      "mv": 27000000,
-      "price": 21
-     },
-     {
-      "id": 5,
-      "name": "Richard Ríos",
-      "team": "COL",
-      "pos": "MID",
-      "age": 26,
-      "mv": 27000000,
-      "price": 21
-     },
-     {
-      "id": 6,
       "name": "Jhon Lucumí",
       "team": "COL",
       "pos": "DEF",
       "age": 27,
       "mv": 23000000,
-      "price": 20
+      "price": 32
+     },
+     {
+      "id": 5,
+      "name": "Luis Javier Suárez",
+      "team": "COL",
+      "pos": "ATT",
+      "age": 28,
+      "mv": 27000000,
+      "price": 32
+     },
+     {
+      "id": 6,
+      "name": "Richard Ríos",
+      "team": "COL",
+      "pos": "MID",
+      "age": 26,
+      "mv": 27000000,
+      "price": 32
      },
      {
       "id": 7,
-      "name": "Davinson Sánchez",
-      "team": "COL",
-      "pos": "DEF",
-      "age": 30,
-      "mv": 16500000,
-      "price": 18
-     },
-     {
-      "id": 8,
       "name": "Cucho Hernández",
       "team": "COL",
       "pos": "ATT",
       "age": 27,
       "mv": 16500000,
-      "price": 17
+      "price": 31
+     },
+     {
+      "id": 8,
+      "name": "Davinson Sánchez",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 16500000,
+      "price": 31
      },
      {
       "id": 9,
@@ -1217,7 +1217,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 16100000,
-      "price": 17
+      "price": 30
      },
      {
       "id": 10,
@@ -1226,7 +1226,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 33,
       "mv": 9500000,
-      "price": 16
+      "price": 30
      },
      {
       "id": 11,
@@ -1235,7 +1235,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 23,
       "mv": 10700000,
-      "price": 14
+      "price": 29
      },
      {
       "id": 12,
@@ -1244,7 +1244,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 22,
       "mv": 10700000,
-      "price": 14
+      "price": 29
      },
      {
       "id": 13,
@@ -1253,7 +1253,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 10200000,
-      "price": 14
+      "price": 29
      },
      {
       "id": 14,
@@ -1262,7 +1262,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 30,
       "mv": 7400000,
-      "price": 13
+      "price": 28
      },
      {
       "id": 15,
@@ -1271,7 +1271,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 31,
       "mv": 5500000,
-      "price": 12
+      "price": 28
      },
      {
       "id": 16,
@@ -1280,34 +1280,34 @@ window.GAMES = {
       "pos": "MID",
       "age": 22,
       "mv": 6500000,
-      "price": 11
+      "price": 27
      },
      {
       "id": 17,
-      "name": "Jaminton Campaz",
-      "team": "COL",
-      "pos": "MID",
-      "age": 26,
-      "mv": 5800000,
-      "price": 11
-     },
-     {
-      "id": 18,
-      "name": "Kevin Castaño",
-      "team": "COL",
-      "pos": "MID",
-      "age": 25,
-      "mv": 5200000,
-      "price": 11
-     },
-     {
-      "id": 19,
       "name": "Willer Ditta",
       "team": "COL",
       "pos": "DEF",
       "age": 29,
       "mv": 6000000,
-      "price": 11
+      "price": 27
+     },
+     {
+      "id": 18,
+      "name": "Jaminton Campaz",
+      "team": "COL",
+      "pos": "MID",
+      "age": 26,
+      "mv": 5800000,
+      "price": 26
+     },
+     {
+      "id": 19,
+      "name": "Kevin Castaño",
+      "team": "COL",
+      "pos": "MID",
+      "age": 25,
+      "mv": 5200000,
+      "price": 26
      },
      {
       "id": 20,
@@ -1316,7 +1316,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 27,
       "mv": 4600000,
-      "price": 10
+      "price": 25
      },
      {
       "id": 21,
@@ -1325,34 +1325,34 @@ window.GAMES = {
       "pos": "GK",
       "age": 31,
       "mv": 2700000,
-      "price": 9
+      "price": 25
      },
      {
       "id": 22,
+      "name": "Yerry Mina",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 2300000,
+      "price": 24
+     },
+     {
+      "id": 23,
       "name": "Deiver Machado",
       "team": "COL",
       "pos": "DEF",
       "age": 32,
       "mv": 1900000,
-      "price": 8
+      "price": 23
      },
      {
-      "id": 23,
+      "id": 24,
       "name": "James Rodríguez",
       "team": "COL",
       "pos": "MID",
       "age": 34,
       "mv": 1500000,
-      "price": 8
-     },
-     {
-      "id": 24,
-      "name": "Johan Mojica",
-      "team": "COL",
-      "pos": "DEF",
-      "age": 33,
-      "mv": 1400000,
-      "price": 8
+      "price": 23
      },
      {
       "id": 25,
@@ -1361,7 +1361,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 33,
       "mv": 1900000,
-      "price": 8
+      "price": 23
      },
      {
       "id": 26,
@@ -1370,7 +1370,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 25,
       "mv": 2100000,
-      "price": 8
+      "price": 22
      },
      {
       "id": 27,
@@ -1379,160 +1379,160 @@ window.GAMES = {
       "pos": "DEF",
       "age": 34,
       "mv": 1300000,
-      "price": 8
+      "price": 22
      },
      {
       "id": 28,
-      "name": "Yerry Mina",
-      "team": "COL",
-      "pos": "DEF",
-      "age": 31,
-      "mv": 2300000,
-      "price": 8
-     },
-     {
-      "id": 29,
-      "name": "Abduvokhid Nematov",
-      "team": "UZB",
-      "pos": "GK",
-      "age": 25,
-      "mv": 1400000,
-      "price": 7
-     },
-     {
-      "id": 30,
-      "name": "Akmal Mozgovoy",
-      "team": "UZB",
-      "pos": "MID",
-      "age": 26,
-      "mv": 1500000,
-      "price": 7
-     },
-     {
-      "id": 31,
       "name": "Azizjon Ganiev",
       "team": "UZB",
       "pos": "MID",
       "age": 28,
       "mv": 1900000,
-      "price": 7
+      "price": 21
      },
      {
-      "id": 32,
+      "id": 29,
+      "name": "Johan Mojica",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 33,
+      "mv": 1400000,
+      "price": 21
+     },
+     {
+      "id": 30,
       "name": "Igor Sergeev",
       "team": "UZB",
       "pos": "ATT",
       "age": 33,
       "mv": 1300000,
-      "price": 7
+      "price": 20
      },
      {
-      "id": 33,
-      "name": "Jaloliddin Masharipov",
-      "team": "UZB",
-      "pos": "MID",
-      "age": 32,
-      "mv": 1000000,
-      "price": 7
-     },
-     {
-      "id": 34,
+      "id": 31,
       "name": "Jamshid Iskandarov",
       "team": "UZB",
       "pos": "MID",
       "age": 32,
       "mv": 1100000,
-      "price": 7
+      "price": 20
      },
      {
-      "id": 35,
+      "id": 32,
+      "name": "Akmal Mozgovoy",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 26,
+      "mv": 1500000,
+      "price": 19
+     },
+     {
+      "id": 33,
+      "name": "Abduvokhid Nematov",
+      "team": "UZB",
+      "pos": "GK",
+      "age": 25,
+      "mv": 1400000,
+      "price": 18
+     },
+     {
+      "id": 34,
       "name": "Khozhiakbar Alizhonov",
       "team": "UZB",
       "pos": "DEF",
       "age": 29,
       "mv": 1400000,
-      "price": 7
+      "price": 18
      },
      {
-      "id": 36,
+      "id": 35,
       "name": "Otabek Shukurov",
       "team": "UZB",
       "pos": "MID",
       "age": 29,
       "mv": 1400000,
-      "price": 7
+      "price": 18
+     },
+     {
+      "id": 36,
+      "name": "Jaloliddin Masharipov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 32,
+      "mv": 1000000,
+      "price": 17
      },
      {
       "id": 37,
-      "name": "Camilo Vargas",
-      "team": "COL",
-      "pos": "GK",
-      "age": 37,
-      "mv": 465000,
-      "price": 6
-     },
-     {
-      "id": 38,
-      "name": "Dostonbek Khamdamov",
-      "team": "UZB",
-      "pos": "MID",
-      "age": 29,
-      "mv": 935000,
-      "price": 6
-     },
-     {
-      "id": 39,
       "name": "Odiljon Khamrobekov",
       "team": "UZB",
       "pos": "MID",
       "age": 30,
       "mv": 930000,
-      "price": 6
+      "price": 16
      },
      {
-      "id": 40,
-      "name": "Rustam Ashurmatov",
-      "team": "UZB",
-      "pos": "DEF",
-      "age": 29,
-      "mv": 710000,
-      "price": 6
-     },
-     {
-      "id": 41,
+      "id": 38,
       "name": "Sherzod Nasrullaev",
       "team": "UZB",
       "pos": "DEF",
       "age": 27,
       "mv": 1200000,
-      "price": 6
+      "price": 16
      },
      {
-      "id": 42,
+      "id": 39,
+      "name": "Dostonbek Khamdamov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 29,
+      "mv": 935000,
+      "price": 15
+     },
+     {
+      "id": 40,
       "name": "Utkir Yusupov",
       "team": "UZB",
       "pos": "GK",
       "age": 35,
       "mv": 540000,
-      "price": 6
+      "price": 15
+     },
+     {
+      "id": 41,
+      "name": "Camilo Vargas",
+      "team": "COL",
+      "pos": "GK",
+      "age": 37,
+      "mv": 465000,
+      "price": 14
+     },
+     {
+      "id": 42,
+      "name": "Botirali Ergashev",
+      "team": "UZB",
+      "pos": "GK",
+      "age": 30,
+      "mv": 515000,
+      "price": 13
      },
      {
       "id": 43,
-      "name": "Abdulla Abdullaev",
+      "name": "Rustam Ashurmatov",
       "team": "UZB",
-      "pos": "MID",
-      "age": 28,
-      "mv": 485000,
-      "price": 5
+      "pos": "DEF",
+      "age": 29,
+      "mv": 710000,
+      "price": 13
      },
      {
       "id": 44,
-      "name": "Avazbek Ulmasaliyev",
+      "name": "Umarbek Eshmuradov",
       "team": "UZB",
       "pos": "DEF",
-      "age": 26,
-      "mv": 515000,
-      "price": 5
+      "age": 33,
+      "mv": 440000,
+      "price": 12
      },
      {
       "id": 45,
@@ -1541,34 +1541,34 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 525000,
-      "price": 5
+      "price": 11
      },
      {
       "id": 46,
-      "name": "Botirali Ergashev",
+      "name": "Avazbek Ulmasaliyev",
       "team": "UZB",
-      "pos": "GK",
-      "age": 30,
+      "pos": "DEF",
+      "age": 26,
       "mv": 515000,
-      "price": 5
+      "price": 10
      },
      {
       "id": 47,
-      "name": "Farrukh Sayfiev",
-      "team": "UZB",
-      "pos": "DEF",
-      "age": 35,
-      "mv": 210000,
-      "price": 5
-     },
-     {
-      "id": 48,
       "name": "Jakhongir Urozov",
       "team": "UZB",
       "pos": "DEF",
       "age": 22,
       "mv": 550000,
-      "price": 5
+      "price": 10
+     },
+     {
+      "id": 48,
+      "name": "Abdulla Abdullaev",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 28,
+      "mv": 485000,
+      "price": 9
      },
      {
       "id": 49,
@@ -1577,16 +1577,16 @@ window.GAMES = {
       "pos": "MID",
       "age": 23,
       "mv": 495000,
-      "price": 5
+      "price": 8
      },
      {
       "id": 50,
-      "name": "Umarbek Eshmuradov",
+      "name": "Farrukh Sayfiev",
       "team": "UZB",
       "pos": "DEF",
-      "age": 33,
-      "mv": 440000,
-      "price": 5
+      "age": 35,
+      "mv": 210000,
+      "price": 7
      },
      {
       "id": 51,
@@ -1595,7 +1595,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 18,
       "mv": 370000,
-      "price": 4
+      "price": 6
      },
      {
       "id": 52,
@@ -1678,6 +1678,15 @@ window.GAMES = {
     "players": [
      {
       "id": 1,
+      "name": "João Neves",
+      "team": "POR",
+      "pos": "MID",
+      "age": 21,
+      "mv": 148000000,
+      "price": 34
+     },
+     {
+      "id": 2,
       "name": "Vitinha",
       "team": "POR",
       "pos": "MID",
@@ -1686,40 +1695,31 @@ window.GAMES = {
       "price": 34
      },
      {
-      "id": 2,
-      "name": "João Neves",
-      "team": "POR",
-      "pos": "MID",
-      "age": 21,
-      "mv": 148000000,
-      "price": 33
-     },
-     {
       "id": 3,
       "name": "Nuno Mendes",
       "team": "POR",
       "pos": "DEF",
       "age": 23,
       "mv": 77000000,
-      "price": 26
+      "price": 33
      },
      {
       "id": 4,
-      "name": "Pedro Neto",
-      "team": "POR",
-      "pos": "MID",
-      "age": 26,
-      "mv": 58000000,
-      "price": 24
-     },
-     {
-      "id": 5,
       "name": "Rúben Dias",
       "team": "POR",
       "pos": "DEF",
       "age": 29,
       "mv": 60000000,
-      "price": 24
+      "price": 33
+     },
+     {
+      "id": 5,
+      "name": "Pedro Neto",
+      "team": "POR",
+      "pos": "MID",
+      "age": 26,
+      "mv": 58000000,
+      "price": 32
      },
      {
       "id": 6,
@@ -1728,7 +1728,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 27,
       "mv": 48000000,
-      "price": 22
+      "price": 31
      },
      {
       "id": 7,
@@ -1737,61 +1737,61 @@ window.GAMES = {
       "pos": "ATT",
       "age": 27,
       "mv": 48000000,
-      "price": 22
+      "price": 31
      },
      {
       "id": 8,
-      "name": "Diogo Costa",
-      "team": "POR",
-      "pos": "GK",
-      "age": 26,
-      "mv": 42000000,
-      "price": 21
-     },
-     {
-      "id": 9,
-      "name": "Francisco Trincão",
-      "team": "POR",
-      "pos": "MID",
-      "age": 26,
-      "mv": 42000000,
-      "price": 21
-     },
-     {
-      "id": 10,
-      "name": "Gonçalo Inácio",
-      "team": "POR",
-      "pos": "DEF",
-      "age": 24,
-      "mv": 42000000,
-      "price": 21
-     },
-     {
-      "id": 11,
       "name": "Bruno Fernandes",
       "team": "POR",
       "pos": "MID",
       "age": 31,
       "mv": 32000000,
-      "price": 20
+      "price": 30
      },
      {
-      "id": 12,
-      "name": "Tomás Araújo",
+      "id": 9,
+      "name": "Diogo Costa",
+      "team": "POR",
+      "pos": "GK",
+      "age": 26,
+      "mv": 42000000,
+      "price": 30
+     },
+     {
+      "id": 10,
+      "name": "Francisco Trincão",
+      "team": "POR",
+      "pos": "MID",
+      "age": 26,
+      "mv": 42000000,
+      "price": 30
+     },
+     {
+      "id": 11,
+      "name": "Gonçalo Inácio",
       "team": "POR",
       "pos": "DEF",
       "age": 24,
-      "mv": 33000000,
-      "price": 19
+      "mv": 42000000,
+      "price": 30
      },
      {
-      "id": 13,
+      "id": 12,
       "name": "Noah Sadiki",
       "team": "COD",
       "pos": "MID",
       "age": 21,
       "mv": 37000000,
-      "price": 18
+      "price": 29
+     },
+     {
+      "id": 13,
+      "name": "Tomás Araújo",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 24,
+      "mv": 33000000,
+      "price": 29
      },
      {
       "id": 14,
@@ -1800,25 +1800,25 @@ window.GAMES = {
       "pos": "DEF",
       "age": 27,
       "mv": 28000000,
-      "price": 17
+      "price": 28
      },
      {
       "id": 15,
-      "name": "Francisco Conceição",
-      "team": "POR",
-      "pos": "ATT",
-      "age": 23,
-      "mv": 28000000,
-      "price": 17
-     },
-     {
-      "id": 16,
       "name": "Gonçalo Ramos",
       "team": "POR",
       "pos": "ATT",
       "age": 24,
       "mv": 28000000,
-      "price": 17
+      "price": 28
+     },
+     {
+      "id": 16,
+      "name": "Francisco Conceição",
+      "team": "POR",
+      "pos": "ATT",
+      "age": 23,
+      "mv": 28000000,
+      "price": 27
      },
      {
       "id": 17,
@@ -1827,7 +1827,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 26,
       "mv": 27000000,
-      "price": 17
+      "price": 27
      },
      {
       "id": 18,
@@ -1836,25 +1836,25 @@ window.GAMES = {
       "pos": "MID",
       "age": 31,
       "mv": 21000000,
-      "price": 16
+      "price": 26
      },
      {
       "id": 19,
-      "name": "Renato Veiga",
-      "team": "POR",
-      "pos": "DEF",
-      "age": 22,
-      "mv": 24000000,
-      "price": 16
-     },
-     {
-      "id": 20,
       "name": "Rúben Neves",
       "team": "POR",
       "pos": "MID",
       "age": 29,
       "mv": 24000000,
-      "price": 16
+      "price": 26
+     },
+     {
+      "id": 20,
+      "name": "Renato Veiga",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 22,
+      "mv": 24000000,
+      "price": 25
      },
      {
       "id": 21,
@@ -1863,7 +1863,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 29,
       "mv": 23000000,
-      "price": 16
+      "price": 25
      },
      {
       "id": 22,
@@ -1872,25 +1872,25 @@ window.GAMES = {
       "pos": "ATT",
       "age": 41,
       "mv": 10400000,
-      "price": 14
+      "price": 24
      },
      {
       "id": 23,
-      "name": "Aaron Wan-Bissaka",
-      "team": "COD",
-      "pos": "DEF",
-      "age": 28,
-      "mv": 14100000,
-      "price": 13
-     },
-     {
-      "id": 24,
       "name": "Samú Costa",
       "team": "POR",
       "pos": "MID",
       "age": 25,
       "mv": 14600000,
-      "price": 13
+      "price": 24
+     },
+     {
+      "id": 24,
+      "name": "Aaron Wan-Bissaka",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 14100000,
+      "price": 23
      },
      {
       "id": 25,
@@ -1899,7 +1899,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 32,
       "mv": 8600000,
-      "price": 12
+      "price": 23
      },
      {
       "id": 26,
@@ -1908,7 +1908,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 21,
       "mv": 14200000,
-      "price": 12
+      "price": 22
      },
      {
       "id": 27,
@@ -1917,52 +1917,52 @@ window.GAMES = {
       "pos": "ATT",
       "age": 29,
       "mv": 10400000,
-      "price": 12
+      "price": 22
      },
      {
       "id": 28,
-      "name": "Rui Silva",
-      "team": "POR",
-      "pos": "GK",
-      "age": 32,
-      "mv": 6700000,
-      "price": 11
-     },
-     {
-      "id": 29,
-      "name": "Matthieu Epolo",
-      "team": "COD",
-      "pos": "GK",
-      "age": 21,
-      "mv": 7200000,
-      "price": 10
-     },
-     {
-      "id": 30,
       "name": "Nélson Semedo",
       "team": "POR",
       "pos": "DEF",
       "age": 32,
       "mv": 5500000,
-      "price": 10
+      "price": 21
      },
      {
-      "id": 31,
-      "name": "Axel Tuanzebe",
-      "team": "COD",
-      "pos": "DEF",
-      "age": 28,
-      "mv": 4600000,
-      "price": 9
+      "id": 29,
+      "name": "Rui Silva",
+      "team": "POR",
+      "pos": "GK",
+      "age": 32,
+      "mv": 6700000,
+      "price": 21
      },
      {
-      "id": 32,
+      "id": 30,
       "name": "Gonçalo Guedes",
       "team": "POR",
       "pos": "MID",
       "age": 29,
       "mv": 5700000,
-      "price": 9
+      "price": 20
+     },
+     {
+      "id": 31,
+      "name": "Matthieu Epolo",
+      "team": "COD",
+      "pos": "GK",
+      "age": 21,
+      "mv": 7200000,
+      "price": 20
+     },
+     {
+      "id": 32,
+      "name": "Axel Tuanzebe",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 4600000,
+      "price": 19
      },
      {
       "id": 33,
@@ -1971,7 +1971,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 33,
       "mv": 3300000,
-      "price": 9
+      "price": 19
      },
      {
       "id": 34,
@@ -1980,7 +1980,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 4200000,
-      "price": 8
+      "price": 18
      },
      {
       "id": 35,
@@ -1989,88 +1989,88 @@ window.GAMES = {
       "pos": "MID",
       "age": 30,
       "mv": 3100000,
-      "price": 8
+      "price": 18
      },
      {
       "id": 36,
-      "name": "Arthur Masuaku",
-      "team": "COD",
-      "pos": "DEF",
-      "age": 32,
-      "mv": 1900000,
-      "price": 7
-     },
-     {
-      "id": 37,
-      "name": "Brian Cipenga",
-      "team": "COD",
-      "pos": "MID",
-      "age": 28,
-      "mv": 2100000,
-      "price": 7
-     },
-     {
-      "id": 38,
-      "name": "Chancel Mbemba",
-      "team": "COD",
-      "pos": "DEF",
-      "age": 31,
-      "mv": 1800000,
-      "price": 7
-     },
-     {
-      "id": 39,
       "name": "Charles Pickel",
       "team": "COD",
       "pos": "MID",
       "age": 29,
       "mv": 2700000,
-      "price": 7
+      "price": 17
      },
      {
-      "id": 40,
-      "name": "Cédric Bakambu",
-      "team": "COD",
-      "pos": "ATT",
-      "age": 35,
-      "mv": 1200000,
-      "price": 7
-     },
-     {
-      "id": 41,
-      "name": "Fiston Mayele",
-      "team": "COD",
-      "pos": "ATT",
-      "age": 31,
-      "mv": 1700000,
-      "price": 7
-     },
-     {
-      "id": 42,
-      "name": "Joris Kayembe",
+      "id": 37,
+      "name": "Arthur Masuaku",
       "team": "COD",
       "pos": "DEF",
-      "age": 31,
+      "age": 32,
       "mv": 1900000,
-      "price": 7
+      "price": 16
      },
      {
-      "id": 43,
-      "name": "Nathanaël Mbuku",
-      "team": "COD",
-      "pos": "MID",
-      "age": 24,
-      "mv": 1800000,
-      "price": 7
-     },
-     {
-      "id": 44,
+      "id": 38,
       "name": "Steve Kapuadi",
       "team": "COD",
       "pos": "DEF",
       "age": 28,
       "mv": 2600000,
-      "price": 7
+      "price": 16
+     },
+     {
+      "id": 39,
+      "name": "Chancel Mbemba",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 1800000,
+      "price": 15
+     },
+     {
+      "id": 40,
+      "name": "Joris Kayembe",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 1900000,
+      "price": 15
+     },
+     {
+      "id": 41,
+      "name": "Brian Cipenga",
+      "team": "COD",
+      "pos": "MID",
+      "age": 28,
+      "mv": 2100000,
+      "price": 14
+     },
+     {
+      "id": 42,
+      "name": "Cédric Bakambu",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 35,
+      "mv": 1200000,
+      "price": 13
+     },
+     {
+      "id": 43,
+      "name": "Fiston Mayele",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 31,
+      "mv": 1700000,
+      "price": 13
+     },
+     {
+      "id": 44,
+      "name": "Nathanaël Mbuku",
+      "team": "COD",
+      "pos": "MID",
+      "age": 24,
+      "mv": 1800000,
+      "price": 12
      },
      {
       "id": 45,
@@ -2079,7 +2079,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 28,
       "mv": 1100000,
-      "price": 6
+      "price": 10
      },
      {
       "id": 46,
@@ -2088,7 +2088,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 28,
       "mv": 1600000,
-      "price": 6
+      "price": 10
      },
      {
       "id": 47,
@@ -2097,7 +2097,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 29,
       "mv": 1600000,
-      "price": 6
+      "price": 10
      },
      {
       "id": 48,
@@ -2106,34 +2106,34 @@ window.GAMES = {
       "pos": "DEF",
       "age": 30,
       "mv": 720000,
-      "price": 5
+      "price": 9
      },
      {
       "id": 49,
-      "name": "Gaël Kakuta",
-      "team": "COD",
-      "pos": "MID",
-      "age": 34,
-      "mv": 325000,
-      "price": 5
-     },
-     {
-      "id": 50,
-      "name": "Lionel Mpasi Nzau",
-      "team": "COD",
-      "pos": "GK",
-      "age": 31,
-      "mv": 370000,
-      "price": 5
-     },
-     {
-      "id": 51,
       "name": "Timothy Fayulu",
       "team": "COD",
       "pos": "GK",
       "age": 26,
       "mv": 750000,
-      "price": 5
+      "price": 8
+     },
+     {
+      "id": 50,
+      "name": "Gaël Kakuta",
+      "team": "COD",
+      "pos": "MID",
+      "age": 34,
+      "mv": 325000,
+      "price": 7
+     },
+     {
+      "id": 51,
+      "name": "Lionel Mpasi Nzau",
+      "team": "COD",
+      "pos": "GK",
+      "age": 31,
+      "mv": 370000,
+      "price": 6
      },
      {
       "id": 52,
@@ -2216,48 +2216,48 @@ window.GAMES = {
     "players": [
      {
       "id": 1,
-      "name": "Konrad Laimer",
-      "team": "AUT",
-      "pos": "DEF",
-      "age": 29,
-      "mv": 31000000,
-      "price": 34
-     },
-     {
-      "id": 2,
-      "name": "Nicolas Seiwald",
-      "team": "AUT",
-      "pos": "MID",
-      "age": 25,
-      "mv": 24000000,
-      "price": 30
-     },
-     {
-      "id": 3,
       "name": "Kevin Danso",
       "team": "AUT",
       "pos": "DEF",
       "age": 27,
       "mv": 19400000,
-      "price": 27
+      "price": 32
+     },
+     {
+      "id": 2,
+      "name": "Konrad Laimer",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 31000000,
+      "price": 32
+     },
+     {
+      "id": 3,
+      "name": "Nicolas Seiwald",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 25,
+      "mv": 24000000,
+      "price": 32
      },
      {
       "id": 4,
-      "name": "Paul Wanner",
-      "team": "AUT",
-      "pos": "MID",
-      "age": 20,
-      "mv": 23000000,
-      "price": 27
-     },
-     {
-      "id": 5,
       "name": "David Affengruber",
       "team": "AUT",
       "pos": "DEF",
       "age": 25,
       "mv": 18100000,
-      "price": 26
+      "price": 31
+     },
+     {
+      "id": 5,
+      "name": "Paul Wanner",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 20,
+      "mv": 23000000,
+      "price": 31
      },
      {
       "id": 6,
@@ -2266,43 +2266,43 @@ window.GAMES = {
       "pos": "MID",
       "age": 22,
       "mv": 18100000,
-      "price": 25
+      "price": 30
      },
      {
       "id": 7,
-      "name": "Romano Schmid",
-      "team": "AUT",
-      "pos": "MID",
-      "age": 26,
-      "mv": 16500000,
-      "price": 25
-     },
-     {
-      "id": 8,
-      "name": "Marco Friedl",
-      "team": "AUT",
-      "pos": "DEF",
-      "age": 28,
-      "mv": 10600000,
-      "price": 21
-     },
-     {
-      "id": 9,
-      "name": "Mousa Tamari",
-      "team": "JOR",
-      "pos": "ATT",
-      "age": 29,
-      "mv": 10800000,
-      "price": 21
-     },
-     {
-      "id": 10,
       "name": "Patrick Wimmer",
       "team": "AUT",
       "pos": "MID",
       "age": 25,
       "mv": 11100000,
-      "price": 21
+      "price": 30
+     },
+     {
+      "id": 8,
+      "name": "Romano Schmid",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 26,
+      "mv": 16500000,
+      "price": 30
+     },
+     {
+      "id": 9,
+      "name": "Marco Friedl",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 10600000,
+      "price": 29
+     },
+     {
+      "id": 10,
+      "name": "Mousa Tamari",
+      "team": "JOR",
+      "pos": "ATT",
+      "age": 29,
+      "mv": 10800000,
+      "price": 29
      },
      {
       "id": 11,
@@ -2311,7 +2311,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 29,
       "mv": 9600000,
-      "price": 20
+      "price": 28
      },
      {
       "id": 12,
@@ -2320,7 +2320,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 9500000,
-      "price": 20
+      "price": 28
      },
      {
       "id": 13,
@@ -2329,7 +2329,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 25,
       "mv": 8700000,
-      "price": 19
+      "price": 27
      },
      {
       "id": 14,
@@ -2338,7 +2338,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 6200000,
-      "price": 19
+      "price": 27
      },
      {
       "id": 15,
@@ -2347,7 +2347,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 29,
       "mv": 6200000,
-      "price": 16
+      "price": 27
      },
      {
       "id": 16,
@@ -2356,7 +2356,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 33,
       "mv": 2700000,
-      "price": 13
+      "price": 26
      },
      {
       "id": 17,
@@ -2365,43 +2365,43 @@ window.GAMES = {
       "pos": "ATT",
       "age": 28,
       "mv": 3700000,
-      "price": 13
+      "price": 26
      },
      {
       "id": 18,
-      "name": "Dejan Ljubičić",
-      "team": "AUT",
-      "pos": "MID",
-      "age": 28,
-      "mv": 3300000,
-      "price": 12
-     },
-     {
-      "id": 19,
-      "name": "Florian Grillitsch",
-      "team": "AUT",
-      "pos": "MID",
-      "age": 30,
-      "mv": 2600000,
-      "price": 12
-     },
-     {
-      "id": 20,
       "name": "Marko Arnautović",
       "team": "AUT",
       "pos": "ATT",
       "age": 37,
       "mv": 2100000,
-      "price": 12
+      "price": 25
      },
      {
-      "id": 21,
+      "id": 19,
       "name": "Michael Svoboda",
       "team": "AUT",
       "pos": "DEF",
       "age": 27,
       "mv": 3400000,
-      "price": 12
+      "price": 25
+     },
+     {
+      "id": 20,
+      "name": "Dejan Ljubičić",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 28,
+      "mv": 3300000,
+      "price": 24
+     },
+     {
+      "id": 21,
+      "name": "Florian Grillitsch",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 30,
+      "mv": 2600000,
+      "price": 24
      },
      {
       "id": 22,
@@ -2410,7 +2410,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 30,
       "mv": 1900000,
-      "price": 10
+      "price": 23
      },
      {
       "id": 23,
@@ -2419,7 +2419,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 25,
       "mv": 2100000,
-      "price": 10
+      "price": 22
      },
      {
       "id": 24,
@@ -2428,7 +2428,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 32,
       "mv": 1600000,
-      "price": 10
+      "price": 22
      },
      {
       "id": 25,
@@ -2437,7 +2437,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 29,
       "mv": 2000000,
-      "price": 10
+      "price": 22
      },
      {
       "id": 26,
@@ -2446,7 +2446,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 1600000,
-      "price": 10
+      "price": 22
      },
      {
       "id": 27,
@@ -2455,7 +2455,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 775000,
-      "price": 8
+      "price": 21
      },
      {
       "id": 28,
@@ -2464,7 +2464,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 30,
       "mv": 1000000,
-      "price": 8
+      "price": 21
      },
      {
       "id": 29,
@@ -2473,7 +2473,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 26,
       "mv": 825000,
-      "price": 7
+      "price": 20
      },
      {
       "id": 30,
@@ -2482,34 +2482,34 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 750000,
-      "price": 7
+      "price": 20
      },
      {
       "id": 31,
-      "name": "Abdallah Nasib",
-      "team": "JOR",
-      "pos": "DEF",
-      "age": 32,
-      "mv": 360000,
-      "price": 6
-     },
-     {
-      "id": 32,
-      "name": "Amer Jamous",
-      "team": "JOR",
-      "pos": "MID",
-      "age": 23,
-      "mv": 485000,
-      "price": 6
-     },
-     {
-      "id": 33,
       "name": "Ibrahim Sadeh",
       "team": "JOR",
       "pos": "MID",
       "age": 26,
       "mv": 520000,
-      "price": 6
+      "price": 19
+     },
+     {
+      "id": 32,
+      "name": "Nizar Al-Rashdan",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 27,
+      "mv": 620000,
+      "price": 19
+     },
+     {
+      "id": 33,
+      "name": "Abdallah Nasib",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 360000,
+      "price": 18
      },
      {
       "id": 34,
@@ -2518,43 +2518,43 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 340000,
-      "price": 6
+      "price": 17
      },
      {
       "id": 35,
-      "name": "Mohammad Ali Hasheesh",
-      "team": "JOR",
-      "pos": "DEF",
-      "age": 31,
-      "mv": 390000,
-      "price": 6
-     },
-     {
-      "id": 36,
       "name": "Mohannad Abu Taha",
       "team": "JOR",
       "pos": "MID",
       "age": 23,
       "mv": 535000,
-      "price": 6
+      "price": 17
+     },
+     {
+      "id": 36,
+      "name": "Mohammad Ali Hasheesh",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 390000,
+      "price": 16
      },
      {
       "id": 37,
-      "name": "Nizar Al-Rashdan",
-      "team": "JOR",
-      "pos": "MID",
-      "age": 27,
-      "mv": 620000,
-      "price": 6
-     },
-     {
-      "id": 38,
       "name": "Noor Al-Deen Al Rawabdeh",
       "team": "JOR",
       "pos": "MID",
       "age": 29,
       "mv": 455000,
-      "price": 6
+      "price": 16
+     },
+     {
+      "id": 38,
+      "name": "Amer Jamous",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 23,
+      "mv": 485000,
+      "price": 15
      },
      {
       "id": 39,
@@ -2563,79 +2563,79 @@ window.GAMES = {
       "pos": "DEF",
       "age": 29,
       "mv": 440000,
-      "price": 6
+      "price": 15
      },
      {
       "id": 40,
-      "name": "Abdallah Al-Fakhouri",
+      "name": "Rajaei Ayed",
       "team": "JOR",
-      "pos": "GK",
-      "age": 26,
-      "mv": 240000,
-      "price": 5
+      "pos": "MID",
+      "age": 32,
+      "mv": 295000,
+      "price": 14
      },
      {
       "id": 41,
-      "name": "Ali Al Azaizah",
-      "team": "JOR",
-      "pos": "MID",
-      "age": 22,
-      "mv": 340000,
-      "price": 5
-     },
-     {
-      "id": 42,
       "name": "Ehsan Haddad",
       "team": "JOR",
       "pos": "MID",
       "age": 32,
       "mv": 290000,
-      "price": 5
+      "price": 13
+     },
+     {
+      "id": 42,
+      "name": "Yazeed Abu Laila",
+      "team": "JOR",
+      "pos": "GK",
+      "age": 33,
+      "mv": 290000,
+      "price": 13
      },
      {
       "id": 43,
-      "name": "Husam Ali Abudahab",
-      "team": "JOR",
-      "pos": "DEF",
-      "age": 26,
-      "mv": 330000,
-      "price": 5
-     },
-     {
-      "id": 44,
       "name": "Mo Abualnadi",
       "team": "JOR",
       "pos": "DEF",
       "age": 25,
       "mv": 380000,
-      "price": 5
+      "price": 12
+     },
+     {
+      "id": 44,
+      "name": "Husam Ali Abudahab",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 330000,
+      "price": 11
      },
      {
       "id": 45,
-      "name": "Mohammad Abu Ghoush",
-      "team": "JOR",
-      "pos": "DEF",
-      "age": 20,
-      "mv": 310000,
-      "price": 5
-     },
-     {
-      "id": 46,
-      "name": "Mohammad Al Daoud",
-      "team": "JOR",
-      "pos": "MID",
-      "age": 34,
-      "mv": 160000,
-      "price": 5
-     },
-     {
-      "id": 47,
       "name": "Noureddin Bani Ateyah",
       "team": "JOR",
       "pos": "GK",
       "age": 33,
       "mv": 260000,
-      "price": 5
+      "price": 11
+     },
+     {
+      "id": 46,
+      "name": "Ali Al Azaizah",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 22,
+      "mv": 340000,
+      "price": 10
+     },
+     {
+      "id": 47,
+      "name": "Mohammad Al Daoud",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 34,
+      "mv": 160000,
+      "price": 9
      },
      {
       "id": 48,
@@ -2644,25 +2644,25 @@ window.GAMES = {
       "pos": "ATT",
       "age": 20,
       "mv": 315000,
-      "price": 5
+      "price": 9
      },
      {
       "id": 49,
-      "name": "Rajaei Ayed",
+      "name": "Mohammad Abu Ghoush",
       "team": "JOR",
-      "pos": "MID",
-      "age": 32,
-      "mv": 295000,
-      "price": 5
+      "pos": "DEF",
+      "age": 20,
+      "mv": 310000,
+      "price": 8
      },
      {
       "id": 50,
-      "name": "Yazeed Abu Laila",
+      "name": "Abdallah Al-Fakhouri",
       "team": "JOR",
       "pos": "GK",
-      "age": 33,
-      "mv": 290000,
-      "price": 5
+      "age": 26,
+      "mv": 240000,
+      "price": 7
      },
      {
       "id": 51,
@@ -2671,7 +2671,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 28,
       "mv": 205000,
-      "price": 4
+      "price": 6
      },
      {
       "id": 52,
