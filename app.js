@@ -17,6 +17,7 @@ let APP={
   view:"home",          // home | room | build | result
   roomId:null,
   jogos:[],
+  groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
   captain:null, tactic:null, tab:"ALL", warn:"", showRules:false, confirm:null,
@@ -40,6 +41,57 @@ async function sbUpdate(table,patch,filter){
 }
 async function sbDelete(table,filter){
   return sb(`${table}?${filter}`,{method:"DELETE",headers:SUPA.headers()});
+}
+
+// ---------- GRUPOS ----------
+async function loadGroups(){
+  if(!SUPA.ready())return;
+  try{
+    APP.groups=await sb("groups?select=*&order=created_at");
+    if(APP.user){
+      const m=await sb("group_members?username=eq."+encodeURIComponent(APP.user.username)+"&select=group_id");
+      APP.myGroups=m.map(x=>x.group_id);
+    }
+  }catch(e){APP.groups=[];APP.myGroups=[];}
+}
+function isMember(gid){return APP.myGroups.includes(gid);}
+async function createGroup(name,pass){
+  const rows=await sbInsert("groups",{name,pass,created_by:APP.user.username});
+  const g=rows[0];
+  // criador já entra como membro
+  await sbInsert("group_members",{group_id:g.id,username:APP.user.username});
+  await loadGroups();
+  toast("Grupo criado!");
+  render();
+}
+async function joinGroup(gid,tryPass){
+  const g=APP.groups.find(x=>x.id===gid);
+  if(!g)return;
+  if(String(tryPass).trim()!==String(g.pass).trim()){toast("Senha incorreta.");return;}
+  await sbInsert("group_members",{group_id:gid,username:APP.user.username},true);
+  await loadGroups();
+  toast("Você entrou no grupo "+g.name+"!");
+  enterGroup(gid);
+}
+function enterGroup(gid){
+  const g=APP.groups.find(x=>x.id===gid);
+  APP.groupId=gid; APP.groupName=g?g.name:"";
+  go("home");
+}
+function leaveGroupView(){APP.groupId=null;APP.groupName=null;APP.view="groups";render();window.scrollTo(0,0);}
+// quais jogos estão abertos neste grupo
+async function loadGroupRooms(){
+  if(!APP.groupId)return;
+  try{APP.groupRooms=await sb("group_rooms?group_id=eq."+APP.groupId+"&select=*");}
+  catch(e){APP.groupRooms=[];}
+}
+// admin: abrir um jogo do catálogo neste grupo
+async function openRoomInGroup(roomId){
+  if(!isAdmin())return;
+  await sbInsert("group_rooms",{group_id:APP.groupId,room_id:roomId,status:"open"},true);
+  await loadGroupRooms();
+  toast("Jogo aberto no grupo.");
+  render();
 }
 
 // hash de senha bem simples (suficiente pra evitar troca de nome casual)
@@ -81,6 +133,7 @@ async function doLogin(){
     }
     APP.user={username:u};
     localStorage_safe_set("fpvp_user",u); localStorage_safe_set("fpvp_pass",ph);
+    await loadGroups();APP.view="groups";
     render();
   }catch(e){warn.style.display="block";warn.textContent="Erro: "+e.message;}
 }
@@ -94,13 +147,15 @@ async function tryAutoLogin(){
       if(ex.length&&ex[0].pass_hash===ph){APP.user={username:u};}}catch(e){}
   }
 }
-function logout(){APP.user=null;localStorage_safe_set("fpvp_user","");localStorage_safe_set("fpvp_pass","");APP.view="home";render();}
+function logout(){APP.user=null;APP.groupId=null;APP.groupName=null;localStorage_safe_set("fpvp_user","");localStorage_safe_set("fpvp_pass","");APP.view="groups";render();}
 
 // ============================================================
 // NAV
 // ============================================================
 async function go(view,roomId){
   APP.view=view; if(roomId)APP.roomId=roomId;
+  if(view==="groups"){await loadGroups();}
+  if(view==="home"){await loadGroups();await loadGroupRooms();}
   if(view==="room"||view==="build"||view==="result"){
     await loadRoom(APP.roomId);
   }
@@ -110,12 +165,15 @@ async function loadRoom(roomId){
   const g=window.GAMES.data[roomId];
   APP.prepool=g.prepool;
   APP.match=g.match||{status:"pending"};
-  APP.roomMeta=APP.jogos.find(j=>j.room_id===roomId)||{};
+  // status da sala vem do group_rooms (por grupo), com fallback pro catálogo
+  await loadGroupRooms();
+  const gr=APP.groupRooms.find(x=>x.room_id===roomId);
+  APP.roomMeta={...(APP.jogos.find(j=>j.room_id===roomId)||{}),status:gr?gr.status:"closed"};
   APP._byId=Object.fromEntries(APP.prepool.players.map(p=>[p.id,p]));
-  // carregar minha entry se existir
+  // carregar minha entry deste grupo, se existir
   if(APP.user&&SUPA.ready()){
     try{
-      const es=await sb("entries?room_id=eq."+roomId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=*");
+      const es=await sb("entries?room_id=eq."+roomId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=*");
       if(es.length){const e=es[0];APP.slots=e.slots;APP.captain=e.captain;APP.tactic=e.tactic;}
       else{APP.slots={GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null};APP.captain=null;APP.tactic=null;}
     }catch(e){}
@@ -125,19 +183,60 @@ async function loadRoom(roomId){
 // ============================================================
 // TELA: HOME (lista de salas)
 // ============================================================
+function groupsHTML(){
+  const mine=APP.groups.filter(g=>isMember(g.id));
+  const others=APP.groups.filter(g=>!isMember(g.id));
+  const card=(g,member)=>`<div class="roomrow" onclick="${member?`enterGroup('${g.id}')`:`askJoin('${g.id}')`}">
+    <div class="info"><div class="nm">${esc(g.name)}</div><div class="meta">${member?"✓ você é membro · toque pra entrar":"🔒 toque e digite a senha"}</div></div>
+    ${member?'<span class="statuspill st-open">MEMBRO</span>':'<span class="statuspill st-closed">SENHA</span>'}
+  </div>`;
+  return `<div class="card">
+    <div class="h1 disp" style="color:var(--amber)">Grupos</div>
+    <p class="p" style="margin-bottom:14px">Entre num grupo de amigos para jogar. Cada grupo tem seus próprios jogos e ranking.</p>
+    ${mine.length?`<div class="tag" style="margin-bottom:6px">SEUS GRUPOS</div>${mine.map(g=>card(g,true)).join("")}`:""}
+    ${others.length?`<div class="tag" style="margin:12px 0 6px">OUTROS GRUPOS</div>${others.map(g=>card(g,false)).join("")}`:""}
+    ${!APP.groups.length?'<p class="p">Nenhum grupo ainda.</p>':""}
+  </div>
+  ${isAdmin()?`<div class="card">
+    <div class="tag" style="margin-bottom:6px">ADMIN</div>
+    <button class="btn" onclick="askCreateGroup()">+ Criar grupo de amigos</button>
+  </div>`:""}`;
+}
+// modal de criar grupo (admin)
+function askCreateGroup(){APP.confirm={mode:"createGroup",label:"Criar grupo"};render();}
+// modal de entrar com senha
+function askJoin(gid){APP.confirm={mode:"join",gid,label:"Entrar no grupo"};render();}
 function homeHTML(){
-  const rows=APP.jogos.map(j=>{
+  // jogos abertos NESTE grupo (status vem de group_rooms)
+  const abertos=APP.groupRooms.map(gr=>{
+    const cat=APP.jogos.find(j=>j.room_id===gr.room_id);
+    return cat?{...cat,status:gr.status}:null;
+  }).filter(Boolean);
+  const rows=abertos.map(j=>{
     const st=j.status;
     const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
     return `<div class="roomrow" onclick="go('room','${j.room_id}')">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
       ${pill}</div>`;
   }).join("");
+  // jogos do catálogo ainda NÃO abertos neste grupo (só admin pode abrir)
+  const naoAbertos=APP.jogos.filter(j=>!APP.groupRooms.some(gr=>gr.room_id===j.room_id));
+  const abrirRows=naoAbertos.map(j=>`<div class="roomrow" onclick="openRoomInGroup('${j.room_id}')">
+    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para abrir neste grupo</div></div>
+    <span class="statuspill st-closed">+ ABRIR</span></div>`).join("");
   return `<div class="card">
-    <div class="h1 disp" style="color:var(--amber)">Salas</div>
-    <p class="p" style="margin-bottom:14px">Escolha uma partida para montar seu time ou ver o resultado.</p>
-    ${rows||'<p class="p">Nenhuma sala ainda.</p>'}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="h1 disp" style="color:var(--amber)">${esc(APP.groupName||"Salas")}</div>
+      <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
+    </div>
+    <p class="p" style="margin-bottom:14px">Jogos deste grupo. Escolha uma partida para montar seu time ou ver o resultado.</p>
+    ${rows||'<p class="p">Nenhum jogo aberto neste grupo ainda.</p>'}
   </div>
+  ${isAdmin()&&naoAbertos.length?`<div class="card">
+    <div class="tag" style="margin-bottom:6px">ADMIN · ABRIR JOGO NESTE GRUPO</div>
+    <p class="p" style="margin-bottom:10px">Jogos do catálogo ainda não abertos aqui:</p>
+    ${abrirRows}
+  </div>`:""}
   ${isAdmin()?`<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--red)">MANUTENÇÃO DO SITE</div>
     <p class="p" style="margin-bottom:10px">Reinício de emergência: apaga TODOS os times de TODOS os jogos (caso o site bugue). Salas e usuários são mantidos.</p>
@@ -180,10 +279,9 @@ function roomHTML(){
 async function setPoolStatus(status){
   if(!isAdmin())return;
   try{
-    await sbUpdate("rooms",{status},`id=eq.${APP.roomId}`);
+    await sbUpdate("group_rooms",{status},`group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}`);
     APP.roomMeta.status=status;
-    // refletir no índice em memória também
-    const j=(window.GAMES.index||[]).find(x=>x.room_id===APP.roomId);if(j)j.status=status;
+    await loadGroupRooms();
     toast(status==="closed"?"Pool fechada. Ninguém mais edita.":"Pool reaberta.");
     render();
   }catch(e){toast("Erro ao mudar status: "+e.message);}
@@ -196,17 +294,56 @@ function closeConfirm(){APP.confirm=null;render();}
 function confirmInput(v){if(APP.confirm)APP.confirm.typed=v;}
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
-  const ok=c.typed===c.word;
+  // modo: criar grupo (admin)
+  if(c.mode==="createGroup"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar grupo de amigos</div>
+      <p class="p" style="margin:10px 0">Dê um nome e uma senha. Você repassa a senha pros amigos entrarem.</p>
+      <input id="grpName" class="input" placeholder="Nome do grupo" autocorrect="off" />
+      <input id="grpPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitCreateGroup()">Criar grupo</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: entrar num grupo com senha
+  if(c.mode==="join"){
+    const g=APP.groups.find(x=>x.id===c.gid);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Entrar em ${esc(g?g.name:"")}</div>
+      <p class="p" style="margin:10px 0">Digite a senha que o admin passou. Você fica membro pra sempre.</p>
+      <input id="joinPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitJoin()">Entrar</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo padrão: confirmação destrutiva por palavra (reset)
   return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
     <div class="h2 disp" style="color:var(--red)">⚠ ${esc(c.label)}</div>
     <p class="p" style="margin:10px 0">Esta ação <b style="color:var(--chalk)">apaga os times e não pode ser desfeita</b>. Salas e usuários são mantidos. Para confirmar, digite <b style="color:var(--amber)">${c.word}</b> abaixo.</p>
-    <input class="input" placeholder="Digite ${c.word}" oninput="confirmInput(this.value)" autocapitalize="characters" />
-    <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" ${ok?"":"disabled"} onclick="runConfirm()">Apagar agora</button>
+    <input id="confirmField" class="input" placeholder="Digite ${c.word}" autocapitalize="characters" autocorrect="off" />
+    <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" onclick="runConfirm()">Apagar agora</button>
     <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
   </div></div>`;
 }
+function submitCreateGroup(){
+  const n=$("grpName"),p=$("grpPass");
+  const name=n?n.value.trim():"",pass=p?p.value.trim():"";
+  if(!name||!pass){toast("Preencha nome e senha.");return;}
+  APP.confirm=null;createGroup(name,pass).catch(e=>toast("Erro: "+e.message));
+}
+function submitJoin(){
+  const c=APP.confirm;const f=$("joinPass");
+  const pass=f?f.value:"";
+  const gid=c.gid;APP.confirm=null;
+  joinGroup(gid,pass).catch(e=>toast("Erro: "+e.message));
+}
+const _normWord=s=>String(s||"").trim().toUpperCase();
 async function runConfirm(){
-  const c=APP.confirm;if(!c||c.typed!==c.word)return;
+  const c=APP.confirm;if(!c)return;
+  // lê direto do campo (mais confiável que o estado em mobile)
+  const field=$("confirmField");
+  const typed=field?field.value:c.typed;
+  if(_normWord(typed)!==_normWord(c.word)){toast(`Digite "${c.word}" para confirmar.`);return;}
   const action=c.action;APP.confirm=null;render();
   try{await action();}catch(e){toast("Erro: "+e.message);}
 }
@@ -214,7 +351,7 @@ async function runConfirm(){
 function resetRoom(){
   if(!isAdmin())return;
   askConfirm("RESET","Limpar times desta sala",async()=>{
-    await sbDelete("entries",`room_id=eq.${APP.roomId}`);
+    await sbDelete("entries",`room_id=eq.${APP.roomId}&group_id=eq.${APP.groupId}`);
     APP.entries=[];
     toast("Times desta sala apagados.");
     render();
@@ -299,14 +436,14 @@ function setTab(t){APP.tab=t;render();}
 async function saveEntry(){
   if(!SUPA.ready()){toast("Supabase não configurado.");return;}
   try{
-    // trava: confirma no banco que a pool ainda está aberta antes de salvar
-    const rooms=await sb(`rooms?id=eq.${APP.roomId}&select=status`);
-    if(rooms&&rooms[0]&&rooms[0].status!=="open"){
-      APP.roomMeta.status=rooms[0].status;
+    // trava: confirma que a pool deste grupo ainda está aberta
+    const gr=await sb(`group_rooms?group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}&select=status`);
+    if(gr&&gr[0]&&gr[0].status!=="open"){
+      APP.roomMeta.status=gr[0].status;
       toast("Pool fechada — não dá mais pra editar o time.");
       go("room");return;
     }
-    await sbInsert("entries",{room_id:APP.roomId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true);
+    await sbInsert("entries",{room_id:APP.roomId,group_id:APP.groupId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true);
     toast("Time salvo!");
     go("room");
   }catch(e){toast("Erro ao salvar: "+e.message);}
@@ -317,7 +454,7 @@ async function saveEntry(){
 // ============================================================
 async function loadEntries(){
   if(!SUPA.ready())return [];
-  return sb("entries?room_id=eq."+APP.roomId+"&select=*");
+  return sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+"&select=*");
 }
 function buildMatchCtx(){
   const pp=APP.prepool,m=APP.match;
@@ -417,7 +554,8 @@ function render(){
   const root=$("root");
   if(needLogin()){root.innerHTML=topbarHTML()+loginModalHTML();return;}
   let panel="";
-  if(APP.view==="home")panel=homeHTML();
+  if(APP.view==="groups")panel=groupsHTML();
+  else if(APP.view==="home")panel=homeHTML();
   else if(APP.view==="room")panel=roomHTML();
   else if(APP.view==="build")panel=buildHTML();
   else if(APP.view==="result")panel=resultHTML();
@@ -425,7 +563,7 @@ function render(){
 }
 function topbarHTML(){
   return `<div class="topbar">
-    <div class="logo" onclick="go('home')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
+    <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
       ${APP.user?`<div class="userchip" onclick="logout()">👤 <b>${esc(APP.user.username)}</b> · sair</div>`:""}
@@ -462,17 +600,19 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     APP.jogos=window.GAMES.index;
   }catch(e){APP.jogos=[];}
   await tryAutoLogin();
-  // intercepta: quando entrar em result, precisa carregar entries
-  const _go=go;
+  // go central: carrega o que cada view precisa
   window.go=async function(view,roomId){
     APP.view=view;if(roomId)APP.roomId=roomId;
+    if(view==="groups"){await loadGroups();}
+    if(view==="home"){await loadGroups();await loadGroupRooms();}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};}
     render();window.scrollTo(0,0);
   };
+  // tela inicial: grupos (se logado). carrega a lista antes.
+  if(APP.user){await loadGroups();APP.view="groups";}
   render();
  }catch(err){
-  // em vez de travar no "Carregando...", mostra o erro
   var r=document.getElementById("root");
   if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>'+String(err&&err.message?err.message:err)+'<br><br><span style="color:#8FA89A">Tire um print desta tela.</span></div>';
  }
