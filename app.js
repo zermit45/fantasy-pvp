@@ -805,24 +805,38 @@ async function saveEntry(){
       // trava de pool por rodada
       const rs=await sb(`rounds?id=eq.${APP.roundId}&select=status,pick_limit`);
       if(rs&&rs[0]&&rs[0].status!=="open"){toast("Rodada fechada — não dá mais pra editar.");go("round",null,APP.roundId);return;}
-      // se ainda não escolhi este jogo, valida o limite de fichas
       if(!pickedRoom(APP.roomId)&&picksLeft()<=0){toast("Você já usou suas escolhas nesta rodada.");go("round",null,APP.roundId);return;}
-      await sbInsert("entries",{room_id:APP.roomId,group_id:APP.groupId,round_id:APP.roundId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true,"room_id,group_id,username");
+      await upsertEntry(APP.roundId);
       toast("Time salvo! Escolha usada.");
       await loadRound(APP.roundId);
       go("round",null,APP.roundId);return;
     }
-    // fluxo avulso (como antes)
+    // fluxo avulso
     const gr=await sb(`group_rooms?group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}&select=status`);
     if(gr&&gr[0]&&gr[0].status!=="open"){
       APP.roomMeta.status=gr[0].status;
       toast("Pool fechada — não dá mais pra editar o time.");
       go("room");return;
     }
-    await sbInsert("entries",{room_id:APP.roomId,group_id:APP.groupId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true,"room_id,group_id,username");
+    await upsertEntry(null);
     toast("Time salvo!");
     go("room");
   }catch(e){toast("Erro ao salvar: "+e.message);}
+}
+// salva a entry separando avulso (round_id null) de rodada (round_id setado).
+// busca-então-decide: evita depender de índice parcial no on_conflict.
+async function upsertEntry(roundId){
+  const base={slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()};
+  const filtroRound = roundId?("&round_id=eq."+roundId):"&round_id=is.null";
+  const existing=await sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId
+    +"&username=eq."+encodeURIComponent(APP.user.username)+filtroRound+"&select=id");
+  if(existing&&existing.length){
+    // já existe nesse contexto → atualiza pelo id (não toca na outra)
+    await sbUpdate("entries",base,"id=eq."+existing[0].id);
+  }else{
+    // não existe → cria nova
+    await sbInsert("entries",Object.assign({room_id:APP.roomId,group_id:APP.groupId,round_id:roundId,username:APP.user.username},base));
+  }
 }
 
 // ============================================================
@@ -830,7 +844,11 @@ async function saveEntry(){
 // ============================================================
 async function loadEntries(){
   if(!SUPA.ready())return [];
-  return sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+"&select=*");
+  // ranking deve refletir o contexto: se vim de uma rodada, só entries daquela rodada;
+  // senão, só as avulsas (round_id null). Evita misturar/duplicar o mesmo usuário.
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  const filtroRound=inRound?("&round_id=eq."+APP.roundId):"&round_id=is.null";
+  return sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+filtroRound+"&select=*");
 }
 function buildMatchCtx(){
   const pp=APP.prepool,m=APP.match;
