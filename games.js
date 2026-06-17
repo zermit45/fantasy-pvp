@@ -2,6 +2,13 @@
 window.GAMES = {
  "index": [
   {
+   "room_id": "por-cod-2026",
+   "match_name": "Portugal × RD Congo",
+   "comp": "Copa do Mundo 2026",
+   "data": "Jun 2026",
+   "status": "open"
+  },
+  {
    "room_id": "aut-jor-2026",
    "match_name": "Áustria × Jordânia",
    "comp": "Copa do Mundo 2026 · Grupo A",
@@ -17,6 +24,498 @@ window.GAMES = {
   }
  ],
  "data": {
+  "por-cod-2026": {
+   "prepool": {
+    "room_id": "por-cod-2026",
+    "match_name": "Portugal × RD Congo",
+    "comp": "Copa do Mundo 2026",
+    "venue": "",
+    "home": {
+     "code": "POR",
+     "name": "Portugal",
+     "elo": 2072
+    },
+    "away": {
+     "code": "COD",
+     "name": "RD Congo",
+     "elo": 1785
+    },
+    "players": [
+     {
+      "id": 1,
+      "name": "Vitinha",
+      "team": "POR",
+      "pos": "MID",
+      "age": 26,
+      "mv": 130000000,
+      "price": 34
+     },
+     {
+      "id": 2,
+      "name": "João Neves",
+      "team": "POR",
+      "pos": "MID",
+      "age": 21,
+      "mv": 148000000,
+      "price": 33
+     },
+     {
+      "id": 3,
+      "name": "Nuno Mendes",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 23,
+      "mv": 77000000,
+      "price": 26
+     },
+     {
+      "id": 4,
+      "name": "Pedro Neto",
+      "team": "POR",
+      "pos": "MID",
+      "age": 26,
+      "mv": 58000000,
+      "price": 24
+     },
+     {
+      "id": 5,
+      "name": "Rúben Dias",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 60000000,
+      "price": 24
+     },
+     {
+      "id": 6,
+      "name": "Matheus Nunes",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 48000000,
+      "price": 22
+     },
+     {
+      "id": 7,
+      "name": "Rafael Leão",
+      "team": "POR",
+      "pos": "ATT",
+      "age": 27,
+      "mv": 48000000,
+      "price": 22
+     },
+     {
+      "id": 8,
+      "name": "Diogo Costa",
+      "team": "POR",
+      "pos": "GK",
+      "age": 26,
+      "mv": 42000000,
+      "price": 21
+     },
+     {
+      "id": 9,
+      "name": "Francisco Trincão",
+      "team": "POR",
+      "pos": "MID",
+      "age": 26,
+      "mv": 42000000,
+      "price": 21
+     },
+     {
+      "id": 10,
+      "name": "Gonçalo Inácio",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 24,
+      "mv": 42000000,
+      "price": 21
+     },
+     {
+      "id": 11,
+      "name": "Bruno Fernandes",
+      "team": "POR",
+      "pos": "MID",
+      "age": 31,
+      "mv": 32000000,
+      "price": 20
+     },
+     {
+      "id": 12,
+      "name": "Tomás Araújo",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 24,
+      "mv": 33000000,
+      "price": 19
+     },
+     {
+      "id": 13,
+      "name": "Noah Sadiki",
+      "team": "COD",
+      "pos": "MID",
+      "age": 21,
+      "mv": 37000000,
+      "price": 18
+     },
+     {
+      "id": 14,
+      "name": "Diogo Dalot",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 28000000,
+      "price": 17
+     },
+     {
+      "id": 15,
+      "name": "Francisco Conceição",
+      "team": "POR",
+      "pos": "ATT",
+      "age": 23,
+      "mv": 28000000,
+      "price": 17
+     },
+     {
+      "id": 16,
+      "name": "Gonçalo Ramos",
+      "team": "POR",
+      "pos": "ATT",
+      "age": 24,
+      "mv": 28000000,
+      "price": 17
+     },
+     {
+      "id": 17,
+      "name": "João Félix",
+      "team": "POR",
+      "pos": "ATT",
+      "age": 26,
+      "mv": 27000000,
+      "price": 17
+     },
+     {
+      "id": 18,
+      "name": "Bernardo Silva",
+      "team": "POR",
+      "pos": "MID",
+      "age": 31,
+      "mv": 21000000,
+      "price": 16
+     },
+     {
+      "id": 19,
+      "name": "Renato Veiga",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 22,
+      "mv": 24000000,
+      "price": 16
+     },
+     {
+      "id": 20,
+      "name": "Rúben Neves",
+      "team": "POR",
+      "pos": "MID",
+      "age": 29,
+      "mv": 24000000,
+      "price": 16
+     },
+     {
+      "id": 21,
+      "name": "Yoane Wissa",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 29,
+      "mv": 23000000,
+      "price": 16
+     },
+     {
+      "id": 22,
+      "name": "Cristiano Ronaldo",
+      "team": "POR",
+      "pos": "ATT",
+      "age": 41,
+      "mv": 10400000,
+      "price": 14
+     },
+     {
+      "id": 23,
+      "name": "Aaron Wan-Bissaka",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 14100000,
+      "price": 13
+     },
+     {
+      "id": 24,
+      "name": "Samú Costa",
+      "team": "POR",
+      "pos": "MID",
+      "age": 25,
+      "mv": 14600000,
+      "price": 13
+     },
+     {
+      "id": 25,
+      "name": "João Cancelo",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 8600000,
+      "price": 12
+     },
+     {
+      "id": 26,
+      "name": "Ngal'ayel Mukau",
+      "team": "COD",
+      "pos": "MID",
+      "age": 21,
+      "mv": 14200000,
+      "price": 12
+     },
+     {
+      "id": 27,
+      "name": "Simon Banza",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 29,
+      "mv": 10400000,
+      "price": 12
+     },
+     {
+      "id": 28,
+      "name": "Rui Silva",
+      "team": "POR",
+      "pos": "GK",
+      "age": 32,
+      "mv": 6700000,
+      "price": 11
+     },
+     {
+      "id": 29,
+      "name": "Matthieu Epolo",
+      "team": "COD",
+      "pos": "GK",
+      "age": 21,
+      "mv": 7200000,
+      "price": 10
+     },
+     {
+      "id": 30,
+      "name": "Nélson Semedo",
+      "team": "POR",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 5500000,
+      "price": 10
+     },
+     {
+      "id": 31,
+      "name": "Axel Tuanzebe",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 4600000,
+      "price": 9
+     },
+     {
+      "id": 32,
+      "name": "Gonçalo Guedes",
+      "team": "POR",
+      "pos": "MID",
+      "age": 29,
+      "mv": 5700000,
+      "price": 9
+     },
+     {
+      "id": 33,
+      "name": "José Sá",
+      "team": "POR",
+      "pos": "GK",
+      "age": 33,
+      "mv": 3300000,
+      "price": 9
+     },
+     {
+      "id": 34,
+      "name": "Edo Kayembe",
+      "team": "COD",
+      "pos": "MID",
+      "age": 28,
+      "mv": 4200000,
+      "price": 8
+     },
+     {
+      "id": 35,
+      "name": "Théo Bongonda",
+      "team": "COD",
+      "pos": "MID",
+      "age": 30,
+      "mv": 3100000,
+      "price": 8
+     },
+     {
+      "id": 36,
+      "name": "Arthur Masuaku",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 1900000,
+      "price": 7
+     },
+     {
+      "id": 37,
+      "name": "Brian Cipenga",
+      "team": "COD",
+      "pos": "MID",
+      "age": 28,
+      "mv": 2100000,
+      "price": 7
+     },
+     {
+      "id": 38,
+      "name": "Chancel Mbemba",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 1800000,
+      "price": 7
+     },
+     {
+      "id": 39,
+      "name": "Charles Pickel",
+      "team": "COD",
+      "pos": "MID",
+      "age": 29,
+      "mv": 2700000,
+      "price": 7
+     },
+     {
+      "id": 40,
+      "name": "Cédric Bakambu",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 35,
+      "mv": 1200000,
+      "price": 7
+     },
+     {
+      "id": 41,
+      "name": "Fiston Mayele",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 31,
+      "mv": 1700000,
+      "price": 7
+     },
+     {
+      "id": 42,
+      "name": "Joris Kayembe",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 1900000,
+      "price": 7
+     },
+     {
+      "id": 43,
+      "name": "Nathanaël Mbuku",
+      "team": "COD",
+      "pos": "MID",
+      "age": 24,
+      "mv": 1800000,
+      "price": 7
+     },
+     {
+      "id": 44,
+      "name": "Steve Kapuadi",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 2600000,
+      "price": 7
+     },
+     {
+      "id": 45,
+      "name": "Gedeon Kalulu",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 1100000,
+      "price": 6
+     },
+     {
+      "id": 46,
+      "name": "Meschak Elia",
+      "team": "COD",
+      "pos": "ATT",
+      "age": 28,
+      "mv": 1600000,
+      "price": 6
+     },
+     {
+      "id": 47,
+      "name": "Samuel Moutoussamy",
+      "team": "COD",
+      "pos": "MID",
+      "age": 29,
+      "mv": 1600000,
+      "price": 6
+     },
+     {
+      "id": 48,
+      "name": "Dylan Batubinsika",
+      "team": "COD",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 720000,
+      "price": 5
+     },
+     {
+      "id": 49,
+      "name": "Gaël Kakuta",
+      "team": "COD",
+      "pos": "MID",
+      "age": 34,
+      "mv": 325000,
+      "price": 5
+     },
+     {
+      "id": 50,
+      "name": "Lionel Mpasi Nzau",
+      "team": "COD",
+      "pos": "GK",
+      "age": 31,
+      "mv": 370000,
+      "price": 5
+     },
+     {
+      "id": 51,
+      "name": "Timothy Fayulu",
+      "team": "COD",
+      "pos": "GK",
+      "age": 26,
+      "mv": 750000,
+      "price": 5
+     },
+     {
+      "id": 52,
+      "name": "Aaron Tshibola",
+      "team": "COD",
+      "pos": "MID",
+      "age": 31,
+      "mv": 145000,
+      "price": 4
+     }
+    ]
+   },
+   "match": {
+    "status": "pending",
+    "note": "Jogo ainda não aconteceu."
+   }
+  },
   "aut-jor-2026": {
    "prepool": {
     "room_id": "aut-jor-2026",
@@ -26,12 +525,12 @@ window.GAMES = {
     "home": {
      "code": "AUT",
      "name": "Áustria",
-     "elo": 1790
+     "elo": 1946
     },
     "away": {
      "code": "JOR",
      "name": "Jordânia",
-     "elo": 1490
+     "elo": 1673
     },
     "players": [
      {
@@ -1061,12 +1560,12 @@ window.GAMES = {
     "home": {
      "code": "NED",
      "name": "Holanda",
-     "elo": 2030
+     "elo": 2065
     },
     "away": {
      "code": "JPN",
      "name": "Japão",
-     "elo": 1855
+     "elo": 1988
     },
     "players": [
      {

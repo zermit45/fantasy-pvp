@@ -13,7 +13,7 @@ let APP={
   jogos:[],
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
-  captain:null, tactic:null, tab:"ALL", warn:"",
+  captain:null, tactic:null, tab:"ALL", warn:"", showRules:false,
   entries:[],           // entries da sala (pro ranking)
 };
 
@@ -246,7 +246,12 @@ function scoreEntry(entry,eng){
   // substituição do banco (v2.4.0)
   let subOut=null;const benchPid=entry.slots.BENCH,benchMeta=benchPid?byId[benchPid]:null;
   if(benchMeta&&res.BENCH){
-    if(benchMeta.pos==="GK"){if(res.GK&&res.BENCH.total>res.GK.total){subOut="GK";[res.GK,res.BENCH]=[res.BENCH,res.GK];const t=entry.slots.GK;entry.slots.GK=entry.slots.BENCH;entry.slots.BENCH=t;}}
+    if(benchMeta.pos==="GK"){
+      // GK reserva SÓ entra se o titular não jogou nenhum minuto (0 min).
+      // NÃO vale a regra de "pontuou mais" — só cobre ausência total do titular.
+      const gkTitularMin=res.GK?res.GK.minutes:0;
+      if(gkTitularMin===0&&res.BENCH){subOut="GK";[res.GK,res.BENCH]=[res.BENCH,res.GK];const t=entry.slots.GK;entry.slots.GK=entry.slots.BENCH;entry.slots.BENCH=t;}
+    }
     else{const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}if(worst&&res.BENCH.total>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}}
   }
   let sum=0;const view=[];
@@ -319,8 +324,26 @@ function render(){
 function topbarHTML(){
   return `<div class="topbar">
     <div class="logo" onclick="go('home')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
-    ${APP.user?`<div class="userchip" onclick="logout()">👤 <b>${esc(APP.user.username)}</b> · sair</div>`:""}
-  </div>`;
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
+      ${APP.user?`<div class="userchip" onclick="logout()">👤 <b>${esc(APP.user.username)}</b> · sair</div>`:""}
+    </div>
+  </div>${APP.showRules?rulesModalHTML():""}`;
+}
+function toggleRules(){APP.showRules=!APP.showRules;render();}
+function rulesModalHTML(){
+  return `<div class="modal" onclick="toggleRules()"><div class="box" onclick="event.stopPropagation()" style="max-height:80vh;overflow:auto">
+    <div class="h2 disp" style="color:var(--amber)">Como funciona o Fantasy PvP</div>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">O jogo:</b> antes de cada partida real, abre uma "pool". Você monta um time de 6 jogadores escolhidos entre os elencos dos DOIS times que vão se enfrentar. Quando o jogo acontece, seus jogadores pontuam pelo que fizerem em campo de verdade.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Orçamento:</b> 100 moedas. Cada jogador tem um preço (calculado por qualidade técnica: valor de mercado corrigido pela idade). O banco também conta no orçamento.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Os 6 slots:</b> 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Capitão (×1.20):</b> escolha 1 jogador (qualquer um menos o banco) pra pontuar 20% a mais.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele (vale o maior). <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Ela só dá bônus se a condição dela acontecer no jogo (ex: Gegenpress premia recuperações de bola).</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Ranking:</b> quando o jogo acaba, todos os times da sala são pontuados e o ranking aparece, com a apuração detalhada de cada jogador.</p>
+    <button class="btn" style="margin-top:8px" onclick="toggleRules()">Entendi</button>
+  </div></div>`;
 }
 function footHTML(){
   return `<div class="foot">Motor v2.4.0 · ELO eloratings + FootballDatabase<br>Dados FotMob + SofaScore · ${SUPA.ready()?"Supabase conectado":"⚠ configure o config.js"}</div>`;

@@ -54,11 +54,49 @@ function makeEngine(match){
   const ctxDefEvt=d=>d<=1?1.08:0.94;
   const ctxDefAgg=LIVE*1.08+(1-LIVE)*0.94;
   const ctxSmallAgg=LIVE*1.00+(1-LIVE)*0.90;
+  // ── DvG COMPLETO (4 fatores) ──
+  // Força ajustada de um time = ELO×0.55 + Forma×0.30 + Mando×0.15  (+Tabela só p/ clubes)
+  // O bônus underdog vem da diferença de FORÇA AJUSTADA, não só do ELO cru.
+  // Boa forma sobe a força → reduz o bônus de underdog (o time não está tão por baixo).
+  // Forma de cada time vem opcional em match.form[team] (array dos últimos 5):
+  //   [{res:"W"|"D"|"L", oppElo:NNNN}, ...]  — calculado na captura.
+  function formaIndex(team){
+    const f=match.form&&match.form[team];
+    if(!f||!f.length) return null; // sem dados de forma
+    let soma=0;
+    for(const g of f){
+      const base=g.res==="W"?1.0:g.res==="D"?0.5:0.0;
+      const pesoOpp=Math.max(0.7,Math.min(1.3,(g.oppElo||1700)/1800));
+      soma+=base*pesoOpp;
+    }
+    // média 0..~1.3 → converte p/ "equivalente ELO" relativo (centrado em 0)
+    const media=soma/f.length;          // 0 (péssima) .. ~1.3 (ótima)
+    return (media-0.5)*600;             // -300 (frio) .. +480 (em chamas)
+  }
+  function posTabelaAdj(team){
+    // só clubes: match.standing[team] = {pos:N, total:M} (posição na liga)
+    const s=match.standing&&match.standing[team];
+    if(!s||!s.total) return null;
+    // 1º lugar = +200, último = -200 (linear)
+    const frac=1-(s.pos-1)/Math.max(1,s.total-1); // 1.0 (líder)..0 (lanterna)
+    return (frac-0.5)*400;
+  }
+  function forcaAjustada(team){
+    const elo=team===match.homeCode?match.homeElo:match.awayElo;
+    const mando=match.neutral?0:(team===match.homeCode?+40:-40); // casa vale ~+40 ELO
+    const forma=formaIndex(team);
+    const tabela=posTabelaAdj(team);
+    // pesos: ELO .55 / forma .30 / mando .15  (clubes c/ tabela: .50/.25/.10/.15)
+    if(tabela!==null){
+      const fAdj=(forma!==null?forma:0);
+      return elo*0.50 + fAdj*0.25 + mando*0.10 + tabela*0.15 + elo*(forma!==null?0:0.25);
+    }
+    if(forma!==null) return elo*0.55 + forma*0.30 + mando*0.15;
+    return elo + mando; // sem forma: cai no modo simples (só ELO+mando)
+  }
   function dvgMult(team){
-    const ownElo=team===match.homeCode?match.homeElo:match.awayElo;
-    const oppElo=team===match.homeCode?match.awayElo:match.homeElo;
-    const mando=match.neutral?1.0:(team===match.homeCode?0.85:1.15);
-    const edge=(oppElo-ownElo)*mando;
+    const opp=team===match.homeCode?match.awayCode:match.homeCode;
+    const edge=forcaAjustada(opp)-forcaAjustada(team); // quão + forte é o oponente
     return 1+Math.min(0.10,Math.max(0,edge/1800));
   }
   function minFactor(p){if(p.started||p.min>=45)return 1.0;return p.min/90;}
