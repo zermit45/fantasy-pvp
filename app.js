@@ -5,9 +5,11 @@ const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANC
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB"};
 const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
-// admins: só estes usuários veem os botões de fechar/reabrir pool
+// devs: a conta que tem acesso ao "modo DEV" (poderes de admin).
 const ADMINS=["Lucchini"];
-const isAdmin=()=>APP.user&&ADMINS.includes(APP.user.username);
+// isDev = é a pessoa autorizada (imutável). isAdmin = tem poderes AGORA (modo dev ligado).
+const isDev=()=>APP.user&&ADMINS.includes(APP.user.username);
+const isAdmin=()=>isDev()&&APP.devMode;
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=id=>document.getElementById(id);
 
@@ -21,6 +23,7 @@ let APP={
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[],
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null,         // estatísticas do perfil (calculadas ao vivo)
+  devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
   captain:null, tactic:null, tab:"ALL", warn:"", showRules:false, confirm:null,
@@ -162,6 +165,8 @@ async function loadProfileStats(username){
     try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
     catch(e){continue;}
     if(!entries||!entries.length)continue;
+    // respeita "ocultar do perfil": não conta minhas entries marcadas
+    entries=entries.filter(e=>!(e.username===username&&e.hidden_profile===true));
     const scored=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
     const myIdx=scored.findIndex(s=>s.username===username);
     if(myIdx<0)continue; // não participei deste jogo
@@ -206,8 +211,34 @@ function playerArchHistory(playerId){
   }
   return hist;
 }
-
-// ---------- RODADAS (escolha N de M) ----------
+// oculta do MEU perfil todas as minhas entries dos jogos arquivados (mantém no ranking).
+// exige confirmação da senha da própria conta.
+async function hideMyProfileHistory(senha){
+  if(!APP.user||!APP.groupId)return;
+  // valida a senha contra o hash salvo da conta
+  let ok=false;
+  try{
+    const ex=await sb("users?username=eq."+encodeURIComponent(APP.user.username)+"&select=pass_hash");
+    ok = ex&&ex[0]&&ex[0].pass_hash===hashPass(senha);
+  }catch(e){toast("Erro ao validar: "+e.message);return;}
+  if(!ok){toast("Senha incorreta.");return;}
+  // marca hidden_profile=true nas minhas entries dos jogos arquivados deste grupo
+  try{
+    const arq=APP.jogos.filter(j=>isArchived(j.room_id)).map(j=>j.room_id);
+    if(!arq.length){toast("Nenhum jogo encerrado pra ocultar.");return;}
+    let n=0;
+    for(const rid of arq){
+      await sbUpdate("entries",{hidden_profile:true},
+        `room_id=eq.${rid}&group_id=eq.${APP.groupId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+      n++;
+    }
+    APP.confirm=null;
+    APP.profile=await loadProfileStats(APP.user.username);
+    toast("Histórico ocultado do seu perfil.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+function askHideHistory(){APP.confirm={mode:"hideHistory",label:"Excluir histórico"};render();}
 async function loadRounds(){
   if(!APP.groupId)return;
   try{APP.rounds=await sb("rounds?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
@@ -332,6 +363,14 @@ async function tryAutoLogin(){
   }
 }
 function logout(){APP.user=null;APP.groupId=null;APP.groupName=null;localStorage_safe_set("fpvp_user","");localStorage_safe_set("fpvp_pass","");APP.view="groups";render();}
+// alterna entre modo DEV (poderes de admin) e jogador comum — só funciona pra quem é dev
+function toggleDevMode(){
+  if(!isDev())return;
+  APP.devMode=!APP.devMode;
+  localStorage_safe_set("fpvp_devmode",APP.devMode?"1":"0");
+  toast(APP.devMode?"Modo DEV ligado — poderes de admin ativos.":"Modo jogador — vendo como usuário comum.");
+  render();
+}
 
 // ============================================================
 // NAV
@@ -568,6 +607,17 @@ function confirmModalHTML(){
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
+  // modo: excluir histórico do perfil (exige senha da conta)
+  if(c.mode==="hideHistory"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--red)">Excluir histórico do perfil</div>
+      <p class="p" style="margin:10px 0">Isto oculta do seu perfil todos os times que você montou nos jogos encerrados. Suas medalhas e conquistas zeram. Você continua aparecendo no ranking das salas.</p>
+      <p class="p" style="margin:10px 0">Digite a <b style="color:var(--chalk)">senha da sua conta</b> para confirmar.</p>
+      <input id="hideHistPass" class="input" type="password" placeholder="Sua senha" autocomplete="off" autocapitalize="off" />
+      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="submitHideHistory()">🗑 Excluir histórico</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
   // modo: arquivar jogo (admin) — move pra Resultados, global
   if(c.mode==="archive"){
     const j=APP.jogos.find(x=>x.room_id===c.roomId);
@@ -627,6 +677,12 @@ function submitCreateGroup(){
   const name=n?n.value.trim():"",pass=p?p.value.trim():"";
   if(!name||!pass){toast("Preencha nome e senha.");return;}
   APP.confirm=null;createGroup(name,pass).catch(e=>toast("Erro: "+e.message));
+}
+function submitHideHistory(){
+  const f=$("hideHistPass");
+  const senha=f?f.value:"";
+  if(!senha){toast("Digite sua senha.");return;}
+  hideMyProfileHistory(senha).catch(e=>toast("Erro: "+e.message));
 }
 function submitCreateRound(){
   const n=$("rndName"),l=$("rndLimit");
@@ -883,6 +939,11 @@ function profileHTML(){
     topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
     html+=`</div></div>`;
   }
+  html+=`<div class="card">
+    <div class="tag" style="margin-bottom:6px;color:var(--red)">ZONA DE RISCO</div>
+    <p class="p" style="margin-bottom:10px">Excluir seu histórico oculta do seu perfil os times que você montou nos jogos já encerrados (zera medalhas e conquistas). Você continua no ranking das salas. Pede sua senha pra confirmar.</p>
+    <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="askHideHistory()">🗑 Excluir histórico do perfil</button>
+  </div>`;
   html+=`<button class="btn ghost" onclick="go('home')">← Voltar</button>`;
   return html;
 }
@@ -981,6 +1042,7 @@ function topbarHTML(){
     <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
+      ${isDev()?`<div class="userchip" onclick="toggleDevMode()" style="cursor:pointer;border-color:${APP.devMode?"var(--amber)":"var(--line)"};color:${APP.devMode?"var(--amber)":"var(--dim)"}" title="Alternar modo DEV / jogador">${APP.devMode?"🛠 DEV":"🎮 jogador"}</div>`:""}
       ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
   </div>${APP.showRules?rulesModalHTML():""}`;
@@ -1016,6 +1078,9 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   }catch(e){APP.jogos=[];}
   await loadArchived();
   await tryAutoLogin();
+  // restaura preferência do modo DEV (padrão: ligado)
+  const dm=localStorage_safe_get("fpvp_devmode");
+  if(dm==="0")APP.devMode=false; else APP.devMode=true;
   // go central: carrega o que cada view precisa
   window.go=async function(view,roomId,roundId){
     APP.view=view;if(roomId)APP.roomId=roomId;
