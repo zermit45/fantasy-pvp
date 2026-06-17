@@ -254,7 +254,7 @@ function makeEngine(match){
   function scorePlayer(p, tacticKey, squadSum){
     p=normP(p);
     if(p.min===0)return{total:0,minutes:0,statLines:[],lines:[],evNote:[],labels:[],meta:archetype(p,null,0,0)};
-    const ts=match.team_stats[p.team];
+    const ts=match.team_stats?match.team_stats[p.team]:null;
     const lines=[];const push=(k,v,n)=>{if(Math.abs(v)>=0.05)lines.push([k+(n?` ${n}`:""),v]);};
     const mf=minFactor(p);
     const comp={

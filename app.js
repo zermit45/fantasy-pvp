@@ -200,7 +200,8 @@ function playerArchHistory(playerId){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
     if(!ctx.byId[playerId])continue; // esse atleta não está neste jogo
     const meta=ctx.byId[playerId];
-    const raw=Object.assign({pos:meta.pos,team:meta.team},ctx.match.players?ctx.match.players[String(playerId)]:null||{min:0});
+    const st=(ctx.match.players&&ctx.match.players[String(playerId)])||{min:0};
+    const raw=Object.assign({pos:meta.pos,team:meta.team},st);
     if(!raw.min)continue;
     const r=ctx.eng.scorePlayer(raw,null);
     if(!r.meta)continue;
@@ -854,7 +855,7 @@ function buildMatchCtx(){
   const pp=APP.prepool,m=APP.match;
   m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
   // set piece goals (pra tatica bola parada) — opcional no match.json
-  for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
+  if(m.team_stats)for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
   return makeEngine(m);
 }
 function scoreEntry(entry,eng){
@@ -890,13 +891,17 @@ function scoreEntryFor(entry,eng,ctx){
   return {username:entry.username,total:Math.round(sum*10)/10,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
 // constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
+const _ctxCache={};
 function buildCtxFor(roomId){
-  const g=window.GAMES.data[roomId];if(!g)return null;
-  const pp=g.prepool,m=g.match;if(!m||m.status!=="finished")return null;
+  if(_ctxCache[roomId]!==undefined)return _ctxCache[roomId];
+  const g=window.GAMES.data[roomId];if(!g){_ctxCache[roomId]=null;return null;}
+  const pp=g.prepool,m=g.match;if(!m||m.status!=="finished"){_ctxCache[roomId]=null;return null;}
   m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
   if(m.team_stats)for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
   const byId=Object.fromEntries(pp.players.map(p=>[p.id,p]));
-  return {prepool:pp,match:m,byId,eng:makeEngine(m)};
+  const ctx={prepool:pp,match:m,byId,eng:makeEngine(m)};
+  _ctxCache[roomId]=ctx;
+  return ctx;
 }
 // ============================================================
 // MEDALHAS (derivadas das stats do perfil) + TELA DE PERFIL
@@ -1108,7 +1113,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};}
-    if(view==="profile"){APP.profile=null;render();APP.profile=await loadProfileStats(APP.user.username);}
+    if(view==="profile"){APP.profile=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;}
     render();window.scrollTo(0,0);
   };
   // tela inicial: grupos (se logado). carrega a lista antes.
