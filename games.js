@@ -1,0 +1,1359 @@
+// Dados de todos os jogos embutidos (gerado automaticamente)
+window.GAMES = {
+ "index": [
+  {
+   "room_id": "aut-jor-2026",
+   "match_name": "Áustria × Jordânia",
+   "comp": "Copa do Mundo 2026 · Grupo A",
+   "data": "17 Jun 2026",
+   "status": "open"
+  },
+  {
+   "room_id": "ned-jpn-2026",
+   "match_name": "Holanda × Japão",
+   "comp": "Copa do Mundo 2026 · Grupo F",
+   "data": "14 Jun 2026",
+   "status": "finished"
+  }
+ ],
+ "data": {
+  "aut-jor-2026": {
+   "prepool": {
+    "room_id": "aut-jor-2026",
+    "match_name": "Áustria × Jordânia",
+    "comp": "Copa do Mundo 2026 · Grupo A",
+    "venue": "AT&T Stadium, Dallas",
+    "home": {
+     "code": "AUT",
+     "name": "Áustria",
+     "elo": 1790
+    },
+    "away": {
+     "code": "JOR",
+     "name": "Jordânia",
+     "elo": 1490
+    },
+    "players": [
+     {
+      "id": 1,
+      "name": "Konrad Laimer",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 31000000,
+      "price": 34
+     },
+     {
+      "id": 2,
+      "name": "Nicolas Seiwald",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 25,
+      "mv": 24000000,
+      "price": 30
+     },
+     {
+      "id": 3,
+      "name": "Kevin Danso",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 19400000,
+      "price": 27
+     },
+     {
+      "id": 4,
+      "name": "Paul Wanner",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 20,
+      "mv": 23000000,
+      "price": 27
+     },
+     {
+      "id": 5,
+      "name": "David Affengruber",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 18100000,
+      "price": 26
+     },
+     {
+      "id": 6,
+      "name": "Carney Chukwuemeka",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 22,
+      "mv": 18100000,
+      "price": 25
+     },
+     {
+      "id": 7,
+      "name": "Romano Schmid",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 26,
+      "mv": 16500000,
+      "price": 25
+     },
+     {
+      "id": 8,
+      "name": "Marco Friedl",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 10600000,
+      "price": 21
+     },
+     {
+      "id": 9,
+      "name": "Mousa Tamari",
+      "team": "JOR",
+      "pos": "ATT",
+      "age": 29,
+      "mv": 10800000,
+      "price": 21
+     },
+     {
+      "id": 10,
+      "name": "Patrick Wimmer",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 25,
+      "mv": 11100000,
+      "price": 21
+     },
+     {
+      "id": 11,
+      "name": "Philipp Lienhart",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 9600000,
+      "price": 20
+     },
+     {
+      "id": 12,
+      "name": "Xaver Schlager",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 28,
+      "mv": 9500000,
+      "price": 20
+     },
+     {
+      "id": 13,
+      "name": "Alexander Prass",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 25,
+      "mv": 8700000,
+      "price": 19
+     },
+     {
+      "id": 14,
+      "name": "Marcel Sabitzer",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 32,
+      "mv": 6200000,
+      "price": 19
+     },
+     {
+      "id": 15,
+      "name": "Stefan Posch",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 6200000,
+      "price": 16
+     },
+     {
+      "id": 16,
+      "name": "David Alaba",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 33,
+      "mv": 2700000,
+      "price": 13
+     },
+     {
+      "id": 17,
+      "name": "Saša Kalajdžić",
+      "team": "AUT",
+      "pos": "ATT",
+      "age": 28,
+      "mv": 3700000,
+      "price": 13
+     },
+     {
+      "id": 18,
+      "name": "Dejan Ljubičić",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 28,
+      "mv": 3300000,
+      "price": 12
+     },
+     {
+      "id": 19,
+      "name": "Florian Grillitsch",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 30,
+      "mv": 2600000,
+      "price": 12
+     },
+     {
+      "id": 20,
+      "name": "Marko Arnautović",
+      "team": "AUT",
+      "pos": "ATT",
+      "age": 37,
+      "mv": 2100000,
+      "price": 12
+     },
+     {
+      "id": 21,
+      "name": "Michael Svoboda",
+      "team": "AUT",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 3400000,
+      "price": 12
+     },
+     {
+      "id": 22,
+      "name": "Alexander Schlager",
+      "team": "AUT",
+      "pos": "GK",
+      "age": 30,
+      "mv": 1900000,
+      "price": 10
+     },
+     {
+      "id": 23,
+      "name": "Florian Wiegele",
+      "team": "AUT",
+      "pos": "GK",
+      "age": 25,
+      "mv": 2100000,
+      "price": 10
+     },
+     {
+      "id": 24,
+      "name": "Michael Gregoritsch",
+      "team": "AUT",
+      "pos": "ATT",
+      "age": 32,
+      "mv": 1600000,
+      "price": 10
+     },
+     {
+      "id": 25,
+      "name": "Patrick Pentz",
+      "team": "AUT",
+      "pos": "GK",
+      "age": 29,
+      "mv": 2000000,
+      "price": 10
+     },
+     {
+      "id": 26,
+      "name": "Phillipp Mwene",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 32,
+      "mv": 1600000,
+      "price": 10
+     },
+     {
+      "id": 27,
+      "name": "Alessandro Schöpf",
+      "team": "AUT",
+      "pos": "MID",
+      "age": 32,
+      "mv": 775000,
+      "price": 8
+     },
+     {
+      "id": 28,
+      "name": "Yazan Al-Arab",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 1000000,
+      "price": 8
+     },
+     {
+      "id": 29,
+      "name": "Ali Olwan",
+      "team": "JOR",
+      "pos": "ATT",
+      "age": 26,
+      "mv": 825000,
+      "price": 7
+     },
+     {
+      "id": 30,
+      "name": "Mohammad Abu Zrayq",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 28,
+      "mv": 750000,
+      "price": 7
+     },
+     {
+      "id": 31,
+      "name": "Abdallah Nasib",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 360000,
+      "price": 6
+     },
+     {
+      "id": 32,
+      "name": "Amer Jamous",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 23,
+      "mv": 485000,
+      "price": 6
+     },
+     {
+      "id": 33,
+      "name": "Ibrahim Sadeh",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 26,
+      "mv": 520000,
+      "price": 6
+     },
+     {
+      "id": 34,
+      "name": "Mahmoud Al-Mardi",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 32,
+      "mv": 340000,
+      "price": 6
+     },
+     {
+      "id": 35,
+      "name": "Mohammad Ali Hasheesh",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 390000,
+      "price": 6
+     },
+     {
+      "id": 36,
+      "name": "Mohannad Abu Taha",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 23,
+      "mv": 535000,
+      "price": 6
+     },
+     {
+      "id": 37,
+      "name": "Nizar Al-Rashdan",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 27,
+      "mv": 620000,
+      "price": 6
+     },
+     {
+      "id": 38,
+      "name": "Noor Al-Deen Al Rawabdeh",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 29,
+      "mv": 455000,
+      "price": 6
+     },
+     {
+      "id": 39,
+      "name": "Saad Al Rousan",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 440000,
+      "price": 6
+     },
+     {
+      "id": 40,
+      "name": "Abdallah Al-Fakhouri",
+      "team": "JOR",
+      "pos": "GK",
+      "age": 26,
+      "mv": 240000,
+      "price": 5
+     },
+     {
+      "id": 41,
+      "name": "Ali Al Azaizah",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 22,
+      "mv": 340000,
+      "price": 5
+     },
+     {
+      "id": 42,
+      "name": "Ehsan Haddad",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 32,
+      "mv": 290000,
+      "price": 5
+     },
+     {
+      "id": 43,
+      "name": "Husam Ali Abudahab",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 330000,
+      "price": 5
+     },
+     {
+      "id": 44,
+      "name": "Mo Abualnadi",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 380000,
+      "price": 5
+     },
+     {
+      "id": 45,
+      "name": "Mohammad Abu Ghoush",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 20,
+      "mv": 310000,
+      "price": 5
+     },
+     {
+      "id": 46,
+      "name": "Mohammad Al Daoud",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 34,
+      "mv": 160000,
+      "price": 5
+     },
+     {
+      "id": 47,
+      "name": "Noureddin Bani Ateyah",
+      "team": "JOR",
+      "pos": "GK",
+      "age": 33,
+      "mv": 260000,
+      "price": 5
+     },
+     {
+      "id": 48,
+      "name": "Odeh Fakhoury",
+      "team": "JOR",
+      "pos": "ATT",
+      "age": 20,
+      "mv": 315000,
+      "price": 5
+     },
+     {
+      "id": 49,
+      "name": "Rajaei Ayed",
+      "team": "JOR",
+      "pos": "MID",
+      "age": 32,
+      "mv": 295000,
+      "price": 5
+     },
+     {
+      "id": 50,
+      "name": "Yazeed Abu Laila",
+      "team": "JOR",
+      "pos": "GK",
+      "age": 33,
+      "mv": 290000,
+      "price": 5
+     },
+     {
+      "id": 51,
+      "name": "Anas Badawi",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 205000,
+      "price": 4
+     },
+     {
+      "id": 52,
+      "name": "Saleem Obaid",
+      "team": "JOR",
+      "pos": "DEF",
+      "age": 34,
+      "mv": 97000,
+      "price": 4
+     }
+    ]
+   },
+   "match": {
+    "status": "pending",
+    "note": "Jogo ainda não aconteceu. Cole aqui as stats reais depois."
+   }
+  },
+  "ned-jpn-2026": {
+   "prepool": {
+    "room_id": "ned-jpn-2026",
+    "match_name": "Holanda × Japão",
+    "comp": "Copa do Mundo 2026 · Grupo F",
+    "venue": "AT&T Stadium, Dallas",
+    "home": {
+     "code": "NED",
+     "name": "Holanda",
+     "elo": 2030
+    },
+    "away": {
+     "code": "JPN",
+     "name": "Japão",
+     "elo": 1855
+    },
+    "players": [
+     {
+      "id": 1131987,
+      "name": "Bart Verbruggen",
+      "team": "NED",
+      "pos": "GK",
+      "price": 18
+     },
+     {
+      "id": 593118,
+      "name": "Denzel Dumfries",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 24
+     },
+     {
+      "id": 974618,
+      "name": "Jan Paul van Hecke",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 27
+     },
+     {
+      "id": 209405,
+      "name": "Virgil van Dijk",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 34
+     },
+     {
+      "id": 1097466,
+      "name": "Micky van de Ven",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 24
+     },
+     {
+      "id": 956683,
+      "name": "Ryan Gravenberch",
+      "team": "NED",
+      "pos": "MID",
+      "price": 38
+     },
+     {
+      "id": 638622,
+      "name": "Frenkie de Jong",
+      "team": "NED",
+      "pos": "MID",
+      "price": 36
+     },
+     {
+      "id": 868344,
+      "name": "Tijjani Reijnders",
+      "team": "NED",
+      "pos": "MID",
+      "price": 26
+     },
+     {
+      "id": 806552,
+      "name": "Cody Gakpo",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 33
+     },
+     {
+      "id": 941213,
+      "name": "C. Summerville",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 33
+     },
+     {
+      "id": 660301,
+      "name": "Donyell Malen",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 25
+     },
+     {
+      "id": 970563,
+      "name": "Quinten Timber",
+      "team": "NED",
+      "pos": "MID",
+      "price": 22
+     },
+     {
+      "id": 866516,
+      "name": "Teun Koopmeiners",
+      "team": "NED",
+      "pos": "MID",
+      "price": 24
+     },
+     {
+      "id": 303824,
+      "name": "Memphis Depay",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 20
+     },
+     {
+      "id": 417068,
+      "name": "Nathan Aké",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 15
+     },
+     {
+      "id": 940446,
+      "name": "Brian Brobbey",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 17
+     },
+     {
+      "id": 330643,
+      "name": "Mark Flekken",
+      "team": "NED",
+      "pos": "GK",
+      "price": 11
+     },
+     {
+      "id": 1125720,
+      "name": "Robin Roefs",
+      "team": "NED",
+      "pos": "GK",
+      "price": 9
+     },
+     {
+      "id": 881640,
+      "name": "Geertruida",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 14
+     },
+     {
+      "id": 1413846,
+      "name": "Jorrel Hato",
+      "team": "NED",
+      "pos": "DEF",
+      "price": 14
+     },
+     {
+      "id": 198559,
+      "name": "Marten de Roon",
+      "team": "NED",
+      "pos": "MID",
+      "price": 13
+     },
+     {
+      "id": 970243,
+      "name": "Mats Wieffer",
+      "team": "NED",
+      "pos": "MID",
+      "price": 15
+     },
+     {
+      "id": 794253,
+      "name": "Justin Kluivert",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 19
+     },
+     {
+      "id": 837341,
+      "name": "Noa Lang",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 15
+     },
+     {
+      "id": 351999,
+      "name": "Wout Weghorst",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 11
+     },
+     {
+      "id": 774947,
+      "name": "Guus Til",
+      "team": "NED",
+      "pos": "ATT",
+      "price": 12
+     },
+     {
+      "id": 1053679,
+      "name": "Zion Suzuki",
+      "team": "JPN",
+      "pos": "GK",
+      "price": 20
+     },
+     {
+      "id": 1023887,
+      "name": "Tsuyoshi Watanabe",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 19
+     },
+     {
+      "id": 523731,
+      "name": "Shogo Taniguchi",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 20
+     },
+     {
+      "id": 851626,
+      "name": "Hiroki Ito",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 20
+     },
+     {
+      "id": 629805,
+      "name": "Ritsu Doan",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 25
+     },
+     {
+      "id": 1033111,
+      "name": "Kaishu Sano",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 19
+     },
+     {
+      "id": 621515,
+      "name": "Daichi Kamada",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 32
+     },
+     {
+      "id": 887704,
+      "name": "Keito Nakamura",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 30
+     },
+     {
+      "id": 848289,
+      "name": "Takefusa Kubo",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 30
+     },
+     {
+      "id": 728765,
+      "name": "Daizen Maeda",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 20
+     },
+     {
+      "id": 942393,
+      "name": "Ayase Ueda",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 22
+     },
+     {
+      "id": 604044,
+      "name": "Junya Ito",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 15
+     },
+     {
+      "id": 664444,
+      "name": "Takehiro Tomiyasu",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 15
+     },
+     {
+      "id": 924610,
+      "name": "Yukinari Sugawara",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 15
+     },
+     {
+      "id": 727837,
+      "name": "Koki Ogawa",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 15
+     },
+     {
+      "id": 1611223,
+      "name": "Kento Shiogai",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 9
+     },
+     {
+      "id": 922808,
+      "name": "Keisuke Osako",
+      "team": "JPN",
+      "pos": "GK",
+      "price": 8
+     },
+     {
+      "id": 1232143,
+      "name": "Tomoki Hayakawa",
+      "team": "JPN",
+      "pos": "GK",
+      "price": 8
+     },
+     {
+      "id": 620917,
+      "name": "Ko Itakura",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 14
+     },
+     {
+      "id": 98254,
+      "name": "Yuto Nagatomo",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 7
+     },
+     {
+      "id": 857120,
+      "name": "Ayumu Seko",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 12
+     },
+     {
+      "id": 935728,
+      "name": "Ao Tanaka",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 17
+     },
+     {
+      "id": 1134467,
+      "name": "Yuito Suzuki",
+      "team": "JPN",
+      "pos": "MID",
+      "price": 15
+     },
+     {
+      "id": 1337765,
+      "name": "Junnosuke Suzuki",
+      "team": "JPN",
+      "pos": "DEF",
+      "price": 10
+     },
+     {
+      "id": 1436730,
+      "name": "Keisuke Goto",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 10
+     },
+     {
+      "id": 915111,
+      "name": "Shuto Machino",
+      "team": "JPN",
+      "pos": "ATT",
+      "price": 10
+     }
+    ]
+   },
+   "match": {
+    "status": "finished",
+    "score": [
+     2,
+     2
+    ],
+    "endMin": 96,
+    "neutral": true,
+    "goals_tl": [
+     {
+      "m": 51,
+      "t": "NED"
+     },
+     {
+      "m": 57,
+      "t": "JPN"
+     },
+     {
+      "m": 64,
+      "t": "NED"
+     },
+     {
+      "m": 89,
+      "t": "JPN"
+     }
+    ],
+    "team_stats": {
+     "NED": {
+      "poss": 60,
+      "shots": 13,
+      "shotsFaced": 10
+     },
+     "JPN": {
+      "poss": 40,
+      "shots": 10,
+      "shotsFaced": 13
+     }
+    },
+    "players": {
+     "209405": {
+      "min": 90,
+      "started": true,
+      "goals": [
+       {
+        "m": 51,
+        "xg": 0.0598
+       }
+      ],
+      "tklint": 1,
+      "clearance": 8,
+      "aerial": 3,
+      "prgp": 16,
+      "sots": []
+     },
+     "974618": {
+      "min": 90,
+      "started": true,
+      "sots": [
+       {
+        "m": 73
+       }
+      ],
+      "tklint": 2,
+      "clearance": 5,
+      "aerial": 2,
+      "recovery": 2,
+      "prgp": 21
+     },
+     "593118": {
+      "min": 90,
+      "started": true,
+      "tklint": 1,
+      "recovery": 2,
+      "aerial": 3,
+      "accCross": 1,
+      "inaccCross": 2,
+      "tib": 3,
+      "prgp": 11,
+      "pib": 1
+     },
+     "1097466": {
+      "min": 90,
+      "started": true,
+      "tklint": 1,
+      "clearance": 4,
+      "aerial": 2,
+      "recovery": 1,
+      "fouls": 2,
+      "yellow": 1,
+      "prgp": 12,
+      "pib": 1
+     },
+     "956683": {
+      "min": 81,
+      "started": true,
+      "assists": [
+       {
+        "m": 51,
+        "xag": 0.04
+       },
+       {
+        "m": 64,
+        "xag": 0.25
+       }
+      ],
+      "recovery": 2,
+      "aerial": 1,
+      "dribbles": 2,
+      "prgp": 10,
+      "pib": 2,
+      "clearance": 1
+     },
+     "638622": {
+      "min": 90,
+      "started": true,
+      "tklint": 4,
+      "recovery": 5,
+      "aerial": 1,
+      "dribbles": 1,
+      "prgp": 22,
+      "pib": 1,
+      "fouls": 2
+     },
+     "868344": {
+      "min": 70,
+      "started": true,
+      "tklint": 2,
+      "aerial": 1,
+      "accCross": 3,
+      "inaccCross": 4,
+      "prgp": 5,
+      "pib": 2
+     },
+     "806552": {
+      "min": 85,
+      "started": true,
+      "sots": [
+       {
+        "m": 73
+       }
+      ],
+      "tklint": 1,
+      "aerial": 4,
+      "recovery": 2,
+      "dribbles": 1,
+      "prgp": 14,
+      "pib": 1,
+      "tib": 3
+     },
+     "941213": {
+      "min": 70,
+      "started": true,
+      "goals": [
+       {
+        "m": 64,
+        "xg": 0.0191
+       }
+      ],
+      "dribbles": 1,
+      "aerial": 1,
+      "recovery": 1,
+      "yellow": 1,
+      "fouls": 1,
+      "prgp": 11,
+      "pib": 1,
+      "tib": 3
+     },
+     "660301": {
+      "min": 70,
+      "started": true,
+      "sots": [
+       {
+        "m": 3
+       },
+       {
+        "m": 34
+       }
+      ],
+      "dribbles": 2,
+      "aerial": 2,
+      "recovery": 3,
+      "tib": 9,
+      "prgp": 2,
+      "pib": 1
+     },
+     "1131987": {
+      "min": 90,
+      "started": true,
+      "gk": {
+       "saves": [
+        {
+         "psxg": 0.28,
+         "m": 80
+        }
+       ],
+       "conceded": 2,
+       "opa": 1,
+       "crossStop": 0,
+       "penSave": 0
+      },
+      "recovery": 5
+     },
+     "970563": {
+      "min": 20,
+      "started": false,
+      "clearance": 2,
+      "aerial": 1,
+      "prgp": 3,
+      "pib": 1,
+      "tib": 3,
+      "dribbledPast": 1
+     },
+     "866516": {
+      "min": 20,
+      "started": false,
+      "sots": [
+       {
+        "m": 76
+       }
+      ],
+      "clearance": 2,
+      "aerial": 1,
+      "fouls": 1,
+      "prgp": 1,
+      "pib": 1,
+      "tib": 2
+     },
+     "303824": {
+      "min": 20,
+      "started": false,
+      "recovery": 2,
+      "fouls": 1,
+      "yellow": 1,
+      "accCross": 1,
+      "prgp": 3,
+      "pib": 1,
+      "tib": 1
+     },
+     "417068": {
+      "min": 9,
+      "started": false,
+      "recovery": 1,
+      "prgp": 1
+     },
+     "940446": {
+      "min": 5,
+      "started": false,
+      "clearance": 1
+     },
+     "1053679": {
+      "min": 90,
+      "started": true,
+      "gk": {
+       "saves": [
+        {
+         "psxg": 0.227,
+         "m": 3
+        },
+        {
+         "psxg": 0.112,
+         "m": 34
+        },
+        {
+         "psxg": 0.21,
+         "m": 73
+        },
+        {
+         "psxg": 0.752,
+         "m": 73
+        }
+       ],
+       "conceded": 2,
+       "opa": 0,
+       "crossStop": 0,
+       "penSave": 0
+      },
+      "recovery": 7
+     },
+     "1023887": {
+      "min": 75,
+      "started": true,
+      "tklint": 2,
+      "clearance": 6,
+      "aerial": 2,
+      "recovery": 2,
+      "dribbledPast": 1,
+      "accCross": 1,
+      "prgp": 5
+     },
+     "523731": {
+      "min": 90,
+      "started": true,
+      "clearance": 9,
+      "aerial": 1,
+      "recovery": 2,
+      "prgp": 7
+     },
+     "851626": {
+      "min": 90,
+      "started": true,
+      "clearance": 5,
+      "aerial": 1,
+      "fouls": 1,
+      "dribbledPast": 1,
+      "block": 1,
+      "prgp": 9
+     },
+     "629805": {
+      "min": 75,
+      "started": true,
+      "tklint": 1,
+      "clearance": 3,
+      "recovery": 1,
+      "fouls": 1,
+      "prgp": 7,
+      "pib": 1,
+      "tib": 1
+     },
+     "1033111": {
+      "min": 90,
+      "started": true,
+      "tklint": 2,
+      "aerial": 1,
+      "recovery": 4,
+      "dribbledPast": 2,
+      "prgp": 3
+     },
+     "621515": {
+      "min": 90,
+      "started": true,
+      "goals": [
+       {
+        "m": 89,
+        "xg": 0.1404
+       }
+      ],
+      "tklint": 5,
+      "recovery": 4,
+      "dribbles": 1,
+      "dribbledPast": 2,
+      "prgp": 13,
+      "pib": 1,
+      "tib": 3
+     },
+     "887704": {
+      "min": 90,
+      "started": true,
+      "goals": [
+       {
+        "m": 57,
+        "xg": 0.0246
+       }
+      ],
+      "sots": [
+       {
+        "m": 43
+       },
+       {
+        "m": 75
+       }
+      ],
+      "tklint": 3,
+      "clearance": 2,
+      "recovery": 1,
+      "fouls": 2,
+      "dribbles": 1,
+      "accCross": 1,
+      "prgp": 11,
+      "pib": 1,
+      "tib": 3
+     },
+     "848289": {
+      "min": 75,
+      "started": true,
+      "assists": [
+       {
+        "m": 57,
+        "xag": 0.03
+       }
+      ],
+      "tklint": 1,
+      "recovery": 2,
+      "fouls": 1,
+      "prgp": 4,
+      "tib": 1
+     },
+     "728765": {
+      "min": 66,
+      "started": true,
+      "clearance": 3,
+      "aerial": 1,
+      "dribbledPast": 1,
+      "prgp": 3,
+      "tib": 3
+     },
+     "942393": {
+      "min": 84,
+      "started": true,
+      "sots": [
+       {
+        "m": 84
+       }
+      ],
+      "tklint": 1,
+      "clearance": 1,
+      "recovery": 1,
+      "fouls": 1,
+      "prgp": 2,
+      "tib": 1
+     },
+     "604044": {
+      "min": 24,
+      "started": false,
+      "aerial": 1,
+      "accCross": 3,
+      "inaccCross": 3,
+      "prgp": 6,
+      "pib": 1,
+      "tib": 2
+     },
+     "664444": {
+      "min": 15,
+      "started": false,
+      "tklint": 1,
+      "clearance": 1,
+      "recovery": 1,
+      "fouls": 1,
+      "prgp": 5
+     },
+     "924610": {
+      "min": 15,
+      "started": false,
+      "sots": [
+       {
+        "m": 80
+       }
+      ],
+      "clearance": 1,
+      "aerial": 1,
+      "accCross": 1,
+      "prgp": 5,
+      "pib": 1,
+      "tib": 1
+     },
+     "727837": {
+      "min": 15,
+      "started": false,
+      "assists": [
+       {
+        "m": 88,
+        "xag": 0.05
+       }
+      ],
+      "tib": 2
+     },
+     "1611223": {
+      "min": 6,
+      "started": false,
+      "recovery": 1
+     }
+    }
+   }
+  }
+ }
+};
