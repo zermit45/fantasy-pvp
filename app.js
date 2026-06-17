@@ -571,8 +571,10 @@ function roundHTML(){
     return `<div class="roomrow" onclick="askEnterRoundGame('${j.room_id}')">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
       ${tag}
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:auto;padding:0 9px;height:30px;margin-left:8px;font-size:10px;color:${locked?"var(--green)":"var(--amber)"};border-color:${locked?"var(--green)":"var(--amber)"}" onclick="event.stopPropagation();setRoundRoomStatus('${j.room_id}','${locked?"open":"locked"}')">${locked?"destravar":"travar"}</button>
-      <button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();delRoomFromRound('${j.room_id}')">✕</button>`:""}
+      ${isAdmin()?`<div style="display:flex;gap:6px;align-items:center;margin-left:8px">
+        <span onclick="event.stopPropagation();setRoundRoomStatus('${j.room_id}','${locked?"open":"locked"}')" style="cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.04em;padding:5px 10px;border-radius:99px;border:1px solid ${locked?"var(--green)":"var(--amber)"};color:${locked?"var(--green)":"var(--amber)"};background:color-mix(in srgb,${locked?"var(--green)":"var(--amber)"} 12%,transparent)">${locked?"🔓 abrir":"🔒 travar"}</span>
+        <span onclick="event.stopPropagation();delRoomFromRound('${j.room_id}')" style="cursor:pointer;font-size:13px;color:var(--dim);padding:3px 6px" title="Remover da rodada">✕</span>
+      </div>`:""}
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
