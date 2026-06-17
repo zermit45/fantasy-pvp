@@ -154,33 +154,84 @@ function makeEngine(match){
   }
   const lab3=(v,lo,mid,hi)=>v>=65?hi:v>=35?mid:lo;
 
+  // ============================================================
+  // CAMADA COLECIONÁVEL (cosmética — não altera pontuação)
+  //   arch   = 1 papel principal do jogador na partida
+  //   traits = até 3 selos de momentos especiais
+  //   rarity = raridade da "carta", de Comum a Lendário
+  // ============================================================
   function archetype(p,ix,clutch,total){
     if(!ix)return{arch:"—",traits:["Não entrou em campo"],rarity:"Comum"};
-    let arch="Conector";const traits=[];
-    if(p.gk){const wall=p.gk.saves.length>=5||p.gk.saves.some(s=>tierSV(s.psxg).t===4);arch=!wall&&(p.gk.opa+p.gk.crossStop)>=3&&ix.sec>=60?"GK Líbero":"GK Muralha";}
-    else if(clutch>=2)arch="Herói de Clutch";
-    else if(p.goals.length&&p.goals.every(g=>g.xg<0.2))arch="Finalizador Frio";
-    else if((p.sca+p.gca*2)>=6&&p.pib>=3)arch="Maestro Criador";
-    else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=10)arch="Muralha Aérea";
-    else if(p.pos==="DEF"&&p.prgp>=3&&ix.sec>=70)arch="Zagueiro Construtor";
-    else if(ix.tw>=65&&p.recovery>=6)arch="Motor";
-    else if(ix.tw>=60&&ix.sec>=70&&p.pos!=="ATT")arch="Cão de Guarda";
-    else if(ix.iui>=65&&ix.sec<45)arch="Ponta Caótico";
-    else if(ix.iui>=60&&p.pos==="DEF")arch="Lateral de Corredor";
-    if(clutch>0)traits.push("Mente Fria");
-    if(p.red||(p.yellow>=1&&p.fouls>=3))traits.push("Indisciplinado");
-    if(!p.red&&!p.yellow&&ix.sec>=80)traits.push("Seguro");
-    if(p.goals.some(g=>g.xg<0.08)||(p.gk&&p.gk.saves.some(s=>s.psxg>0.6)))traits.push("Cirúrgico");
-    if(ix.tw>=75&&p.pos!=="ATT")traits.push("Monstro Defensivo");
-    if(total<1&&p.min>=45)traits.push("Apagado");
-    if(!traits.length)traits.push("Regular");
+    const G=p.goals.length, A=p.assists.length;
+    const golaco = p.goals.some(g=>tierXG(g.xg).t===4);           // xg<0.08
+    const golDificil = p.goals.some(g=>tierXG(g.xg).t>=3);
+    const defLimpa = p.gk && p.gk.conceded===0 && p.min>=60;
+    let arch="Conector"; const traits=[];
+
+    // ---------- ARQUÉTIPO (prioridade do mais raro/marcante ao mais comum) ----------
+    if(p.gk){
+      const bigSave = p.gk.saves.some(s=>tierSV(s.psxg).t===4);
+      const manySaves = p.gk.saves.length>=5;
+      if(p.gk.penSave>0) arch="GK Pegador de Pênalti";
+      else if((manySaves||bigSave)&&p.gk.conceded===0) arch="GK Paredão";
+      else if(manySaves||bigSave) arch="GK Muralha";
+      else if((p.gk.opa+p.gk.crossStop)>=3&&ix.sec>=60) arch="GK Líbero";
+      else arch="GK Seguro";
+    }
+    else if(G>=3) arch="Matador";                                          // hat-trick
+    else if(G>=2) arch="Artilheiro";                                       // 2 gols
+    else if(clutch>=2) arch="Herói de Clutch";
+    else if(G>=1&&golaco) arch="Finalizador Frio";
+    else if(G>=1&&A>=1) arch="Decisivo";                                   // gol + assist
+    else if(A>=2) arch="Garçom";
+    else if((p.sca+p.gca*2)>=6&&p.pib>=3) arch="Maestro Criador";
+    else if(p.pos==="ATT"&&p.sots.length>=3) arch="Lobo Solitário";        // muito chute
+    else if(p.pos==="ATT"&&p.aerial>=4) arch="Pivô de Área";
+    else if(p.pos==="ATT") arch="Homem de Frente";                         // atacante padrão
+    else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=10) arch="Muralha Aérea";
+    else if(p.pos==="DEF"&&p.prgp>=3&&ix.sec>=70) arch="Zagueiro Construtor";
+    else if(p.pos==="DEF"&&ix.iui>=60) arch="Lateral de Corredor";
+    else if(p.pos==="MID"&&ix.iui>=70&&ix.tw>=70) arch="Box-to-Box";        // completo de verdade
+    else if(p.pos==="MID"&&(p.sca+p.gca*2)>=4) arch="Camisa 10";
+    else if((p.tklint+p.recovery)>=8&&ix.tw>=65) arch="Volante";
+    else if(ix.tw>=65&&p.recovery>=6) arch="Motor";
+    else if(ix.tw>=60&&ix.sec>=70&&p.pos!=="ATT") arch="Cão de Guarda";
+    else if(ix.iui>=65&&ix.sec<45) arch="Ponta Caótico";
+
+    // ---------- TRAITS (selos de momento — até 3) ----------
+    if(G>=3) traits.push("Hat-trick");
+    else if(G>=2) traits.push("Dobradinha");
+    if(A>=2) traits.push("Garçom");
+    if(golaco) traits.push("Carrasco");                 // golaço improvável
+    if(clutch>0) traits.push("Mente Fria");
+    if(p.gk&&p.gk.penSave>0) traits.push("Pega-Pênalti");
+    if(defLimpa) traits.push("Cadeado");                // goleiro/zaga sem sofrer gol
+    if(!p.gk&&p.sots.length>=3) traits.push("Pé Quente");
+    if((p.sca+p.gca*2)>=5) traits.push("Maestro");
+    if(p.gk&&p.gk.saves.some(s=>s.psxg>0.6)) traits.push("Paredão");
+    if(ix.tw>=88&&p.pos!=="ATT") traits.push("Monstro Defensivo");
+    if(!p.red&&!p.yellow&&p.fouls===0&&p.dribbledPast===0&&ix.sec>=92) traits.push("Seguro");
+    if(p.red||(p.yellow>=1&&p.fouls>=3)) traits.push("Indisciplinado");
+    if(total<1&&p.min>=45) traits.push("Fantasma");
+    if(!traits.length) traits.push("Regular");
+
+    // ---------- RARIDADE (mais difícil chegar ao topo) ----------
     let r=0;
-    if(p.goals.some(g=>g.xg<0.08&&g.m>=85))r+=5;
-    if(p.goals.some(g=>tierXG(g.xg).t===4)||(p.gk&&p.gk.saves.some(s=>tierSV(s.psxg).t===4)))r+=3;
-    if(arch==="Herói de Clutch"||arch==="GK Muralha"||arch==="GK Líbero")r+=1;
-    if(total>=15)r+=2;else if(total>=10)r+=1;
-    if(p.red)r=Math.max(0,r-1);
-    const rarity=r>=10?"Lendário":r>=8?"Mítico":r>=6?"Épico":r>=4?"Raro":r>=2?"Incomum":"Comum";
+    if(p.goals.some(g=>tierXG(g.xg).t===4&&g.m>=85)) r+=5;   // golaço decisivo no fim
+    if(golaco) r+=3;                                          // golaço improvável
+    if(golDificil) r+=1;
+    if(G>=3) r+=4; else if(G>=2) r+=2; else if(G>=1) r+=1;   // gols
+    if(A>=2) r+=2; else if(A>=1) r+=1;
+    if(p.gk&&p.gk.penSave>0) r+=3;
+    if(p.gk&&p.gk.saves.some(s=>tierSV(s.psxg).t===4)) r+=2;
+    if(defLimpa) r+=1;
+    if(clutch>=2) r+=2; else if(clutch>0) r+=1;
+    if(total>=20) r+=3; else if(total>=15) r+=2; else if(total>=10) r+=1;
+    if(traits.includes("Monstro Defensivo")) r+=1;
+    if(p.red) r=Math.max(0,r-2);
+    if(traits.includes("Fantasma")) r=Math.max(0,r-1);
+    const rarity = r>=13?"Lendário":r>=10?"Mítico":r>=7?"Épico":r>=4?"Raro":r>=2?"Incomum":"Comum";
+
     return{arch,traits:traits.slice(0,3),rarity};
   }
 
