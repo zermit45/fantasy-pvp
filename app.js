@@ -19,6 +19,7 @@ let APP={
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[],
+  archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
   captain:null, tactic:null, tab:"ALL", warn:"", showRules:false, confirm:null,
@@ -106,10 +107,39 @@ async function loadGroupRooms(){
 // admin: abrir um jogo do catálogo neste grupo
 async function openRoomInGroup(roomId){
   if(!isAdmin())return;
+  if(isArchived(roomId)){toast("Jogo arquivado. Desarquive primeiro se quiser reabrir.");return;}
   await sbInsert("group_rooms",{group_id:APP.groupId,room_id:roomId,status:"open"},true,"group_id,room_id");
   await loadGroupRooms();
   toast("Jogo aberto no grupo.");
   render();
+}
+
+// ----- JOGOS ARQUIVADOS (resultados) — global -----
+async function loadArchived(){
+  try{const rows=await sb("archived_games?select=room_id");APP.archived=(rows||[]).map(r=>r.room_id);}
+  catch(e){APP.archived=[];}
+}
+function isArchived(roomId){return APP.archived.includes(roomId);}
+async function archiveGame(roomId){
+  if(!isAdmin())return;
+  try{
+    await sbInsert("archived_games",{room_id:roomId},true,"room_id");
+    // sai de toda pool/grupo: remove de group_rooms e round_rooms em todos os lugares
+    await sbDelete("group_rooms",`room_id=eq.${roomId}`);
+    await sbDelete("round_rooms",`room_id=eq.${roomId}`);
+    await loadArchived();await loadGroupRooms();
+    toast("Jogo arquivado — agora aparece em Resultados.");
+    go("home");
+  }catch(e){toast("Erro: "+e.message);}
+}
+async function unarchiveGame(roomId){
+  if(!isAdmin())return;
+  try{
+    await sbDelete("archived_games",`room_id=eq.${roomId}`);
+    await loadArchived();
+    toast("Jogo desarquivado — pode ser aberto de novo.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
 }
 
 // ---------- RODADAS (escolha N de M) ----------
@@ -145,6 +175,7 @@ async function createRound(name,limit){
 // admin: adicionar/remover jogo na rodada
 async function addRoomToRound(roomId){
   if(!isAdmin())return;
+  if(isArchived(roomId)){toast("Jogo arquivado não pode entrar em rodada.");return;}
   await sbInsert("round_rooms",{round_id:APP.roundId,room_id:roomId},true,"round_id,room_id");
   await loadRound(APP.roundId);render();
 }
@@ -298,20 +329,22 @@ function askCreateGroup(){APP.confirm={mode:"createGroup",label:"Criar grupo"};r
 // modal de entrar com senha
 function askJoin(gid){APP.confirm={mode:"join",gid,label:"Entrar no grupo"};render();}
 function homeHTML(){
-  // jogos abertos NESTE grupo (status vem de group_rooms)
+  // jogos abertos NESTE grupo (status vem de group_rooms; arquivados nunca aparecem aqui)
   const abertos=APP.groupRooms.map(gr=>{
     const cat=APP.jogos.find(j=>j.room_id===gr.room_id);
     return cat?{...cat,status:gr.status}:null;
-  }).filter(Boolean);
+  }).filter(Boolean).filter(j=>!isArchived(j.room_id));
   const rows=abertos.map(j=>{
     const st=j.status;
     const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
     return `<div class="roomrow" onclick="go('room','${j.room_id}')">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
-      ${pill}</div>`;
+      ${pill}
+      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar (mover p/ Resultados)">🗄</button>`:""}
+    </div>`;
   }).join("");
-  // jogos do catálogo ainda NÃO abertos neste grupo (só admin pode abrir)
-  const naoAbertos=APP.jogos.filter(j=>!APP.groupRooms.some(gr=>gr.room_id===j.room_id));
+  // jogos do catálogo ainda NÃO abertos neste grupo (só admin) — sem os arquivados
+  const naoAbertos=APP.jogos.filter(j=>!APP.groupRooms.some(gr=>gr.room_id===j.room_id)&&!isArchived(j.room_id));
   const abrirRows=naoAbertos.map(j=>`<div class="roomrow" onclick="openRoomInGroup('${j.room_id}')">
     <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para abrir neste grupo</div></div>
     <span class="statuspill st-closed">+ ABRIR</span></div>`).join("");
@@ -324,6 +357,7 @@ function homeHTML(){
     ${rows||'<p class="p">Nenhum jogo aberto neste grupo ainda.</p>'}
   </div>
   ${roundsCardHTML()}
+  ${resultsCardHTML()}
   ${isAdmin()&&naoAbertos.length?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · ABRIR JOGO NESTE GRUPO</div>
     <p class="p" style="margin-bottom:10px">Jogos do catálogo ainda não abertos aqui:</p>
@@ -335,6 +369,24 @@ function homeHTML(){
     <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">🧹 Limpar todos os times (reboot)</button>
   </div>`:""}`;
 }
+
+// ----- RESULTADOS: card de jogos arquivados (todos veem) -----
+function resultsCardHTML(){
+  const arq=APP.jogos.filter(j=>isArchived(j.room_id));
+  if(!arq.length)return"";
+  const rows=arq.map(j=>`<div class="roomrow" onclick="go('result','${j.room_id}')">
+    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
+    <span class="statuspill st-finished">VER RESULTADO</span>
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`:""}
+  </div>`).join("");
+  return `<div class="card">
+    <div class="tag" style="margin-bottom:6px;color:var(--blue)">RESULTADOS · JOGOS ENCERRADOS</div>
+    <p class="p" style="margin-bottom:10px">Jogos já finalizados. Toque para ver como foi a apuração e o ranking.</p>
+    ${rows}
+  </div>`;
+}
+function askArchive(roomId){APP.confirm={mode:"archive",roomId,label:"Arquivar jogo"};render();}
+
 
 // ----- RODADAS: card na home -----
 function roundsCardHTML(){
@@ -374,7 +426,7 @@ function roundHTML(){
     </div>`;
   }).join("");
   // admin: jogos do catálogo que ainda não estão na rodada
-  const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id));
+  const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
   const foraRows=fora.map(j=>`<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
     <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para adicionar à rodada</div></div>
     <span class="statuspill st-closed">+ ADD</span></div>`).join("");
@@ -448,6 +500,17 @@ function confirmModalHTML(){
       <input id="grpName" class="input" placeholder="Nome do grupo" autocorrect="off" />
       <input id="grpPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
       <button class="btn" style="margin-top:4px" onclick="submitCreateGroup()">Criar grupo</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: arquivar jogo (admin) — move pra Resultados, global
+  if(c.mode==="archive"){
+    const j=APP.jogos.find(x=>x.room_id===c.roomId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--blue)">Arquivar jogo</div>
+      <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">${esc(j?j.match_name:"")}</b> vai sair de todos os grupos e rodadas e passar a aparecer só em <b style="color:var(--blue)">Resultados</b>, onde todos veem como foi. Não poderá mais ser adicionado a nenhuma pool.</p>
+      <p class="p" style="margin:10px 0">Os times já montados e o ranking continuam salvos. Você pode desarquivar depois.</p>
+      <button class="btn" style="margin-top:4px;background:var(--blue)" onclick="closeConfirm();archiveGame('${c.roomId}')">🗄 Arquivar</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
@@ -792,12 +855,13 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   try{
     APP.jogos=window.GAMES.index;
   }catch(e){APP.jogos=[];}
+  await loadArchived();
   await tryAutoLogin();
   // go central: carrega o que cada view precisa
   window.go=async function(view,roomId,roundId){
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
-    if(view==="home"){await loadGroups();await loadGroupRooms();await loadRounds();}
+    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();}
     if(view==="round"){await loadRound(roundId);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
