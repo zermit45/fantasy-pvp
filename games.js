@@ -2,6 +2,20 @@
 window.GAMES = {
  "index": [
   {
+   "room_id": "eng-cro-2026",
+   "match_name": "Inglaterra × Croácia",
+   "comp": "Copa do Mundo 2026",
+   "data": "Jun 2026",
+   "status": "open"
+  },
+  {
+   "room_id": "gha-pan-2026",
+   "match_name": "Gana × Panamá",
+   "comp": "Copa do Mundo 2026",
+   "data": "Jun 2026",
+   "status": "open"
+  },
+  {
    "room_id": "uzb-col-2026",
    "match_name": "Uzbequistão × Colômbia",
    "comp": "Copa do Mundo 2026",
@@ -31,6 +45,1082 @@ window.GAMES = {
   }
  ],
  "data": {
+  "eng-cro-2026": {
+   "prepool": {
+    "room_id": "eng-cro-2026",
+    "match_name": "Inglaterra × Croácia",
+    "comp": "Copa do Mundo 2026",
+    "venue": "",
+    "home": {
+     "code": "ENG",
+     "name": "Inglaterra",
+     "elo": 2079
+    },
+    "away": {
+     "code": "CRO",
+     "name": "Croácia",
+     "elo": 2030
+    },
+    "players": [
+     {
+      "id": 1,
+      "name": "Bukayo Saka",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 24,
+      "mv": 115000000,
+      "price": 34
+     },
+     {
+      "id": 2,
+      "name": "Declan Rice",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 27,
+      "mv": 114000000,
+      "price": 34
+     },
+     {
+      "id": 3,
+      "name": "Jude Bellingham",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 22,
+      "mv": 123000000,
+      "price": 34
+     },
+     {
+      "id": 4,
+      "name": "Harry Kane",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 32,
+      "mv": 65000000,
+      "price": 30
+     },
+     {
+      "id": 5,
+      "name": "Morgan Rogers",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 23,
+      "mv": 77000000,
+      "price": 27
+     },
+     {
+      "id": 6,
+      "name": "Anthony Gordon",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 25,
+      "mv": 67000000,
+      "price": 26
+     },
+     {
+      "id": 7,
+      "name": "Eberechi Eze",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 27,
+      "mv": 69000000,
+      "price": 26
+     },
+     {
+      "id": 8,
+      "name": "Marc Guéhi",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 66000000,
+      "price": 26
+     },
+     {
+      "id": 9,
+      "name": "Elliot Anderson",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 23,
+      "mv": 68000000,
+      "price": 25
+     },
+     {
+      "id": 10,
+      "name": "Joško Gvardiol",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 24,
+      "mv": 64000000,
+      "price": 25
+     },
+     {
+      "id": 11,
+      "name": "Nico O'Reilly",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 21,
+      "mv": 76000000,
+      "price": 25
+     },
+     {
+      "id": 12,
+      "name": "Reece James",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 63000000,
+      "price": 25
+     },
+     {
+      "id": 13,
+      "name": "Kobbie Mainoo",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 21,
+      "mv": 72000000,
+      "price": 24
+     },
+     {
+      "id": 14,
+      "name": "Noni Madueke",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 24,
+      "mv": 54000000,
+      "price": 23
+     },
+     {
+      "id": 15,
+      "name": "Jarell Quansah",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 23,
+      "mv": 48000000,
+      "price": 21
+     },
+     {
+      "id": 16,
+      "name": "Luka Vušković",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 19,
+      "mv": 64000000,
+      "price": 21
+     },
+     {
+      "id": 17,
+      "name": "Trevoh Chalobah",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 43000000,
+      "price": 21
+     },
+     {
+      "id": 18,
+      "name": "Ezri Konsa",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 42000000,
+      "price": 20
+     },
+     {
+      "id": 19,
+      "name": "Josip Stanišić",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 39000000,
+      "price": 20
+     },
+     {
+      "id": 20,
+      "name": "Petar Sučić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 22,
+      "mv": 44000000,
+      "price": 20
+     },
+     {
+      "id": 21,
+      "name": "Marcus Rashford",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 28,
+      "mv": 38000000,
+      "price": 19
+     },
+     {
+      "id": 22,
+      "name": "Dean Henderson",
+      "team": "ENG",
+      "pos": "GK",
+      "age": 29,
+      "mv": 29000000,
+      "price": 17
+     },
+     {
+      "id": 23,
+      "name": "Djed Spence",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 31000000,
+      "price": 17
+     },
+     {
+      "id": 24,
+      "name": "Ollie Watkins",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 30,
+      "mv": 26000000,
+      "price": 17
+     },
+     {
+      "id": 25,
+      "name": "Ivan Toney",
+      "team": "ENG",
+      "pos": "ATT",
+      "age": 30,
+      "mv": 22000000,
+      "price": 16
+     },
+     {
+      "id": 26,
+      "name": "James Trafford",
+      "team": "ENG",
+      "pos": "GK",
+      "age": 23,
+      "mv": 27000000,
+      "price": 16
+     },
+     {
+      "id": 27,
+      "name": "Martin Baturina",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 23,
+      "mv": 28000000,
+      "price": 16
+     },
+     {
+      "id": 28,
+      "name": "Igor Matanović",
+      "team": "CRO",
+      "pos": "ATT",
+      "age": 23,
+      "mv": 21000000,
+      "price": 14
+     },
+     {
+      "id": 29,
+      "name": "Jordan Pickford",
+      "team": "ENG",
+      "pos": "GK",
+      "age": 32,
+      "mv": 13900000,
+      "price": 14
+     },
+     {
+      "id": 30,
+      "name": "John Stones",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 10900000,
+      "price": 12
+     },
+     {
+      "id": 31,
+      "name": "Josip Šutalo",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 13100000,
+      "price": 11
+     },
+     {
+      "id": 32,
+      "name": "Mateo Kovačić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 32,
+      "mv": 9700000,
+      "price": 11
+     },
+     {
+      "id": 33,
+      "name": "Petar Musa",
+      "team": "CRO",
+      "pos": "ATT",
+      "age": 28,
+      "mv": 13000000,
+      "price": 11
+     },
+     {
+      "id": 34,
+      "name": "Luka Sučić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 23,
+      "mv": 10900000,
+      "price": 10
+     },
+     {
+      "id": 35,
+      "name": "Nikola Vlašić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 28,
+      "mv": 10300000,
+      "price": 10
+     },
+     {
+      "id": 36,
+      "name": "Toni Fruk",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 25,
+      "mv": 9600000,
+      "price": 10
+     },
+     {
+      "id": 37,
+      "name": "Dan Burn",
+      "team": "ENG",
+      "pos": "DEF",
+      "age": 34,
+      "mv": 4099999,
+      "price": 8
+     },
+     {
+      "id": 38,
+      "name": "Marco Pašalić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 25,
+      "mv": 7100000,
+      "price": 8
+     },
+     {
+      "id": 39,
+      "name": "Mario Pašalić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 31,
+      "mv": 6200000,
+      "price": 8
+     },
+     {
+      "id": 40,
+      "name": "Nikola Moro",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 28,
+      "mv": 7200000,
+      "price": 8
+     },
+     {
+      "id": 41,
+      "name": "Dominik Kotarski",
+      "team": "CRO",
+      "pos": "GK",
+      "age": 26,
+      "mv": 4800000,
+      "price": 7
+     },
+     {
+      "id": 42,
+      "name": "Dominik Livaković",
+      "team": "CRO",
+      "pos": "GK",
+      "age": 31,
+      "mv": 4099999,
+      "price": 7
+     },
+     {
+      "id": 43,
+      "name": "Ivor Pandur",
+      "team": "CRO",
+      "pos": "GK",
+      "age": 26,
+      "mv": 4800000,
+      "price": 7
+     },
+     {
+      "id": 44,
+      "name": "Kristijan Jakić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 29,
+      "mv": 5600000,
+      "price": 7
+     },
+     {
+      "id": 45,
+      "name": "Luka Modrić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 40,
+      "mv": 3800000,
+      "price": 7
+     },
+     {
+      "id": 46,
+      "name": "Marin Pongračić",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 5900000,
+      "price": 7
+     },
+     {
+      "id": 47,
+      "name": "Andrej Kramarić",
+      "team": "CRO",
+      "pos": "ATT",
+      "age": 34,
+      "mv": 2700000,
+      "price": 6
+     },
+     {
+      "id": 48,
+      "name": "Ante Budimir",
+      "team": "CRO",
+      "pos": "ATT",
+      "age": 34,
+      "mv": 2600000,
+      "price": 6
+     },
+     {
+      "id": 49,
+      "name": "Martin Erlić",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 3800000,
+      "price": 6
+     },
+     {
+      "id": 50,
+      "name": "Duje Ćaleta-Car",
+      "team": "CRO",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 2900000,
+      "price": 5
+     },
+     {
+      "id": 51,
+      "name": "Ivan Perišić",
+      "team": "CRO",
+      "pos": "MID",
+      "age": 37,
+      "mv": 1200000,
+      "price": 4
+     },
+     {
+      "id": 52,
+      "name": "Jordan Henderson",
+      "team": "ENG",
+      "pos": "MID",
+      "age": 36,
+      "mv": 1300000,
+      "price": 4
+     }
+    ]
+   },
+   "match": {
+    "status": "pending",
+    "note": "Jogo ainda não aconteceu.",
+    "form": {
+     "ENG": [
+      {
+       "res": "W",
+       "oppElo": 1736
+      },
+      {
+       "res": "W",
+       "oppElo": 1512
+      },
+      {
+       "res": "L",
+       "oppElo": 1981
+      },
+      {
+       "res": "D",
+       "oppElo": 1995
+      },
+      {
+       "res": "W",
+       "oppElo": 1645
+      }
+     ],
+     "CRO": [
+      {
+       "res": "W",
+       "oppElo": 1694
+      },
+      {
+       "res": "L",
+       "oppElo": 2044
+      },
+      {
+       "res": "L",
+       "oppElo": 2065
+      },
+      {
+       "res": "W",
+       "oppElo": 2016
+      },
+      {
+       "res": "W",
+       "oppElo": 1547
+      }
+     ]
+    }
+   }
+  },
+  "gha-pan-2026": {
+   "prepool": {
+    "room_id": "gha-pan-2026",
+    "match_name": "Gana × Panamá",
+    "comp": "Copa do Mundo 2026",
+    "venue": "",
+    "home": {
+     "code": "GHA",
+     "name": "Gana",
+     "elo": 1596
+    },
+    "away": {
+     "code": "PAN",
+     "name": "Panamá",
+     "elo": 1869
+    },
+    "players": [
+     {
+      "id": 1,
+      "name": "Antoine Semenyo",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 26,
+      "mv": 85000000,
+      "price": 34
+     },
+     {
+      "id": 2,
+      "name": "Abdul Fatawu Issahaku",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 22,
+      "mv": 21000000,
+      "price": 18
+     },
+     {
+      "id": 3,
+      "name": "Brandon Thomas-Asante",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 27,
+      "mv": 16500000,
+      "price": 17
+     },
+     {
+      "id": 4,
+      "name": "Kamaldeen Sulemana",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 24,
+      "mv": 16500000,
+      "price": 17
+     },
+     {
+      "id": 5,
+      "name": "Christopher Baah",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 21,
+      "mv": 12700000,
+      "price": 14
+     },
+     {
+      "id": 6,
+      "name": "Iñaki Williams",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 32,
+      "mv": 7300000,
+      "price": 14
+     },
+     {
+      "id": 7,
+      "name": "Caleb Yirenkyi",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 20,
+      "mv": 10400000,
+      "price": 13
+     },
+     {
+      "id": 8,
+      "name": "Ernest Nuamah",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 22,
+      "mv": 9500000,
+      "price": 13
+     },
+     {
+      "id": 9,
+      "name": "Kojo Peprah Oppong",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 22,
+      "mv": 9700000,
+      "price": 13
+     },
+     {
+      "id": 10,
+      "name": "Amir Murillo",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 6600000,
+      "price": 12
+     },
+     {
+      "id": 11,
+      "name": "Alidu Seidu",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 6300000,
+      "price": 11
+     },
+     {
+      "id": 12,
+      "name": "Augustine Boakye",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 25,
+      "mv": 5400000,
+      "price": 11
+     },
+     {
+      "id": 13,
+      "name": "Jerome Opoku",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 5400000,
+      "price": 11
+     },
+     {
+      "id": 14,
+      "name": "Jonas Adjei Adjetey",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 22,
+      "mv": 6400000,
+      "price": 11
+     },
+     {
+      "id": 15,
+      "name": "Adalberto Carrasquilla",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 27,
+      "mv": 3800000,
+      "price": 10
+     },
+     {
+      "id": 16,
+      "name": "Elisha Owusu",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 28,
+      "mv": 4300000,
+      "price": 10
+     },
+     {
+      "id": 17,
+      "name": "Gideon Mensah",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 3700000,
+      "price": 10
+     },
+     {
+      "id": 18,
+      "name": "José Córdoba",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 4700000,
+      "price": 10
+     },
+     {
+      "id": 19,
+      "name": "Abdul Mumin",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 3200000,
+      "price": 9
+     },
+     {
+      "id": 20,
+      "name": "Marvin Senaya",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 25,
+      "mv": 3100000,
+      "price": 9
+     },
+     {
+      "id": 21,
+      "name": "Prince Kwabena Adu",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 22,
+      "mv": 3200000,
+      "price": 9
+     },
+     {
+      "id": 22,
+      "name": "Andrés Andrade",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 2400000,
+      "price": 8
+     },
+     {
+      "id": 23,
+      "name": "César Blackman",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 28,
+      "mv": 2600000,
+      "price": 8
+     },
+     {
+      "id": 24,
+      "name": "Jordan Ayew",
+      "team": "GHA",
+      "pos": "ATT",
+      "age": 34,
+      "mv": 1100000,
+      "price": 8
+     },
+     {
+      "id": 25,
+      "name": "José Luis Rodríguez",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 27,
+      "mv": 2600000,
+      "price": 8
+     },
+     {
+      "id": 26,
+      "name": "Rahman Baba",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 2200000,
+      "price": 8
+     },
+     {
+      "id": 27,
+      "name": "Thomas Partey",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 33,
+      "mv": 1900000,
+      "price": 8
+     },
+     {
+      "id": 28,
+      "name": "Derrick Luckassen",
+      "team": "GHA",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 1000000,
+      "price": 7
+     },
+     {
+      "id": 29,
+      "name": "Ismael Díaz",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 29,
+      "mv": 1700000,
+      "price": 7
+     },
+     {
+      "id": 30,
+      "name": "Kwasi Sibo",
+      "team": "GHA",
+      "pos": "MID",
+      "age": 27,
+      "mv": 1500000,
+      "price": 7
+     },
+     {
+      "id": 31,
+      "name": "Lawrence Ati Zigi",
+      "team": "GHA",
+      "pos": "GK",
+      "age": 29,
+      "mv": 1600000,
+      "price": 7
+     },
+     {
+      "id": 32,
+      "name": "Azarias Londoño",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 24,
+      "mv": 970000,
+      "price": 6
+     },
+     {
+      "id": 33,
+      "name": "Carlos Harvey",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 26,
+      "mv": 630000,
+      "price": 6
+     },
+     {
+      "id": 34,
+      "name": "Cristian Martínez",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 29,
+      "mv": 825000,
+      "price": 6
+     },
+     {
+      "id": 35,
+      "name": "Edgardo Fariña",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 24,
+      "mv": 815000,
+      "price": 6
+     },
+     {
+      "id": 36,
+      "name": "Jorge Gutiérrez",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 825000,
+      "price": 6
+     },
+     {
+      "id": 37,
+      "name": "José Fajardo",
+      "team": "PAN",
+      "pos": "ATT",
+      "age": 32,
+      "mv": 525000,
+      "price": 6
+     },
+     {
+      "id": 38,
+      "name": "Orlando Mosquera",
+      "team": "PAN",
+      "pos": "GK",
+      "age": 31,
+      "mv": 725000,
+      "price": 6
+     },
+     {
+      "id": 39,
+      "name": "Tomás Rodríguez",
+      "team": "PAN",
+      "pos": "ATT",
+      "age": 27,
+      "mv": 1000000,
+      "price": 6
+     },
+     {
+      "id": 40,
+      "name": "Yoel Bárcenas",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 32,
+      "mv": 705000,
+      "price": 6
+     },
+     {
+      "id": 41,
+      "name": "Cecilio Waterman",
+      "team": "PAN",
+      "pos": "ATT",
+      "age": 35,
+      "mv": 240000,
+      "price": 5
+     },
+     {
+      "id": 42,
+      "name": "César Samudio",
+      "team": "PAN",
+      "pos": "GK",
+      "age": 32,
+      "mv": 260000,
+      "price": 5
+     },
+     {
+      "id": 43,
+      "name": "César Yanis",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 30,
+      "mv": 425000,
+      "price": 5
+     },
+     {
+      "id": 44,
+      "name": "Fidel Escobar",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 370000,
+      "price": 5
+     },
+     {
+      "id": 45,
+      "name": "Jiovany Ramos",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 410000,
+      "price": 5
+     },
+     {
+      "id": 46,
+      "name": "Joseph Anang",
+      "team": "GHA",
+      "pos": "GK",
+      "age": 26,
+      "mv": 340000,
+      "price": 5
+     },
+     {
+      "id": 47,
+      "name": "Luis Mejía",
+      "team": "PAN",
+      "pos": "GK",
+      "age": 35,
+      "mv": 145000,
+      "price": 5
+     },
+     {
+      "id": 48,
+      "name": "Roderick Miller",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 34,
+      "mv": 185000,
+      "price": 5
+     },
+     {
+      "id": 49,
+      "name": "Alberto Quintero",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 38,
+      "mv": 77000,
+      "price": 4
+     },
+     {
+      "id": 50,
+      "name": "Aníbal Godoy",
+      "team": "PAN",
+      "pos": "MID",
+      "age": 36,
+      "mv": 97000,
+      "price": 4
+     },
+     {
+      "id": 51,
+      "name": "Benjamin Asare",
+      "team": "GHA",
+      "pos": "GK",
+      "age": 33,
+      "mv": 93000,
+      "price": 4
+     },
+     {
+      "id": 52,
+      "name": "Éric Davis",
+      "team": "PAN",
+      "pos": "DEF",
+      "age": 35,
+      "mv": 49000,
+      "price": 4
+     }
+    ]
+   },
+   "match": {
+    "status": "pending",
+    "note": "Jogo ainda não aconteceu.",
+    "form": {
+     "GHA": [
+      {
+       "res": "D",
+       "oppElo": 1848
+      },
+      {
+       "res": "L",
+       "oppElo": 2009
+      },
+      {
+       "res": "L",
+       "oppElo": 2037
+      },
+      {
+       "res": "L",
+       "oppElo": 1939
+      },
+      {
+       "res": "L",
+       "oppElo": 1932
+      }
+     ],
+     "PAN": [
+      {
+       "res": "D",
+       "oppElo": 1659
+      },
+      {
+       "res": "W",
+       "oppElo": 1400
+      },
+      {
+       "res": "L",
+       "oppElo": 2065
+      },
+      {
+       "res": "W",
+       "oppElo": 1687
+      },
+      {
+       "res": "D",
+       "oppElo": 1687
+      }
+     ]
+    }
+   }
+  },
   "uzb-col-2026": {
    "prepool": {
     "room_id": "uzb-col-2026",
