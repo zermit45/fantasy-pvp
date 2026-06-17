@@ -1,5 +1,4 @@
-// Dados de todos os jogos embutidos (gerado automaticamente)
-window.GAMES = {
+window.GAMES={
  "index": [
   {
    "room_id": "eng-cro-2026",
@@ -643,7 +642,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 21,
       "mv": 12700000,
-      "price": 24
+      "price": 23
      },
      {
       "id": 6,
@@ -652,7 +651,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 7300000,
-      "price": 23
+      "price": 24
      },
      {
       "id": 7,
@@ -679,7 +678,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 20,
       "mv": 10400000,
-      "price": 21
+      "price": 20
      },
      {
       "id": 10,
@@ -697,7 +696,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 30,
       "mv": 6600000,
-      "price": 20
+      "price": 21
      },
      {
       "id": 12,
@@ -778,7 +777,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 25,
       "mv": 3100000,
-      "price": 14
+      "price": 13
      },
      {
       "id": 21,
@@ -787,7 +786,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 22,
       "mv": 3200000,
-      "price": 13
+      "price": 12
      },
      {
       "id": 22,
@@ -796,7 +795,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 33,
       "mv": 1900000,
-      "price": 12
+      "price": 14
      },
      {
       "id": 23,
@@ -805,7 +804,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 28,
       "mv": 2600000,
-      "price": 11
+      "price": 10
      },
      {
       "id": 24,
@@ -814,7 +813,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 27,
       "mv": 2600000,
-      "price": 11
+      "price": 10
      },
      {
       "id": 25,
@@ -823,7 +822,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 31,
       "mv": 2200000,
-      "price": 11
+      "price": 12
      },
      {
       "id": 26,
@@ -841,7 +840,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 34,
       "mv": 1100000,
-      "price": 10
+      "price": 11
      },
      {
       "id": 28,
@@ -886,7 +885,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 27,
       "mv": 1000000,
-      "price": 8
+      "price": 7
      },
      {
       "id": 33,
@@ -904,7 +903,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 705000,
-      "price": 7
+      "price": 8
      },
      {
       "id": 35,
@@ -913,7 +912,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 29,
       "mv": 825000,
-      "price": 6
+      "price": 5
      },
      {
       "id": 36,
@@ -922,7 +921,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 27,
       "mv": 825000,
-      "price": 6
+      "price": 5
      },
      {
       "id": 37,
@@ -949,7 +948,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 30,
       "mv": 425000,
-      "price": 5
+      "price": 4
      },
      {
       "id": 40,
@@ -967,7 +966,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 32,
       "mv": 525000,
-      "price": 5
+      "price": 6
      },
      {
       "id": 42,
@@ -976,7 +975,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 35,
       "mv": 240000,
-      "price": 4
+      "price": 5
      },
      {
       "id": 43,
@@ -1012,7 +1011,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 26,
       "mv": 340000,
-      "price": 4
+      "price": 3
      },
      {
       "id": 47,
@@ -1057,7 +1056,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 34,
       "mv": 185000,
-      "price": 3
+      "price": 4
      },
      {
       "id": 52,
@@ -1199,7 +1198,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 27,
       "mv": 23000000,
-      "price": 24
+      "price": 25
      },
      {
       "id": 8,
@@ -1208,7 +1207,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 27,
       "mv": 16500000,
-      "price": 23
+      "price": 22
      },
      {
       "id": 9,
@@ -1217,7 +1216,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 16100000,
-      "price": 22
+      "price": 21
      },
      {
       "id": 10,
@@ -1226,7 +1225,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 33,
       "mv": 9500000,
-      "price": 21
+      "price": 23
      },
      {
       "id": 11,
@@ -1235,7 +1234,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 10200000,
-      "price": 20
+      "price": 21
      },
      {
       "id": 12,
@@ -1271,7 +1270,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 31,
       "mv": 5500000,
-      "price": 17
+      "price": 18
      },
      {
       "id": 16,
@@ -1298,7 +1297,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 26,
       "mv": 5800000,
-      "price": 15
+      "price": 16
      },
      {
       "id": 19,
@@ -1325,7 +1324,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 31,
       "mv": 2700000,
-      "price": 14
+      "price": 13
      },
      {
       "id": 22,
@@ -1334,7 +1333,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 31,
       "mv": 2300000,
-      "price": 13
+      "price": 11
      },
      {
       "id": 23,
@@ -1361,7 +1360,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 34,
       "mv": 1500000,
-      "price": 11
+      "price": 14
      },
      {
       "id": 26,
@@ -1370,7 +1369,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 25,
       "mv": 2100000,
-      "price": 11
+      "price": 9
      },
      {
       "id": 27,
@@ -1388,7 +1387,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 34,
       "mv": 1300000,
-      "price": 10
+      "price": 11
      },
      {
       "id": 29,
@@ -1397,7 +1396,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 28,
       "mv": 1900000,
-      "price": 9
+      "price": 8
      },
      {
       "id": 30,
@@ -1406,7 +1405,7 @@ window.GAMES = {
       "pos": "ATT",
       "age": 33,
       "mv": 1300000,
-      "price": 9
+      "price": 10
      },
      {
       "id": 31,
@@ -1415,7 +1414,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 26,
       "mv": 1500000,
-      "price": 8
+      "price": 7
      },
      {
       "id": 32,
@@ -1424,7 +1423,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 1100000,
-      "price": 8
+      "price": 9
      },
      {
       "id": 33,
@@ -1433,7 +1432,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 25,
       "mv": 1400000,
-      "price": 7
+      "price": 6
      },
      {
       "id": 34,
@@ -1442,7 +1441,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 29,
       "mv": 1400000,
-      "price": 7
+      "price": 6
      },
      {
       "id": 35,
@@ -1451,7 +1450,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 29,
       "mv": 1400000,
-      "price": 7
+      "price": 6
      },
      {
       "id": 36,
@@ -1460,7 +1459,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 32,
       "mv": 1000000,
-      "price": 6
+      "price": 8
      },
      {
       "id": 37,
@@ -1469,7 +1468,7 @@ window.GAMES = {
       "pos": "MID",
       "age": 30,
       "mv": 930000,
-      "price": 6
+      "price": 5
      },
      {
       "id": 38,
@@ -1478,7 +1477,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 27,
       "mv": 1200000,
-      "price": 6
+      "price": 5
      },
      {
       "id": 39,
@@ -1487,7 +1486,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 37,
       "mv": 465000,
-      "price": 5
+      "price": 7
      },
      {
       "id": 40,
@@ -1505,7 +1504,7 @@ window.GAMES = {
       "pos": "GK",
       "age": 35,
       "mv": 540000,
-      "price": 5
+      "price": 6
      },
      {
       "id": 42,
@@ -1514,7 +1513,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 26,
       "mv": 515000,
-      "price": 4
+      "price": 3
      },
      {
       "id": 43,
@@ -1586,7 +1585,7 @@ window.GAMES = {
       "pos": "DEF",
       "age": 35,
       "mv": 210000,
-      "price": 3
+      "price": 4
      },
      {
       "id": 51,
