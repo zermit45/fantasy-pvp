@@ -20,7 +20,7 @@ let APP={
   roomId:null,
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
-  rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[],
+  rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundRanking:null,
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null,         // estatísticas do perfil (calculadas ao vivo)
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
@@ -256,27 +256,94 @@ async function loadRound(roundId){
     const rs=await sb("rounds?id=eq."+roundId+"&select=*");
     APP.round=rs&&rs[0]?rs[0]:null;
     APP.roundRooms=await sb("round_rooms?round_id=eq."+roundId+"&select=*");
-    // minhas entries nesta rodada (pra saber o que já escolhi)
+    // minhas entries nesta rodada (seleção + time + confirmação)
     if(APP.user){
-      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic");
+      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,confirmed");
     }
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
+  // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
+  APP.roundRanking=await computeRoundRanking(roundId);
 }
-// quantos jogos já escolhi nesta rodada
+// soma, por usuário, os pontos dos jogos FINALIZADOS desta rodada
+async function computeRoundRanking(roundId){
+  try{
+    const all=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=*");
+    if(!all||!all.length)return [];
+    const byUser={};
+    for(const rr of APP.roundRooms){
+      const g=window.GAMES.data[rr.room_id];
+      if(!g||!g.match||g.match.status!=="finished")continue; // só jogos já apurados
+      const ctx=buildCtxFor(rr.room_id);if(!ctx)continue;
+      const here=all.filter(e=>e.room_id===rr.room_id);
+      for(const e of here){
+        if(!e.slots||!Object.values(e.slots).some(Boolean))continue; // sem time montado
+        const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
+        if(!byUser[e.username])byUser[e.username]={username:e.username,total:0,games:0};
+        byUser[e.username].total+=sc.total;
+        byUser[e.username].games++;
+      }
+    }
+    return Object.values(byUser).map(u=>({...u,total:Math.round(u.total*10)/10})).sort((a,b)=>b.total-a.total);
+  }catch(e){return [];}
+}
+// ----- helpers do novo fluxo -----
+function roundEntryOf(roomId){return APP.roundEntries.find(e=>e.room_id===roomId);}
+function pickedRoom(roomId){return !!roundEntryOf(roomId);}                 // selecionei este jogo (Fase 1)
+function hasTeam(roomId){const e=roundEntryOf(roomId);return e&&e.slots&&Object.values(e.slots).some(Boolean);} // tem escalação
+function isConfirmed(roomId){const e=roundEntryOf(roomId);return e&&e.confirmed===true;}                  // usuário travou
 function picksUsed(){return APP.roundEntries.length;}
 function picksLeft(){return APP.round?Math.max(0,APP.round.pick_limit-picksUsed()):0;}
-function pickedRoom(roomId){return APP.roundEntries.some(e=>e.room_id===roomId);}
-// nível 1: escolha de jogos travada? (não troca mais QUAIS jogos)
+// FASE 1 travada? (dev fechou a seleção de jogos) — não troca mais QUAIS jogos
 function picksLocked(){return APP.round&&APP.round.status&&APP.round.status!=="open";}
-// nível 2: o time deste jogo específico está travado?
-function roomLockedInRound(roomId){const rr=APP.roundRooms.find(x=>x.room_id===roomId);return rr&&rr.status&&rr.status!=="open";}
-// admin nível 2: trava/destrava o time de um jogo da rodada
+// jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
+function roomLockedInRound(roomId){
+  const rr=APP.roundRooms.find(x=>x.room_id===roomId);
+  if(rr&&rr.status&&rr.status!=="open")return true;        // dev travou
+  if(isConfirmed(roomId))return true;                       // usuário confirmou
+  const g=window.GAMES.data[roomId];
+  if(g&&g.match&&g.match.status==="finished")return true;   // jogo acabou
+  return false;
+}
+
+// FASE 1 — selecionar um jogo pra jogar (cria entry vazia, sem time ainda)
+async function selectRoundGame(roomId){
+  if(picksLocked()){toast("A seleção de jogos já foi fechada.");return;}
+  if(pickedRoom(roomId)){toast("Você já selecionou este jogo.");return;}
+  if(picksLeft()<=0){toast("Você já selecionou seus "+APP.round.pick_limit+" jogos.");return;}
+  try{
+    await sbInsert("entries",{room_id:roomId,group_id:APP.groupId,round_id:APP.roundId,username:APP.user.username,slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},captain:null,tactic:null,confirmed:false,updated_at:new Date().toISOString()});
+    await loadRound(APP.roundId);
+    toast("Jogo selecionado! Agora monte o time quando quiser.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+// FASE 1 — desfazer seleção (só enquanto a seleção está aberta e o jogo não travou)
+async function unselectRoundGame(roomId){
+  if(picksLocked()){toast("A seleção já foi fechada — não dá pra remover.");return;}
+  if(roomLockedInRound(roomId)){toast("Este jogo já travou.");return;}
+  try{
+    await sbDelete("entries",`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await loadRound(APP.roundId);
+    toast("Seleção desfeita.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+// FASE 2 — usuário confirma a equipe de um jogo (salva slots atuais + trava)
+async function confirmTeam(roomId){
+  try{
+    await sbUpdate("entries",{slots:APP.slots,captain:APP.captain,tactic:APP.tactic,confirmed:true,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await loadRound(APP.roundId);
+    toast("Equipe confirmada! Esse time está travado.");
+    go("round",null,APP.roundId);
+  }catch(e){toast("Erro: "+e.message);}
+}
+// admin: força a trava da escalação de um jogo (quando a partida começa)
 async function setRoundRoomStatus(roomId,status){
   if(!isAdmin()||!APP.roundId)return;
   try{
     await sbUpdate("round_rooms",{status},"round_id=eq."+APP.roundId+"&room_id=eq."+roomId);
     await loadRound(APP.roundId);
-    toast(status==="locked"?"Time deste jogo travado.":"Time deste jogo liberado.");
+    toast(status==="locked"?"Escalação deste jogo travada (todos).":"Escalação deste jogo liberada.");
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
@@ -285,14 +352,12 @@ async function createRound(name,limit){
   const rows=await sbInsert("rounds",{group_id:APP.groupId,name,pick_limit:limit,status:"open"});
   await loadRounds();
   toast("Rodada criada!");
-  // entra direto na rodada nova pra adicionar jogos
   if(rows&&rows[0]){enterRound(rows[0].id);}else render();
 }
-// admin: adicionar/remover jogo na rodada
 async function addRoomToRound(roomId){
   if(!isAdmin())return;
   if(isArchived(roomId)){toast("Jogo arquivado não pode entrar em rodada.");return;}
-  await sbInsert("round_rooms",{round_id:APP.roundId,room_id:roomId},true,"round_id,room_id");
+  await sbInsert("round_rooms",{round_id:APP.roundId,room_id:roomId,status:"open"},true,"round_id,room_id");
   await loadRound(APP.roundId);render();
 }
 async function delRoomFromRound(roomId){
@@ -300,41 +365,24 @@ async function delRoomFromRound(roomId){
   await sbDelete("round_rooms",`round_id=eq.${APP.roundId}&room_id=eq.${roomId}`);
   await loadRound(APP.roundId);render();
 }
-// admin nível 1: trava/destrava a ESCOLHA de jogos da rodada inteira
+// admin FASE 1: trava/destrava a seleção de jogos da rodada
 async function setRoundStatus(status){
   if(!isAdmin()||!APP.roundId)return;
   try{
     await sbUpdate("rounds",{status},"id=eq."+APP.roundId);
     await loadRound(APP.roundId);
-    toast(status==="locked_picks"?"Escolha de jogos travada — ninguém troca mais quais jogos.":"Escolha de jogos reaberta.");
+    toast(status==="locked_picks"?"Seleção de jogos fechada.":"Seleção de jogos reaberta.");
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
 function enterRound(roundId){go("round",null,roundId);}
 function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();window.scrollTo(0,0);}
-// jogador: confirmar entrada num jogo da rodada (gasta 1 ficha)
+// toque num jogo da rodada → decide o que fazer
 function askEnterRoundGame(roomId){
-  // jogo já finalizado → mostra o RESULTADO (apuração/ranking), não a tela de montar
   const g=window.GAMES.data[roomId];
-  if(g&&g.match&&g.match.status==="finished"){go("result",roomId);return;}
-  const alreadyPicked=pickedRoom(roomId);
-  // nível 2: time deste jogo travado → no máximo ver (se já montou)
-  if(roomLockedInRound(roomId)){
-    if(alreadyPicked){go("build",roomId);return;}
-    toast("Este jogo já travou — não dá mais pra montar time.");return;
-  }
-  // nível 1: escolha travada → não pode ENTRAR em jogo novo, mas edita os já escolhidos
-  if(picksLocked()&&!alreadyPicked){
-    toast("A escolha de jogos foi travada. Você só edita os jogos que já escolheu.");return;
-  }
-  if(alreadyPicked){go("build",roomId);return;}          // já escolhido: vai direto editar
-  if(picksLeft()<=0){toast("Você já usou suas "+APP.round.pick_limit+" escolhas nesta rodada.");return;}
-  APP.confirm={mode:"pickGame",roomId,label:"Entrar neste jogo"};render();
-}
-function confirmPickGame(){
-  const c=APP.confirm;if(!c||c.mode!=="pickGame")return;
-  const roomId=c.roomId;APP.confirm=null;
-  // marca o contexto de rodada e abre o build
+  if(g&&g.match&&g.match.status==="finished"){go("result",roomId);return;} // acabou → resultado
+  if(!pickedRoom(roomId)){toast("Selecione este jogo primeiro (botão + Selecionar).");return;}
+  // selecionado → vai montar/ver o time (o build trata se está travado)
   go("build",roomId);
 }
 // admin: excluir rodada
@@ -533,6 +581,19 @@ function resultsCardHTML(){
   </div>`;
 }
 function askArchive(roomId){APP.confirm={mode:"archive",roomId,label:"Arquivar jogo"};render();}
+// ranking acumulado da rodada (aparece quando há jogos finalizados)
+function roundRankingHTML(){
+  const rk=APP.roundRanking;
+  if(!rk||!rk.length)return"";
+  let html=`<div class="card"><div class="h2 disp">🏆 Classificação da rodada</div>
+    <p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta rodada.</p>`;
+  rk.forEach((u,i)=>{
+    const me=u.username===APP.user?.username;
+    html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
 
 
 // ----- RODADAS: card na home -----
@@ -560,22 +621,43 @@ function roundHTML(){
   const r=APP.round;
   if(!r)return `<div class="card"><p class="p">Rodada não encontrada.</p><button class="btn ghost" onclick="leaveRound()">← Voltar</button></div>`;
   const left=picksLeft(), used=picksUsed();
-  const lockedPicks=picksLocked();
+  const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
   const jogos=APP.roundRooms.map(rr=>APP.jogos.find(j=>j.room_id===rr.room_id)).filter(Boolean);
   const rows=jogos.map(j=>{
-    const picked=pickedRoom(j.room_id);
-    const locked=roomLockedInRound(j.room_id);
-    let tag,meta;
-    if(locked){tag='<span class="statuspill st-closed">🔒 TRAVADO</span>';meta=picked?"seu time está travado (toque p/ ver)":"este jogo travou";}
-    else if(picked){tag='<span class="statuspill st-open">ESCOLHIDO ✓</span>';meta="toque para ajustar seu time";}
-    else if(lockedPicks){tag='<span class="statuspill st-closed">FECHADO</span>';meta="escolha de jogos travada";}
-    else if(left>0){tag='<span class="statuspill st-finished">ENTRAR</span>';meta="toque para entrar (gasta 1 escolha)";}
-    else{tag='<span class="statuspill st-closed">SEM FICHA</span>';meta="escolhas esgotadas";}
-    return `<div class="roomrow" onclick="askEnterRoundGame('${j.room_id}')">
+    const rid=j.room_id;
+    const g=window.GAMES.data[rid];
+    const finished=g&&g.match&&g.match.status==="finished";
+    const picked=pickedRoom(rid);
+    const team=hasTeam(rid);
+    const confirmed=isConfirmed(rid);
+    const locked=roomLockedInRound(rid);
+    let tag,meta,clickable=true;
+    if(finished){tag='<span class="statuspill st-finished">VER RESULTADO</span>';meta="jogo encerrado · toque p/ ver";}
+    else if(!picked){
+      if(selLocked){tag='<span class="statuspill st-closed">NÃO ESCOLHIDO</span>';meta="você não selecionou este jogo";clickable=false;}
+      else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já selecionou seus "+r.pick_limit+" jogos";clickable=false;}
+      else{tag='<span class="statuspill st-open">+ SELECIONAR</span>';meta="toque + para escolher este jogo";clickable=false;}
+    }
+    else if(confirmed||locked){tag='<span class="statuspill st-closed">🔒 CONFIRMADO</span>';meta="time travado · toque p/ ver";}
+    else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="toque para ajustar ou confirmar";}
+    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="selecionado · toque para escalar";}
+    // botões da direita
+    let actions="";
+    if(!finished&&!picked&&!selLocked&&left>0){
+      actions=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--green);border-color:var(--green)" title="Selecionar este jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
+    }else if(!finished&&picked&&!confirmed&&!locked&&!selLocked){
+      actions=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" title="Desfazer seleção" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
+    }
+    // admin: forçar trava da escalação + remover jogo da rodada
+    if(isAdmin()){
+      const rr=APP.roundRooms.find(x=>x.room_id===rid);
+      const devLocked=rr&&rr.status&&rr.status!=="open";
+      actions+=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:${devLocked?"var(--green)":"var(--amber)"};border-color:${devLocked?"var(--green)":"var(--amber)"}" title="${devLocked?"Liberar escalação (todos)":"Travar escalação (todos)"}" onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')">${devLocked?"🔓":"🔒"}</button>
+      <button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--dim);border-color:var(--line)" title="Remover da rodada" onclick="event.stopPropagation();delRoomFromRound('${rid}')">🗑</button>`;
+    }
+    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="${clickable||finished?"":"cursor:default"}">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-      ${tag}
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:${locked?"var(--green)":"var(--amber)"};border-color:${locked?"var(--green)":"var(--amber)"}" title="${locked?"Destravar time":"Travar time"}" onclick="event.stopPropagation();setRoundRoomStatus('${j.room_id}','${locked?"open":"locked"}')">${locked?"🔓":"🔒"}</button>
-      <button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();delRoomFromRound('${j.room_id}')">✕</button>`:""}
+      ${tag}${actions}
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
@@ -587,17 +669,18 @@ function roundHTML(){
       <div class="h1 disp" style="color:var(--amber)">${esc(r.name)}</div>
       <div class="userchip" onclick="leaveRound()" style="cursor:pointer">← voltar</div>
     </div>
-    ${lockedPicks
-      ? `<div class="prebox" style="border-color:#3a2e10">🔒 Escolha de jogos travada. Você ainda ajusta a escalação dos jogos que escolheu, até cada partida começar.</div>`
-      : `<div class="prebox">⏳ Escolha <b>${r.pick_limit}</b> jogos. Antes da 1ª partida você pode trocar; depois trava. Use <b style="color:var(--amber)">${used}/${r.pick_limit}</b>.</div>`}
+    ${selLocked
+      ? `<div class="prebox" style="border-color:#3a2e10">🔒 Seleção de jogos fechada. Agora monte e <b>confirme</b> a equipe de cada jogo que escolheu, até cada partida começar.</div>`
+      : `<div class="prebox">⏳ <b>Fase 1:</b> selecione <b>${r.pick_limit}</b> jogos pra disputar (toque no <b>+</b>). Dá pra trocar até a seleção fechar. Selecionados: <b style="color:var(--amber)">${used}/${r.pick_limit}</b>.</div>`}
     ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
   </div>
+  ${roundRankingHTML()}
   ${isAdmin()?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
-    <p class="p" style="margin-bottom:8px">1) Antes da 1ª partida, trave a <b>escolha de jogos</b>. 2) Antes de cada partida, trave o <b>time daquele jogo</b> (botão em cada linha acima).</p>
-    ${lockedPicks
-      ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir escolha de jogos</button>`
-      : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Travar escolha de jogos</button>`}
+    <p class="p" style="margin-bottom:8px">1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).</p>
+    ${selLocked
+      ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
+      : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`}
     ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À RODADA</div>${foraRows}`:""}
   </div>`:""}`;
 }
@@ -708,13 +791,14 @@ function confirmModalHTML(){
     </div></div>`;
   }
   // modo: confirmar entrada num jogo da rodada (gasta ficha)
-  if(c.mode==="pickGame"){
+  if(c.mode==="confirmTeam"){
     const j=APP.jogos.find(x=>x.room_id===c.roomId);
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Entrar em ${esc(j?j.match_name:"")}?</div>
-      <p class="p" style="margin:10px 0">Isto vai comprometer <b style="color:var(--amber)">1 das suas ${APP.round?APP.round.pick_limit:3} escolhas</b> desta rodada. Você terá <b>${picksLeft()-1}</b> restantes. Depois de salvar o time, não dá pra trocar de jogo.</p>
-      <button class="btn" style="margin-top:4px" onclick="confirmPickGame()">Sim, entrar neste jogo</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+      <div class="h2 disp" style="color:var(--amber)">Confirmar equipe?</div>
+      <p class="p" style="margin:10px 0">Você vai <b style="color:var(--chalk)">travar seu time</b> em ${esc(j?j.match_name:"")}. Depois de confirmar, <b>não dá mais pra editar</b> a escalação deste jogo.</p>
+      <p class="p" style="margin:10px 0">Confirme só quando souber os titulares e estiver satisfeito.</p>
+      <button class="btn" style="margin-top:4px" onclick="closeConfirm();confirmTeam('${c.roomId}')">✓ Confirmar e travar</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Ainda não, deixa eu ajustar</button>
     </div></div>`;
   }
   // modo padrão: confirmação destrutiva por palavra (reset)
@@ -832,9 +916,18 @@ function buildHTML(){
     <div class="postabs">${tabsHTML}</div>
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
-    <button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${gameLocked?"🔒 Jogo travado":ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>
+    ${gameLocked
+      ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 Esta escalação está travada (confirmada ou jogo começou). Não dá mais pra editar.</div>
+         <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
+      : inRound
+        ? `<button class="btn ghost" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar (ainda dá pra ajustar)":"Complete 6 slots, capitão e tática"}</button>
+           <button class="btn" style="margin-top:8px" ${ready?"":"disabled"} onclick="askConfirmTeam()">✓ Confirmar equipe (trava)</button>`
+        : `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
     <button class="btn ghost" style="margin-top:8px" onclick="${APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId)?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
   </div>`;
+}
+function askConfirmTeam(){
+  APP.confirm={mode:"confirmTeam",roomId:APP.roomId,label:"Confirmar equipe"};render();
 }
 function place(pid){
   const byId=APP._byId,p=byId[pid],s=APP.slots,used=Object.values(s).filter(Boolean);APP.warn="";
@@ -858,16 +951,11 @@ async function saveEntry(){
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   try{
     if(inRound){
-      // nível 2: este jogo específico travou → não salva mais
-      const rr=await sb(`round_rooms?round_id=eq.${APP.roundId}&room_id=eq.${APP.roomId}&select=status`);
-      if(rr&&rr[0]&&rr[0].status&&rr[0].status!=="open"){toast("Este jogo já travou — não dá mais pra editar o time.");go("round",null,APP.roundId);return;}
-      // nível 1: escolha de jogos travada → não pode ENTRAR em jogo novo (mas edita os já escolhidos)
-      const rs=await sb(`rounds?id=eq.${APP.roundId}&select=status,pick_limit`);
-      const picksTravadas=rs&&rs[0]&&rs[0].status&&rs[0].status!=="open";
-      if(picksTravadas&&!pickedRoom(APP.roomId)){toast("A escolha de jogos foi travada.");go("round",null,APP.roundId);return;}
-      if(!pickedRoom(APP.roomId)&&picksLeft()<=0){toast("Você já usou suas escolhas nesta rodada.");go("round",null,APP.roundId);return;}
+      // escalação travada? (dev forçou, usuário confirmou, ou jogo começou)
+      if(roomLockedInRound(APP.roomId)){toast("Este jogo já travou — não dá mais pra editar.");go("round",null,APP.roundId);return;}
+      // a entry já existe (criada na seleção): só atualiza os slots/tática
       await upsertEntry(APP.roundId);
-      toast("Time salvo!");
+      toast("Progresso salvo. Confirme a equipe quando estiver pronto.");
       await loadRound(APP.roundId);
       go("round",null,APP.roundId);return;
     }
