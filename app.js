@@ -19,7 +19,7 @@ let APP={
   jogos:[],
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
-  captain:null, tactic:null, tab:"ALL", warn:"", showRules:false,
+  captain:null, tactic:null, tab:"ALL", warn:"", showRules:false, confirm:null,
   entries:[],           // entries da sala (pro ranking)
 };
 
@@ -37,6 +37,9 @@ async function sbInsert(table,row,upsert=false){
 async function sbUpdate(table,patch,filter){
   const h=SUPA.headers(); h["Prefer"]="return=representation";
   return sb(`${table}?${filter}`,{method:"PATCH",headers:h,body:JSON.stringify(patch)});
+}
+async function sbDelete(table,filter){
+  return sb(`${table}?${filter}`,{method:"DELETE",headers:SUPA.headers()});
 }
 
 // hash de senha bem simples (suficiente pra evitar troca de nome casual)
@@ -134,7 +137,12 @@ function homeHTML(){
     <div class="h1 disp" style="color:var(--amber)">Salas</div>
     <p class="p" style="margin-bottom:14px">Escolha uma partida para montar seu time ou ver o resultado.</p>
     ${rows||'<p class="p">Nenhuma sala ainda.</p>'}
-  </div>`;
+  </div>
+  ${isAdmin()?`<div class="card">
+    <div class="tag" style="margin-bottom:6px;color:var(--red)">MANUTENÇÃO DO SITE</div>
+    <p class="p" style="margin-bottom:10px">Reinício de emergência: apaga TODOS os times de TODOS os jogos (caso o site bugue). Salas e usuários são mantidos.</p>
+    <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">🧹 Limpar todos os times (reboot)</button>
+  </div>`:""}`;
 }
 
 // ============================================================
@@ -164,6 +172,7 @@ function roomHTML(){
       ${open
         ?`<button class="btn ghost" onclick="setPoolStatus('closed')">🔒 Fechar pool (trava as escalações)</button>`
         :`<button class="btn ghost" onclick="setPoolStatus('open')">🔓 Reabrir pool</button>`}
+      <button class="btn ghost" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="resetRoom()">🧹 Limpar times desta sala</button>
     </div>`:""}
     <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← Voltar</button>
   </div>`;
@@ -178,6 +187,49 @@ async function setPoolStatus(status){
     toast(status==="closed"?"Pool fechada. Ninguém mais edita.":"Pool reaberta.");
     render();
   }catch(e){toast("Erro ao mudar status: "+e.message);}
+}
+
+// ---------- MANUTENÇÃO / RESET (admin) ----------
+// APP.confirm = {word, label, action} controla o modal de confirmação por texto
+function askConfirm(word,label,action){APP.confirm={word,label,action,typed:""};render();}
+function closeConfirm(){APP.confirm=null;render();}
+function confirmInput(v){if(APP.confirm)APP.confirm.typed=v;}
+function confirmModalHTML(){
+  const c=APP.confirm;if(!c)return"";
+  const ok=c.typed===c.word;
+  return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+    <div class="h2 disp" style="color:var(--red)">⚠ ${esc(c.label)}</div>
+    <p class="p" style="margin:10px 0">Esta ação <b style="color:var(--chalk)">apaga os times e não pode ser desfeita</b>. Salas e usuários são mantidos. Para confirmar, digite <b style="color:var(--amber)">${c.word}</b> abaixo.</p>
+    <input class="input" placeholder="Digite ${c.word}" oninput="confirmInput(this.value)" autocapitalize="characters" />
+    <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" ${ok?"":"disabled"} onclick="runConfirm()">Apagar agora</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+  </div></div>`;
+}
+async function runConfirm(){
+  const c=APP.confirm;if(!c||c.typed!==c.word)return;
+  const action=c.action;APP.confirm=null;render();
+  try{await action();}catch(e){toast("Erro: "+e.message);}
+}
+// reset de UMA sala
+function resetRoom(){
+  if(!isAdmin())return;
+  askConfirm("RESET","Limpar times desta sala",async()=>{
+    await sbDelete("entries",`room_id=eq.${APP.roomId}`);
+    APP.entries=[];
+    toast("Times desta sala apagados.");
+    render();
+  });
+}
+// reset GERAL (todas as salas)
+function resetAll(){
+  if(!isAdmin())return;
+  askConfirm("RESET TUDO","Manutenção: limpar TODOS os times de TODOS os jogos",async()=>{
+    // deleta todas as entries (room_id sempre existe; pega todas)
+    await sbDelete("entries","room_id=not.is.null");
+    APP.entries=[];
+    toast("Manutenção concluída. Todos os times foram apagados.");
+    render();
+  });
 }
 function hasEntry(){return APP.slots&&Object.values(APP.slots).some(Boolean);}
 
@@ -369,7 +421,7 @@ function render(){
   else if(APP.view==="room")panel=roomHTML();
   else if(APP.view==="build")panel=buildHTML();
   else if(APP.view==="result")panel=resultHTML();
-  root.innerHTML=topbarHTML()+panel+footHTML();
+  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
 }
 function topbarHTML(){
   return `<div class="topbar">
