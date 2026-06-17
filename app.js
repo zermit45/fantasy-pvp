@@ -636,28 +636,31 @@ function roundHTML(){
     else if(!picked){
       if(selLocked){tag='<span class="statuspill st-closed">NÃO ESCOLHIDO</span>';meta="você não selecionou este jogo";clickable=false;}
       else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já selecionou seus "+r.pick_limit+" jogos";clickable=false;}
-      else{tag='<span class="statuspill st-open">+ SELECIONAR</span>';meta="toque + para escolher este jogo";clickable=false;}
+      else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque no + verde para escolher";clickable=false;}
     }
     else if(confirmed||locked){tag='<span class="statuspill st-closed">🔒 CONFIRMADO</span>';meta="time travado · toque p/ ver";}
     else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="toque para ajustar ou confirmar";}
     else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="selecionado · toque para escalar";}
-    // botões da direita
-    let actions="";
+    // ação principal (jogador): selecionar ou desfazer — UM botão só
+    let playerBtn="";
     if(!finished&&!picked&&!selLocked&&left>0){
-      actions=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--green);border-color:var(--green)" title="Selecionar este jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
+      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--green);border-color:var(--green);font-size:18px" title="Selecionar este jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
     }else if(!finished&&picked&&!confirmed&&!locked&&!selLocked){
-      actions=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" title="Desfazer seleção" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
+      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--red);border-color:var(--red)" title="Desfazer seleção" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
     }
-    // admin: forçar trava da escalação + remover jogo da rodada
+    // bloco de admin (separado, com divisória sutil)
+    let devBlock="";
     if(isAdmin()){
       const rr=APP.roundRooms.find(x=>x.room_id===rid);
       const devLocked=rr&&rr.status&&rr.status!=="open";
-      actions+=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:${devLocked?"var(--green)":"var(--amber)"};border-color:${devLocked?"var(--green)":"var(--amber)"}" title="${devLocked?"Liberar escalação (todos)":"Travar escalação (todos)"}" onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')">${devLocked?"🔓":"🔒"}</button>
-      <button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--dim);border-color:var(--line)" title="Remover da rodada" onclick="event.stopPropagation();delRoomFromRound('${rid}')">🗑</button>`;
+      devBlock=`<div style="display:flex;gap:10px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line)">
+        <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:17px;opacity:${devLocked?"1":".55"}" title="${devLocked?"Liberar escalação (todos)":"Travar escalação (todos)"}">${devLocked?"🔓":"🔒"}</span>
+        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:16px;opacity:.5" title="Remover jogo da rodada">🗑</span>
+      </div>`;
     }
     return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="${clickable||finished?"":"cursor:default"}">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-      ${tag}${actions}
+      ${tag}${playerBtn?`<span style="margin-left:8px">${playerBtn}</span>`:""}${devBlock}
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
