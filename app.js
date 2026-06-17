@@ -180,7 +180,7 @@ function buildHTML(){
   return `<div class="card">
     <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
-    <div class="tag" style="margin-bottom:6px">TÁTICA (só ativa se a condição ocorrer no jogo)</div>
+    <div class="tag" style="margin-bottom:6px">TÁTICA (ativa conforme as stats dos seus jogadores em campo · buff + nerf)</div>
     <div class="tacts">${tactsHTML}</div>
   </div>
   <div class="card">
@@ -234,29 +234,36 @@ function buildMatchCtx(){
 function scoreEntry(entry,eng){
   const pp=APP.prepool,byId=APP._byId,m=APP.match;
   const slots=["GK","DEF","MID","ATT","FLEX","BENCH"];
+  // monta o objeto de stats de cada jogador escalado
+  function rawOf(pid){const meta=byId[pid];const raw=m.players?m.players[String(pid)]:null;return Object.assign({pos:meta.pos,team:meta.team},raw||{min:0});}
+  // 1ª passada SEM tática (pra decidir substituições por pontuação)
   const res={};
-  for(const sl of slots){
-    const pid=entry.slots[sl];
-    if(!pid){res[sl]=null;continue;}
-    const meta=byId[pid];
-    const raw=m.players?m.players[pid]:null;
-    const p=Object.assign({pos:meta.pos,team:meta.team},raw||{min:0});
-    res[sl]=eng.scorePlayer(p,entry.tactic);
-  }
-  // substituição do banco (v2.4.0)
+  for(const sl of slots){const pid=entry.slots[sl];if(!pid){res[sl]=null;continue;}res[sl]=eng.scorePlayer(rawOf(pid),null);}
+  // substituição do banco
   let subOut=null;const benchPid=entry.slots.BENCH,benchMeta=benchPid?byId[benchPid]:null;
   if(benchMeta&&res.BENCH){
     if(benchMeta.pos==="GK"){
-      // GK reserva SÓ entra se o titular não jogou nenhum minuto (0 min).
-      // NÃO vale a regra de "pontuou mais" — só cobre ausência total do titular.
       const gkTitularMin=res.GK?res.GK.minutes:0;
       if(gkTitularMin===0&&res.BENCH){subOut="GK";[res.GK,res.BENCH]=[res.BENCH,res.GK];const t=entry.slots.GK;entry.slots.GK=entry.slots.BENCH;entry.slots.BENCH=t;}
     }
     else{const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}if(worst&&res.BENCH.total>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}}
   }
+  // squadSum: só os 5 que CONTAM (titulares de linha + GK, exclui o banco não-usado)
+  // e dentro deles, só quem TERMINOU em campo (o engine.squadSum filtra subbedOff/min=0)
+  const titulares=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean).map(rawOf);
+  const sq=eng.squadSum(titulares);
+  // 2ª passada COM tática (agora que temos o squadSum)
   let sum=0;const view=[];
-  for(const sl of slots){const r=res[sl];if(!r){view.push(null);continue;}let pts=r.total,cap=false;if(sl===entry.captain&&sl!=="BENCH"){pts=Math.round(pts*1.2*10)/10;cap=true;}if(sl!=="BENCH")sum+=pts;view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});}
-  return {username:entry.username,total:Math.round(sum*10)/10,view,captain:entry.captain,tactic:entry.tactic,subOut};
+  for(const sl of slots){
+    const pid=entry.slots[sl];
+    if(!pid){view.push(null);continue;}
+    const r=eng.scorePlayer(rawOf(pid),sl==="BENCH"?null:entry.tactic,sl==="BENCH"?null:sq);
+    let pts=r.total,cap=false;
+    if(sl===entry.captain&&sl!=="BENCH"){pts=Math.round(pts*1.2*10)/10;cap=true;}
+    if(sl!=="BENCH")sum+=pts;
+    view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
+  }
+  return {username:entry.username,total:Math.round(sum*10)/10,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
 function resultHTML(){
   const pp=APP.prepool,m=APP.match;
@@ -339,7 +346,7 @@ function rulesModalHTML(){
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Os 6 slots:</b> 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Capitão (×1.20):</b> escolha 1 jogador (qualquer um menos o banco) pra pontuar 20% a mais.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele (vale o maior). <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
-    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Ela só dá bônus se a condição dela acontecer no jogo (ex: Gegenpress premia recuperações de bola).</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Ela depende de COMO você montou seu time: olha as estatísticas SOMADAS dos seus jogadores que terminaram a partida em campo (quem foi substituído ou ficou no banco não conta). Se a condição bater, dá bônus em certas ações e desconto em outras (ex: Ataque Total premia times com ≥3 gols, mas enfraquece a defesa deles). Escolher a tática certa pro seu time é estratégia.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Ranking:</b> quando o jogo acaba, todos os times da sala são pontuados e o ranking aparece, com a apuração detalhada de cada jogador.</p>
     <button class="btn" style="margin-top:8px" onclick="toggleRules()">Entendi</button>

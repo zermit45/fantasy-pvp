@@ -14,22 +14,24 @@ const r1 = x => Math.round(x*10)/10;
 const tierXG = v => v>0.5?{b:0,t:1} : v>=0.2?{b:1.2,t:2} : v>=0.08?{b:2.6,t:3} : {b:4.2,t:4};
 const tierSV = v => v<0.1?{b:0,t:1} : v<=0.3?{b:1.2,t:2} : v<=0.6?{b:2.6,t:3} : {b:4.2,t:4};
 
-// ---- TÁTICAS v2.4.1 (lista reformulada) ----
+// ---- TÁTICAS v3.0 — baseadas na SUA escalação ----
+// A condição olha squadSum = soma das stats dos SEUS jogadores que TERMINARAM
+// a partida em campo (titular não-substituído OU reserva que entrou e terminou).
+// Se ativar: buff ×1.18 nas ações premiadas, nerf ×0.90 nas penalizadas.
+// buffs/nerfs aplicam a CADA jogador do seu time individualmente.
 const TACTICS = {
-  gegenpress:{name:"Gegenpress",desc:"Recuperações ou desarmes acima da média",
-    cond:(p,ts)=>p.recovery>=6||p.tklint>=5, buffs:{recovery:1.18,tklint:1.12}, nerfs:{fouls:1.18,dribbledPast:1.10}},
-  tikitaka:{name:"Tiki-Taka",desc:"Passes progressivos ≥5 ou posse ≥55%",
-    cond:(p,ts)=>p.prgp>=5||ts.poss>=55, buffs:{prgp:1.20,pib:1.10}, nerfs:{recovery:.94,aerial:.94}},
-  onibus:{name:"Ônibus",desc:"Time sofre ≥10 finalizações",
-    cond:(p,ts)=>ts.shotsFaced>=10, buffs:{block:1.20,clearance:1.12}, nerfs:{prgp:.92,tib:.92}},
-  contra:{name:"Contra-ataque",desc:"Posse do time <45%",
-    cond:(p,ts)=>ts.poss<45, buffs:{gca:1.18,sotPts:1.08}, nerfs:{prgp:.94,recovery:.96}},
-  aereo:{name:"Jogo Aéreo",desc:"≥5 duelos aéreos vencidos",
-    cond:(p,ts)=>p.aerial>=5, buffs:{aerial:1.22,tib:1.08}, nerfs:{dribbles:.94,prgp:.94}},
-  bolaparada:{name:"Bola Parada",desc:"Time converteu ≥1 gol/assist de bola parada",
-    cond:(p,ts)=>ts.setPieceGoals>=1, buffs:{sotPts:1.15,aerial:1.12}, nerfs:{dribbles:.94,accCross:.94}},
-  altapressao:{name:"Alta Pressão",desc:"Recuperações ≥4 (pressão alta coordenada)",
-    cond:(p,ts)=>p.recovery>=4, buffs:{recovery:1.20,tklint:1.15}, nerfs:{fouls:1.12,clearance:.94}},
+  muralha:{name:"Estacionar o Ônibus",desc:"Seus jogadores em campo somam ≥12 desarmes+interceptações+cortes",
+    cond:(sq)=>(sq.tklint+sq.clearance)>=12, buffs:{tklint:1.18,clearance:1.18}, nerfs:{prgp:0.90,dribbles:0.90}},
+  tridente:{name:"Ataque Total",desc:"Seus jogadores em campo somam ≥3 gols",
+    cond:(sq)=>sq.goals>=3, buffs:{goal:1.18,sotPts:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
+  cerebro:{name:"Tiki-Taka",desc:"Seus jogadores somam ≥8 passes progressivos e ≥4 passes na área",
+    cond:(sq)=>sq.prgp>=8&&sq.pib>=4, buffs:{assist:1.18,sca:1.18,gca:1.18}, nerfs:{aerial:0.90,clearance:0.90}},
+  pressaototal:{name:"Gegenpress",desc:"Seus jogadores em campo somam ≥15 recuperações de bola",
+    cond:(sq)=>sq.recovery>=15, buffs:{recovery:1.18,tklint:1.18}, nerfs:{fouls:1.15,aerial:0.90}},
+  aereo:{name:"Chuveiro na Área",desc:"Seus jogadores em campo somam ≥6 duelos aéreos vencidos",
+    cond:(sq)=>sq.aerial>=6, buffs:{aerial:1.18,goal:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
+  sanguefrio:{name:"Chutar Direto",desc:"Seus jogadores em campo somam ≥4 finalizações no gol",
+    cond:(sq)=>sq.sot>=4, buffs:{sotPts:1.18,goal:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
 };
 
 // normaliza um player do match.json pra um objeto completo de stats
@@ -164,7 +166,7 @@ function makeEngine(match){
   ];
   function statLines(p){const o=[];for(const[l,v,c]of STAT_DEFS){const n=c(p);if(n)o.push([l,n,v,r1(n*v)]);}return o;}
 
-  function scorePlayer(p, tacticKey){
+  function scorePlayer(p, tacticKey, squadSum){
     p=normP(p);
     if(p.min===0)return{total:0,minutes:0,statLines:[],lines:[],evNote:[],labels:[],meta:archetype(p,null,0,0)};
     const ts=match.team_stats[p.team];
@@ -204,7 +206,18 @@ function makeEngine(match){
     const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
     if(dvg>0.05)push(`DvG underdog ×${dm.toFixed(3)}`,r1(dvg));
     let tact=0;const T=TACTICS[tacticKey];
-    if(T&&T.cond(p,ts)){for(const[k,m]of Object.entries(T.buffs)){tact+=(comp[k]??0)*(m-1);}for(const[k,m]of Object.entries(T.nerfs)){const b=k==="fouls"?p.fouls*BASE.foul:k==="dribbledPast"?p.dribbledPast*BASE.dribbledPast:(comp[k]??0);tact+=b*(m-1);}tact=Math.max(-CAPS.TACT,Math.min(CAPS.TACT,tact));push(`Tática ${T.name} ativada (cap ±${CAPS.TACT})`,r1(tact));}
+    if(T&&squadSum&&T.cond(squadSum)){
+      for(const[k,m]of Object.entries(T.buffs)){
+        const base=k==="cleanSheet"?cs:(comp[k]??0);
+        tact+=base*(m-1);
+      }
+      for(const[k,m]of Object.entries(T.nerfs)){
+        const b=k==="fouls"?p.fouls*BASE.foul:k==="dribbledPast"?p.dribbledPast*BASE.dribbledPast:(comp[k]??0);
+        tact+=b*(m-1);
+      }
+      tact=Math.max(-CAPS.TACT,Math.min(CAPS.TACT,tact));
+      if(Math.abs(tact)>=0.05)push(`Tática ${T.name} ativada (cap ±${CAPS.TACT})`,r1(tact));
+    }
     const ix=indices(p);const avg=ix.iui*.3+ix.eff*.3+ix.sec*.2+ix.tw*.2;const perf=r1(Math.max(-3,Math.min(4,-3+avg/100*7)));
     push("Performance (índices C+)",perf);
     let total=baseTot+dif+ctx+clutch+dvg+tact+perf;
@@ -216,7 +229,22 @@ function makeEngine(match){
     return{total,minutes:p.min,statLines:sl,lines:lines.map(([k,v])=>[k,r1(v)]),evNote:ev,labels,meta};
   }
 
-  return { scorePlayer, TACTICS };
+  // Soma as stats dos jogadores que TERMINARAM a partida em campo.
+  // 'finishers' = array de objetos player (já com stats do match). Quem foi
+  // substituído (subbedOff:true) ou não jogou (min=0) NÃO entra.
+  function squadSum(finishers){
+    const s={goals:0,assists:0,sot:0,prgp:0,pib:0,tklint:0,recovery:0,aerial:0,clearance:0,block:0,dribbles:0};
+    for(const raw of finishers){
+      const p=normP(raw);
+      if(p.min===0||p.subbedOff) continue; // não terminou em campo
+      s.goals+=p.goals.length; s.assists+=p.assists.length; s.sot+=p.sots.length;
+      s.prgp+=p.prgp; s.pib+=p.pib; s.tklint+=p.tklint; s.recovery+=p.recovery;
+      s.aerial+=p.aerial; s.clearance+=p.clearance; s.block+=p.block; s.dribbles+=p.dribbles;
+    }
+    return s;
+  }
+
+  return { scorePlayer, squadSum, TACTICS };
 }
 
 if (typeof module!=="undefined" && module.exports) module.exports={makeEngine,TACTICS};
