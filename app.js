@@ -31,9 +31,10 @@ async function sb(path, opts={}){
   if(r.status===204)return null;
   return r.json();
 }
-async function sbInsert(table,row,upsert=false){
+async function sbInsert(table,row,upsert=false,onConflict=null){
   const h=SUPA.headers(); h["Prefer"]=upsert?"resolution=merge-duplicates,return=representation":"return=representation";
-  return sb(table,{method:"POST",headers:h,body:JSON.stringify(row)});
+  const path=onConflict?`${table}?on_conflict=${onConflict}`:table;
+  return sb(path,{method:"POST",headers:h,body:JSON.stringify(row)});
 }
 async function sbUpdate(table,patch,filter){
   const h=SUPA.headers(); h["Prefer"]="return=representation";
@@ -68,7 +69,7 @@ async function joinGroup(gid,tryPass){
   const g=APP.groups.find(x=>x.id===gid);
   if(!g)return;
   if(String(tryPass).trim()!==String(g.pass).trim()){toast("Senha incorreta.");return;}
-  await sbInsert("group_members",{group_id:gid,username:APP.user.username},true);
+  await sbInsert("group_members",{group_id:gid,username:APP.user.username},true,"group_id,username");
   await loadGroups();
   toast("Você entrou no grupo "+g.name+"!");
   enterGroup(gid);
@@ -88,7 +89,7 @@ async function loadGroupRooms(){
 // admin: abrir um jogo do catálogo neste grupo
 async function openRoomInGroup(roomId){
   if(!isAdmin())return;
-  await sbInsert("group_rooms",{group_id:APP.groupId,room_id:roomId,status:"open"},true);
+  await sbInsert("group_rooms",{group_id:APP.groupId,room_id:roomId,status:"open"},true,"group_id,room_id");
   await loadGroupRooms();
   toast("Jogo aberto no grupo.");
   render();
@@ -443,7 +444,7 @@ async function saveEntry(){
       toast("Pool fechada — não dá mais pra editar o time.");
       go("room");return;
     }
-    await sbInsert("entries",{room_id:APP.roomId,group_id:APP.groupId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true);
+    await sbInsert("entries",{room_id:APP.roomId,group_id:APP.groupId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true,"room_id,group_id,username");
     toast("Time salvo!");
     go("room");
   }catch(e){toast("Erro ao salvar: "+e.message);}
