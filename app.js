@@ -5,6 +5,9 @@ const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANC
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB"};
 const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
+// admins: só estes usuários veem os botões de fechar/reabrir pool
+const ADMINS=["Lucchini"];
+const isAdmin=()=>APP.user&&ADMINS.includes(APP.user.username);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=id=>document.getElementById(id);
 
@@ -30,6 +33,10 @@ async function sb(path, opts={}){
 async function sbInsert(table,row,upsert=false){
   const h=SUPA.headers(); h["Prefer"]=upsert?"resolution=merge-duplicates,return=representation":"return=representation";
   return sb(table,{method:"POST",headers:h,body:JSON.stringify(row)});
+}
+async function sbUpdate(table,patch,filter){
+  const h=SUPA.headers(); h["Prefer"]="return=representation";
+  return sb(`${table}?${filter}`,{method:"PATCH",headers:h,body:JSON.stringify(patch)});
 }
 
 // hash de senha bem simples (suficiente pra evitar troca de nome casual)
@@ -152,8 +159,25 @@ function roomHTML(){
       ${open?`<button class="btn" onclick="go('build')">${hasEntry()?"Editar meu time":"Montar meu time"}</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
+    ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+      <div class="tag" style="margin-bottom:6px">ADMIN</div>
+      ${open
+        ?`<button class="btn ghost" onclick="setPoolStatus('closed')">🔒 Fechar pool (trava as escalações)</button>`
+        :`<button class="btn ghost" onclick="setPoolStatus('open')">🔓 Reabrir pool</button>`}
+    </div>`:""}
     <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← Voltar</button>
   </div>`;
+}
+async function setPoolStatus(status){
+  if(!isAdmin())return;
+  try{
+    await sbUpdate("rooms",{status},`id=eq.${APP.roomId}`);
+    APP.roomMeta.status=status;
+    // refletir no índice em memória também
+    const j=(window.GAMES.index||[]).find(x=>x.room_id===APP.roomId);if(j)j.status=status;
+    toast(status==="closed"?"Pool fechada. Ninguém mais edita.":"Pool reaberta.");
+    render();
+  }catch(e){toast("Erro ao mudar status: "+e.message);}
 }
 function hasEntry(){return APP.slots&&Object.values(APP.slots).some(Boolean);}
 
@@ -223,6 +247,13 @@ function setTab(t){APP.tab=t;render();}
 async function saveEntry(){
   if(!SUPA.ready()){toast("Supabase não configurado.");return;}
   try{
+    // trava: confirma no banco que a pool ainda está aberta antes de salvar
+    const rooms=await sb(`rooms?id=eq.${APP.roomId}&select=status`);
+    if(rooms&&rooms[0]&&rooms[0].status!=="open"){
+      APP.roomMeta.status=rooms[0].status;
+      toast("Pool fechada — não dá mais pra editar o time.");
+      go("room");return;
+    }
     await sbInsert("entries",{room_id:APP.roomId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true);
     toast("Time salvo!");
     go("room");
