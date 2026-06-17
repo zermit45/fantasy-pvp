@@ -2,6 +2,13 @@
 window.GAMES = {
  "index": [
   {
+   "room_id": "uzb-col-2026",
+   "match_name": "Uzbequistão × Colômbia",
+   "comp": "Copa do Mundo 2026",
+   "data": "Jun 2026",
+   "status": "open"
+  },
+  {
    "room_id": "por-cod-2026",
    "match_name": "Portugal × RD Congo",
    "comp": "Copa do Mundo 2026",
@@ -24,6 +31,544 @@ window.GAMES = {
   }
  ],
  "data": {
+  "uzb-col-2026": {
+   "prepool": {
+    "room_id": "uzb-col-2026",
+    "match_name": "Uzbequistão × Colômbia",
+    "comp": "Copa do Mundo 2026",
+    "venue": "",
+    "home": {
+     "code": "UZB",
+     "name": "Uzbequistão",
+     "elo": 1757
+    },
+    "away": {
+     "code": "COL",
+     "name": "Colômbia",
+     "elo": 2016
+    },
+    "players": [
+     {
+      "id": 1,
+      "name": "Luis Díaz",
+      "team": "COL",
+      "pos": "MID",
+      "age": 29,
+      "mv": 76000000,
+      "price": 34
+     },
+     {
+      "id": 2,
+      "name": "Abdukodir Khusanov",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 22,
+      "mv": 47000000,
+      "price": 26
+     },
+     {
+      "id": 3,
+      "name": "Daniel Muñoz",
+      "team": "COL",
+      "pos": "MID",
+      "age": 30,
+      "mv": 23000000,
+      "price": 21
+     },
+     {
+      "id": 4,
+      "name": "Luis Javier Suárez",
+      "team": "COL",
+      "pos": "ATT",
+      "age": 28,
+      "mv": 27000000,
+      "price": 21
+     },
+     {
+      "id": 5,
+      "name": "Richard Ríos",
+      "team": "COL",
+      "pos": "MID",
+      "age": 26,
+      "mv": 27000000,
+      "price": 21
+     },
+     {
+      "id": 6,
+      "name": "Jhon Lucumí",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 23000000,
+      "price": 20
+     },
+     {
+      "id": 7,
+      "name": "Davinson Sánchez",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 30,
+      "mv": 16500000,
+      "price": 18
+     },
+     {
+      "id": 8,
+      "name": "Cucho Hernández",
+      "team": "COL",
+      "pos": "ATT",
+      "age": 27,
+      "mv": 16500000,
+      "price": 17
+     },
+     {
+      "id": 9,
+      "name": "Jhon Arias",
+      "team": "COL",
+      "pos": "MID",
+      "age": 28,
+      "mv": 16100000,
+      "price": 17
+     },
+     {
+      "id": 10,
+      "name": "Jhon Córdoba",
+      "team": "COL",
+      "pos": "ATT",
+      "age": 33,
+      "mv": 9500000,
+      "price": 16
+     },
+     {
+      "id": 11,
+      "name": "Andrés Gómez",
+      "team": "COL",
+      "pos": "MID",
+      "age": 23,
+      "mv": 10700000,
+      "price": 14
+     },
+     {
+      "id": 12,
+      "name": "Gustavo Puerta",
+      "team": "COL",
+      "pos": "MID",
+      "age": 22,
+      "mv": 10700000,
+      "price": 14
+     },
+     {
+      "id": 13,
+      "name": "Jorge Carrascal",
+      "team": "COL",
+      "pos": "MID",
+      "age": 28,
+      "mv": 10200000,
+      "price": 14
+     },
+     {
+      "id": 14,
+      "name": "Eldor Shomurodov",
+      "team": "UZB",
+      "pos": "ATT",
+      "age": 30,
+      "mv": 7400000,
+      "price": 13
+     },
+     {
+      "id": 15,
+      "name": "Jefferson Lerma",
+      "team": "COL",
+      "pos": "MID",
+      "age": 31,
+      "mv": 5500000,
+      "price": 12
+     },
+     {
+      "id": 16,
+      "name": "Abbosbek Fayzullaev",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 22,
+      "mv": 6500000,
+      "price": 11
+     },
+     {
+      "id": 17,
+      "name": "Jaminton Campaz",
+      "team": "COL",
+      "pos": "MID",
+      "age": 26,
+      "mv": 5800000,
+      "price": 11
+     },
+     {
+      "id": 18,
+      "name": "Kevin Castaño",
+      "team": "COL",
+      "pos": "MID",
+      "age": 25,
+      "mv": 5200000,
+      "price": 11
+     },
+     {
+      "id": 19,
+      "name": "Willer Ditta",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 6000000,
+      "price": 11
+     },
+     {
+      "id": 20,
+      "name": "Juan Portilla",
+      "team": "COL",
+      "pos": "MID",
+      "age": 27,
+      "mv": 4600000,
+      "price": 10
+     },
+     {
+      "id": 21,
+      "name": "Álvaro Montero",
+      "team": "COL",
+      "pos": "GK",
+      "age": 31,
+      "mv": 2700000,
+      "price": 9
+     },
+     {
+      "id": 22,
+      "name": "Deiver Machado",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 32,
+      "mv": 1900000,
+      "price": 8
+     },
+     {
+      "id": 23,
+      "name": "James Rodríguez",
+      "team": "COL",
+      "pos": "MID",
+      "age": 34,
+      "mv": 1500000,
+      "price": 8
+     },
+     {
+      "id": 24,
+      "name": "Johan Mojica",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 33,
+      "mv": 1400000,
+      "price": 8
+     },
+     {
+      "id": 25,
+      "name": "Juan Fernando Quintero",
+      "team": "COL",
+      "pos": "MID",
+      "age": 33,
+      "mv": 1900000,
+      "price": 8
+     },
+     {
+      "id": 26,
+      "name": "Oston Urunov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 25,
+      "mv": 2100000,
+      "price": 8
+     },
+     {
+      "id": 27,
+      "name": "Santiago Arias",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 34,
+      "mv": 1300000,
+      "price": 8
+     },
+     {
+      "id": 28,
+      "name": "Yerry Mina",
+      "team": "COL",
+      "pos": "DEF",
+      "age": 31,
+      "mv": 2300000,
+      "price": 8
+     },
+     {
+      "id": 29,
+      "name": "Abduvokhid Nematov",
+      "team": "UZB",
+      "pos": "GK",
+      "age": 25,
+      "mv": 1400000,
+      "price": 7
+     },
+     {
+      "id": 30,
+      "name": "Akmal Mozgovoy",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 26,
+      "mv": 1500000,
+      "price": 7
+     },
+     {
+      "id": 31,
+      "name": "Azizjon Ganiev",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 28,
+      "mv": 1900000,
+      "price": 7
+     },
+     {
+      "id": 32,
+      "name": "Igor Sergeev",
+      "team": "UZB",
+      "pos": "ATT",
+      "age": 33,
+      "mv": 1300000,
+      "price": 7
+     },
+     {
+      "id": 33,
+      "name": "Jaloliddin Masharipov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 32,
+      "mv": 1000000,
+      "price": 7
+     },
+     {
+      "id": 34,
+      "name": "Jamshid Iskandarov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 32,
+      "mv": 1100000,
+      "price": 7
+     },
+     {
+      "id": 35,
+      "name": "Khozhiakbar Alizhonov",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 1400000,
+      "price": 7
+     },
+     {
+      "id": 36,
+      "name": "Otabek Shukurov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 29,
+      "mv": 1400000,
+      "price": 7
+     },
+     {
+      "id": 37,
+      "name": "Camilo Vargas",
+      "team": "COL",
+      "pos": "GK",
+      "age": 37,
+      "mv": 465000,
+      "price": 6
+     },
+     {
+      "id": 38,
+      "name": "Dostonbek Khamdamov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 29,
+      "mv": 935000,
+      "price": 6
+     },
+     {
+      "id": 39,
+      "name": "Odiljon Khamrobekov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 30,
+      "mv": 930000,
+      "price": 6
+     },
+     {
+      "id": 40,
+      "name": "Rustam Ashurmatov",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 29,
+      "mv": 710000,
+      "price": 6
+     },
+     {
+      "id": 41,
+      "name": "Sherzod Nasrullaev",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 27,
+      "mv": 1200000,
+      "price": 6
+     },
+     {
+      "id": 42,
+      "name": "Utkir Yusupov",
+      "team": "UZB",
+      "pos": "GK",
+      "age": 35,
+      "mv": 540000,
+      "price": 6
+     },
+     {
+      "id": 43,
+      "name": "Abdulla Abdullaev",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 28,
+      "mv": 485000,
+      "price": 5
+     },
+     {
+      "id": 44,
+      "name": "Avazbek Ulmasaliyev",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 26,
+      "mv": 515000,
+      "price": 5
+     },
+     {
+      "id": 45,
+      "name": "Azizbek Amanov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 28,
+      "mv": 525000,
+      "price": 5
+     },
+     {
+      "id": 46,
+      "name": "Botirali Ergashev",
+      "team": "UZB",
+      "pos": "GK",
+      "age": 30,
+      "mv": 515000,
+      "price": 5
+     },
+     {
+      "id": 47,
+      "name": "Farrukh Sayfiev",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 35,
+      "mv": 210000,
+      "price": 5
+     },
+     {
+      "id": 48,
+      "name": "Jakhongir Urozov",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 22,
+      "mv": 550000,
+      "price": 5
+     },
+     {
+      "id": 49,
+      "name": "Sherzod Esanov",
+      "team": "UZB",
+      "pos": "MID",
+      "age": 23,
+      "mv": 495000,
+      "price": 5
+     },
+     {
+      "id": 50,
+      "name": "Umarbek Eshmuradov",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 33,
+      "mv": 440000,
+      "price": 5
+     },
+     {
+      "id": 51,
+      "name": "Bekhruz Karimov",
+      "team": "UZB",
+      "pos": "DEF",
+      "age": 18,
+      "mv": 370000,
+      "price": 4
+     },
+     {
+      "id": 52,
+      "name": "David Ospina",
+      "team": "COL",
+      "pos": "GK",
+      "age": 37,
+      "mv": 110000,
+      "price": 4
+     }
+    ]
+   },
+   "match": {
+    "status": "pending",
+    "note": "Jogo ainda não aconteceu.",
+    "form": {
+     "UZB": [
+      {
+       "res": "L",
+       "oppElo": 2051
+      },
+      {
+       "res": "L",
+       "oppElo": 1897
+      },
+      {
+       "res": "W",
+       "oppElo": 1764
+      },
+      {
+       "res": "W",
+       "oppElo": 1505
+      },
+      {
+       "res": "W",
+       "oppElo": 1700
+      }
+     ],
+     "COL": [
+      {
+       "res": "W",
+       "oppElo": 1666
+      },
+      {
+       "res": "W",
+       "oppElo": 1736
+      },
+      {
+       "res": "L",
+       "oppElo": 2086
+      },
+      {
+       "res": "L",
+       "oppElo": 2030
+      },
+      {
+       "res": "W",
+       "oppElo": 1918
+      }
+     ]
+    }
+   }
+  },
   "por-cod-2026": {
    "prepool": {
     "room_id": "por-cod-2026",
@@ -1148,7 +1693,8 @@ window.GAMES = {
       "clearance": 3,
       "block": 1,
       "prgp": 30,
-      "dribbles": 1
+      "dribbles": 1,
+      "subbedOff": true
      },
      "26": {
       "min": 59,
@@ -1158,7 +1704,8 @@ window.GAMES = {
       "prgp": 10,
       "pib": 1,
       "fouls": 1,
-      "dribbledPast": 2
+      "dribbledPast": 2,
+      "subbedOff": true
      },
      "2": {
       "min": 90,
@@ -1187,7 +1734,8 @@ window.GAMES = {
         "m": 21,
         "xag": 0.15
        }
-      ]
+      ],
+      "subbedOff": true
      },
      "7": {
       "min": 83,
@@ -1203,7 +1751,8 @@ window.GAMES = {
         "m": 21,
         "xg": 0.0435
        }
-      ]
+      ],
+      "subbedOff": true
      },
      "1": {
       "min": 90,
@@ -1235,7 +1784,8 @@ window.GAMES = {
       "pib": 1,
       "fouls": 1,
       "dribbles": 1,
-      "dribbledPast": 1
+      "dribbledPast": 1,
+      "subbedOff": true
      },
      "20": {
       "min": 45,
@@ -1378,7 +1928,8 @@ window.GAMES = {
       "recovery": 3,
       "clearance": 5,
       "prgp": 10,
-      "fouls": 1
+      "fouls": 1,
+      "subbedOff": true
      },
      "28": {
       "min": 90,
@@ -1396,7 +1947,8 @@ window.GAMES = {
       "started": true,
       "recovery": 5,
       "clearance": 3,
-      "prgp": 7
+      "prgp": 7,
+      "subbedOff": true
      },
      "42": {
       "min": 81,
@@ -1405,7 +1957,8 @@ window.GAMES = {
       "aerial": 1,
       "clearance": 3,
       "prgp": 6,
-      "pib": 2
+      "pib": 2,
+      "subbedOff": true
      },
      "37": {
       "min": 90,
@@ -1464,7 +2017,8 @@ window.GAMES = {
        {
         "m": 17
        }
-      ]
+      ],
+      "subbedOff": true
      },
      "29": {
       "min": 90,
@@ -1502,7 +2056,8 @@ window.GAMES = {
        {
         "m": 9
        }
-      ]
+      ],
+      "subbedOff": true
      },
      "52": {
       "min": 18,
