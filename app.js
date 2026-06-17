@@ -1019,12 +1019,19 @@ function scoreEntryFor(entry,eng,ctx){
   const res={};
   for(const sl of slots){const pid=entry.slots[sl];if(!pid){res[sl]=null;continue;}res[sl]=eng.scorePlayer(rawOf(pid),null);}
   let subOut=null;const benchPid=entry.slots.BENCH,benchMeta=benchPid?byId[benchPid]:null;
+  const BENCH_FACTOR=0.8; // reserva que entra rende 80% (pedágio por não ser titular)
   if(benchMeta&&res.BENCH){
     if(benchMeta.pos==="GK"){
       const gkTitularMin=res.GK?res.GK.minutes:0;
+      // GK reserva só entra se o titular não jogou nada; mesmo assim, com desconto
       if(gkTitularMin===0&&res.BENCH){subOut="GK";[res.GK,res.BENCH]=[res.BENCH,res.GK];const t=entry.slots.GK;entry.slots.GK=entry.slots.BENCH;entry.slots.BENCH=t;}
     }
-    else{const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}if(worst&&res.BENCH.total>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}}
+    else{
+      const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);
+      let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}
+      // só troca se o reserva, JÁ COM o desconto, ainda superar o pior titular
+      if(worst&&res.BENCH.total*BENCH_FACTOR>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}
+    }
   }
   const titulares=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean).map(rawOf);
   const sq=eng.squadSum(titulares);
@@ -1034,6 +1041,8 @@ function scoreEntryFor(entry,eng,ctx){
     if(!pid){view.push(null);continue;}
     const r=eng.scorePlayer(rawOf(pid),sl==="BENCH"?null:entry.tactic,sl==="BENCH"?null:sq);
     let pts=r.total,cap=false;
+    // reserva que entrou: aplica o pedágio de 80%
+    if(sl===subOut){pts=Math.round(pts*BENCH_FACTOR*10)/10;}
     if(sl===entry.captain&&sl!=="BENCH"){pts=Math.round(pts*1.2*10)/10;cap=true;}
     if(sl!=="BENCH")sum+=pts;
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
@@ -1190,7 +1199,7 @@ function receiptHTML(v,idx){
   }
   return `<div class="receipt"><div class="rhead" onclick="toggleRec(${idx})">
     <div class="sl mono">${SLOT_LABEL[v.slot]}</div>
-    <div class="nm">${esc(p.name)}<small>${p.team} · ${p.pos}${v.subIn?' · ↑ entrou do banco':''}</small></div>
+    <div class="nm">${esc(p.name)}<small>${p.team} · ${p.pos}${v.subIn?' · ↑ entrou do banco (×0,8)':''}</small></div>
     ${v.cap?'<span class="badgeC">C ×1.20</span>':''}
     <div class="tot mono${v.pts<0?" neg":""}">${v.pts.toFixed(1)}</div></div>${body}</div>`;
 }
@@ -1246,7 +1255,7 @@ function rulesModalHTML(){
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Orçamento:</b> 100 moedas. Cada jogador tem um preço (calculado por qualidade técnica: valor de mercado corrigido pela idade). O banco também conta no orçamento.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Os 6 slots:</b> 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Capitão (×1.20):</b> escolha 1 jogador (qualquer um menos o banco) pra pontuar 20% a mais.</p>
-    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele (vale o maior). <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele — mas o reserva rende só <b style="color:var(--chalk)">80%</b> da nota (pedágio por começar fora). Ele só entra se, já com o desconto, ainda superar o titular. <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Ela depende de COMO você montou seu time: olha as estatísticas SOMADAS dos seus jogadores que terminaram a partida em campo (quem foi substituído ou ficou no banco não conta). Se a condição bater, dá bônus em certas ações e desconto em outras (ex: Ataque Total premia times com ≥3 gols, mas enfraquece a defesa deles). Escolher a tática certa pro seu time é estratégia.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Ranking:</b> quando o jogo acaba, todos os times da sala são pontuados e o ranking aparece, com a apuração detalhada de cada jogador.</p>
