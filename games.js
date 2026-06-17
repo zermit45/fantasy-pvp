@@ -513,7 +513,53 @@ window.GAMES = {
    },
    "match": {
     "status": "pending",
-    "note": "Jogo ainda não aconteceu."
+    "note": "Jogo ainda não aconteceu.",
+    "form": {
+     "POR": [
+      {
+       "res": "W",
+       "oppElo": 1925
+      },
+      {
+       "res": "W",
+       "oppElo": 1750
+      },
+      {
+       "res": "W",
+       "oppElo": 1988
+      },
+      {
+       "res": "D",
+       "oppElo": 2009
+      },
+      {
+       "res": "W",
+       "oppElo": 1400
+      }
+     ],
+     "COD": [
+      {
+       "res": "L",
+       "oppElo": 1750
+      },
+      {
+       "res": "D",
+       "oppElo": 1960
+      },
+      {
+       "res": "W",
+       "oppElo": 1610
+      },
+      {
+       "res": "W",
+       "oppElo": 1400
+      },
+      {
+       "res": "L",
+       "oppElo": 1911
+      }
+     ]
+    }
    }
   },
   "aut-jor-2026": {
