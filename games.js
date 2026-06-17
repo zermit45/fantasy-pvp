@@ -6,7 +6,7 @@ window.GAMES = {
    "match_name": "Áustria × Jordânia",
    "comp": "Copa do Mundo 2026 · Grupo A",
    "data": "17 Jun 2026",
-   "status": "open"
+   "status": "finished"
   },
   {
    "room_id": "ned-jpn-2026",
@@ -505,8 +505,551 @@ window.GAMES = {
     ]
    },
    "match": {
-    "status": "pending",
-    "note": "Jogo ainda não aconteceu. Cole aqui as stats reais depois."
+    "status": "finished",
+    "score": [
+     3,
+     1
+    ],
+    "endMin": 102,
+    "neutral": true,
+    "goals_tl": [
+     {
+      "m": 21,
+      "t": "AUT"
+     },
+     {
+      "m": 50,
+      "t": "JOR"
+     },
+     {
+      "m": 76,
+      "t": "AUT"
+     },
+     {
+      "m": 90,
+      "t": "AUT"
+     }
+    ],
+    "team_stats": {
+     "AUT": {
+      "poss": 63,
+      "shots": 11,
+      "shotsFaced": 11,
+      "setPieceGoals": 0
+     },
+     "JOR": {
+      "poss": 37,
+      "shots": 11,
+      "shotsFaced": 11,
+      "setPieceGoals": 0
+     }
+    },
+    "players": {
+     "22": {
+      "min": 90,
+      "started": true,
+      "recovery": 7,
+      "aerial": 1,
+      "clearance": 1,
+      "prgp": 8,
+      "gk": {
+       "saves": [
+        {
+         "psxg": 0.6018,
+         "m": 34
+        },
+        {
+         "psxg": 0.254,
+         "m": 17
+        },
+        {
+         "psxg": 0.055,
+         "m": 9
+        }
+       ],
+       "conceded": 0,
+       "opa": 2,
+       "crossStop": 0,
+       "penSave": 0
+      }
+     },
+     "15": {
+      "min": 90,
+      "started": true,
+      "tklint": 4,
+      "recovery": 4,
+      "aerial": 4,
+      "clearance": 4,
+      "prgp": 14,
+      "fouls": 3,
+      "dribbledPast": 3
+     },
+     "11": {
+      "min": 90,
+      "started": true,
+      "tklint": 2,
+      "recovery": 9,
+      "aerial": 2,
+      "clearance": 6,
+      "block": 1,
+      "prgp": 24
+     },
+     "16": {
+      "min": 59,
+      "started": true,
+      "tklint": 2,
+      "recovery": 1,
+      "aerial": 2,
+      "clearance": 3,
+      "block": 1,
+      "prgp": 30,
+      "dribbles": 1
+     },
+     "26": {
+      "min": 59,
+      "started": true,
+      "recovery": 2,
+      "aerial": 1,
+      "prgp": 10,
+      "pib": 1,
+      "fouls": 1,
+      "dribbledPast": 2
+     },
+     "2": {
+      "min": 90,
+      "started": true,
+      "tklint": 4,
+      "recovery": 6,
+      "aerial": 1,
+      "clearance": 2,
+      "prgp": 30,
+      "fouls": 1,
+      "dribbledPast": 1
+     },
+     "12": {
+      "min": 59,
+      "started": true,
+      "tklint": 7,
+      "recovery": 5,
+      "aerial": 2,
+      "clearance": 3,
+      "prgp": 30,
+      "pib": 1,
+      "fouls": 2,
+      "dribbledPast": 2,
+      "assists": [
+       {
+        "m": 21,
+        "xag": 0.15
+       }
+      ]
+     },
+     "7": {
+      "min": 83,
+      "started": true,
+      "tklint": 1,
+      "recovery": 4,
+      "clearance": 1,
+      "prgp": 17,
+      "pib": 1,
+      "dribbledPast": 2,
+      "goals": [
+       {
+        "m": 21,
+        "xg": 0.0435
+       }
+      ]
+     },
+     "1": {
+      "min": 90,
+      "started": true,
+      "tklint": 3,
+      "recovery": 2,
+      "prgp": 25,
+      "fouls": 3,
+      "dribbledPast": 1
+     },
+     "14": {
+      "min": 90,
+      "started": true,
+      "tklint": 4,
+      "recovery": 6,
+      "clearance": 1,
+      "block": 1,
+      "prgp": 22,
+      "pib": 1,
+      "dribbles": 1,
+      "dribbledPast": 1,
+      "yellow": 1
+     },
+     "17": {
+      "min": 45,
+      "started": true,
+      "aerial": 1,
+      "prgp": 8,
+      "pib": 1,
+      "fouls": 1,
+      "dribbles": 1,
+      "dribbledPast": 1
+     },
+     "20": {
+      "min": 45,
+      "started": false,
+      "tklint": 2,
+      "aerial": 1,
+      "prgp": 6,
+      "pib": 1,
+      "goals": [
+       {
+        "m": 90,
+        "xg": 0.7884
+       }
+      ],
+      "sots": [
+       {
+        "m": 90
+       }
+      ]
+     },
+     "3": {
+      "min": 31,
+      "started": false,
+      "tklint": 1,
+      "recovery": 1,
+      "clearance": 3,
+      "prgp": 11,
+      "dribbles": 1
+     },
+     "6": {
+      "min": 31,
+      "started": false,
+      "aerial": 1,
+      "prgp": 7,
+      "fouls": 1,
+      "sots": [
+       {
+        "m": 63
+       }
+      ]
+     },
+     "4": {
+      "min": 31,
+      "started": false,
+      "recovery": 2,
+      "prgp": 12,
+      "dribbles": 1,
+      "dribbledPast": 1
+     },
+     "10": {
+      "min": 20,
+      "started": false,
+      "tklint": 2,
+      "recovery": 2,
+      "prgp": 2,
+      "dribbledPast": 1
+     },
+     "23": {
+      "min": 0,
+      "started": false,
+      "gk": {
+       "saves": [],
+       "conceded": 0,
+       "opa": 0,
+       "crossStop": 0,
+       "penSave": 0
+      }
+     },
+     "25": {
+      "min": 0,
+      "started": false,
+      "gk": {
+       "saves": [],
+       "conceded": 0,
+       "opa": 0,
+       "crossStop": 0,
+       "penSave": 0
+      }
+     },
+     "5": {
+      "min": 0,
+      "started": false
+     },
+     "8": {
+      "min": 0,
+      "started": false
+     },
+     "21": {
+      "min": 0,
+      "started": false
+     },
+     "19": {
+      "min": 0,
+      "started": false
+     },
+     "18": {
+      "min": 0,
+      "started": false
+     },
+     "13": {
+      "min": 0,
+      "started": false
+     },
+     "27": {
+      "min": 0,
+      "started": false
+     },
+     "24": {
+      "min": 0,
+      "started": false
+     },
+     "50": {
+      "min": 90,
+      "started": true,
+      "recovery": 2,
+      "aerial": 1,
+      "clearance": 1,
+      "prgp": 9,
+      "gk": {
+       "saves": [
+        {
+         "psxg": 0.2708,
+         "m": 90
+        },
+        {
+         "psxg": 0.2027,
+         "m": 63
+        }
+       ],
+       "conceded": 0,
+       "opa": 0,
+       "crossStop": 0,
+       "penSave": 0
+      }
+     },
+     "31": {
+      "min": 81,
+      "started": true,
+      "tklint": 5,
+      "recovery": 3,
+      "clearance": 5,
+      "prgp": 10,
+      "fouls": 1
+     },
+     "28": {
+      "min": 90,
+      "started": true,
+      "tklint": 7,
+      "recovery": 2,
+      "aerial": 3,
+      "clearance": 12,
+      "prgp": 5,
+      "errGoal": 0,
+      "ownGoal": 1
+     },
+     "44": {
+      "min": 72,
+      "started": true,
+      "recovery": 5,
+      "clearance": 3,
+      "prgp": 7
+     },
+     "42": {
+      "min": 81,
+      "started": true,
+      "recovery": 1,
+      "aerial": 1,
+      "clearance": 3,
+      "prgp": 6,
+      "pib": 2
+     },
+     "37": {
+      "min": 90,
+      "started": true,
+      "tklint": 4,
+      "recovery": 6,
+      "aerial": 1,
+      "clearance": 2,
+      "block": 1,
+      "prgp": 9,
+      "pib": 1,
+      "fouls": 3,
+      "dribbles": 4,
+      "dribbledPast": 1
+     },
+     "38": {
+      "min": 90,
+      "started": true,
+      "tklint": 3,
+      "recovery": 8,
+      "clearance": 1,
+      "prgp": 14,
+      "pib": 2,
+      "dribbles": 1,
+      "assists": [
+       {
+        "m": 50,
+        "xag": 0.15
+       }
+      ]
+     },
+     "36": {
+      "min": 90,
+      "started": true,
+      "tklint": 1,
+      "recovery": 3,
+      "aerial": 1,
+      "clearance": 2,
+      "block": 1,
+      "prgp": 13,
+      "pib": 1,
+      "fouls": 1,
+      "dribbles": 1
+     },
+     "48": {
+      "min": 89,
+      "started": true,
+      "tklint": 2,
+      "recovery": 1,
+      "clearance": 1,
+      "prgp": 9,
+      "pib": 2,
+      "dribbles": 1,
+      "dribbledPast": 2,
+      "sots": [
+       {
+        "m": 17
+       }
+      ]
+     },
+     "29": {
+      "min": 90,
+      "started": true,
+      "tklint": 1,
+      "recovery": 3,
+      "aerial": 1,
+      "block": 1,
+      "prgp": 13,
+      "dribbles": 3,
+      "goals": [
+       {
+        "m": 50,
+        "xg": 0.0854
+       }
+      ],
+      "sots": [
+       {
+        "m": 34
+       }
+      ]
+     },
+     "9": {
+      "min": 88,
+      "started": true,
+      "tklint": 2,
+      "recovery": 2,
+      "block": 1,
+      "prgp": 5,
+      "pib": 1,
+      "fouls": 1,
+      "dribbles": 3,
+      "dribbledPast": 2,
+      "sots": [
+       {
+        "m": 9
+       }
+      ]
+     },
+     "52": {
+      "min": 18,
+      "started": false,
+      "tklint": 1,
+      "clearance": 4,
+      "prgp": 2,
+      "fouls": 1
+     },
+     "39": {
+      "min": 9,
+      "started": false,
+      "aerial": 1,
+      "clearance": 3,
+      "prgp": 4
+     },
+     "34": {
+      "min": 9,
+      "started": false,
+      "tklint": 1,
+      "recovery": 2,
+      "prgp": 3
+     },
+     "46": {
+      "min": 15,
+      "started": false,
+      "recovery": 1,
+      "clearance": 2,
+      "prgp": 3,
+      "dribbles": 1
+     },
+     "41": {
+      "min": 14,
+      "started": false,
+      "prgp": 1,
+      "dribbles": 1
+     },
+     "40": {
+      "min": 0,
+      "started": false,
+      "gk": {
+       "saves": [],
+       "conceded": 0,
+       "opa": 0,
+       "crossStop": 0,
+       "penSave": 0
+      }
+     },
+     "47": {
+      "min": 0,
+      "started": false,
+      "gk": {
+       "saves": [],
+       "conceded": 0,
+       "opa": 0,
+       "crossStop": 0,
+       "penSave": 0
+      }
+     },
+     "43": {
+      "min": 0,
+      "started": false
+     },
+     "51": {
+      "min": 0,
+      "started": false
+     },
+     "45": {
+      "min": 0,
+      "started": false
+     },
+     "35": {
+      "min": 0,
+      "started": false
+     },
+     "32": {
+      "min": 0,
+      "started": false
+     },
+     "49": {
+      "min": 0,
+      "started": false
+     },
+     "33": {
+      "min": 0,
+      "started": false
+     },
+     "30": {
+      "min": 0,
+      "started": false
+     }
+    }
    }
   },
   "ned-jpn-2026": {
