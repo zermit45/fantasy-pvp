@@ -192,15 +192,20 @@ async function loadProfileStats(username){
   stats.bestPlayer=top;
   return stats;
 }
-// histórico de um atleta (quantas vezes teve cada arquétipo/selo) nos jogos arquivados
-function playerArchHistory(playerId){
+// histórico de um atleta (quantas vezes teve cada arquétipo/selo) nos jogos arquivados.
+// casa por NOME normalizado: os IDs são locais de cada jogo e colidem entre partidas.
+function _normName(s){return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z ]/g,"").trim();}
+function playerArchHistory(playerName){
   const hist={archetypes:{},traits:{},best:null,games:0};
+  const target=_normName(playerName);
+  if(!target)return hist;
   const arq=APP.jogos.filter(j=>isArchived(j.room_id));
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
-    if(!ctx.byId[playerId])continue; // esse atleta não está neste jogo
-    const meta=ctx.byId[playerId];
-    const st=(ctx.match.players&&ctx.match.players[String(playerId)])||{min:0};
+    // acha o jogador pelo nome dentro deste jogo
+    const meta=ctx.prepool.players.find(p=>_normName(p.name)===target);
+    if(!meta)continue; // esse atleta não está neste jogo
+    const st=(ctx.match.players&&ctx.match.players[String(meta.id)])||{min:0};
     const raw=Object.assign({pos:meta.pos,team:meta.team},st);
     if(!raw.min)continue;
     const r=ctx.eng.scorePlayer(raw,null);
@@ -986,10 +991,25 @@ function resultHTML(){
   const TAC=window.ENGINE_TACTICS;
   let html=`<div class="scorebar"><div class="tag">${esc(pp.comp)} · FINALIZADO</div>
     <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">${m.score[0]}–${m.score[1]}</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>`;
-  // ranking
+  // ranking — toque numa pessoa pra ver o time dela
   html+=`<div class="card"><div class="h2 disp">Ranking da sala</div>`;
   if(scored.length===0)html+=`<p class="p">Ninguém montou time nesta sala ainda.</p>`;
-  scored.forEach((s,i)=>{html+=`<div class="rank${s.username===APP.user?.username?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(s.username)}<small>cap: ${esc(SLOT_LABEL[s.captain])} · ${TAC[s.tactic]?.name||s.tactic}</small></div><div class="pt mono">${s.total.toFixed(1)}</div></div>`;});
+  scored.forEach((s,i)=>{
+    const isMe=s.username===APP.user?.username;
+    const op=_openRank[i];
+    html+=`<div class="rank${isMe?" me":""}" style="cursor:pointer" onclick="toggleRank(${i})"><div class="po mono">${i+1}º</div><div class="nm">${esc(s.username)}<small>cap: ${esc(SLOT_LABEL[s.captain])} · ${TAC[s.tactic]?.name||s.tactic} · toque p/ ver time</small></div><div class="pt mono">${s.total.toFixed(1)}</div></div>`;
+    if(op){
+      html+=`<div style="border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;margin:-8px 0 10px;padding:6px 12px 10px;background:var(--panel2)">`;
+      s.view.filter(Boolean).forEach(v=>{
+        const pl=APP._byId[v.pid];
+        const capTag=v.cap?` <span class="badgeC">C</span>`:"";
+        const subTag=v.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
+        const benchTag=v.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
+        html+=`<div class="line" style="padding:6px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}</span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+      });
+      html+=`</div>`;
+    }
+  });
   html+=`</div>`;
   // minha apuração detalhada
   if(mine){
@@ -1003,6 +1023,8 @@ function resultHTML(){
   return html;
 }
 let _openRec={};
+let _openRank={};
+function toggleRank(i){_openRank[i]=!_openRank[i];render();}
 function receiptHTML(v,idx){
   const byId=APP._byId,p=byId[v.pid],r=v.r,open=_openRec[idx];
   let body="";
@@ -1017,7 +1039,7 @@ function receiptHTML(v,idx){
       <div class="line total"><span>TOTAL DO SLOT</span><span class="v mono">${v.pts.toFixed(1)}</span></div>
       ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
       <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>
-      ${archHistoryHTML(v.pid)}
+      ${archHistoryHTML(p?p.name:"")}
     </div>`;
   }
   return `<div class="receipt"><div class="rhead" onclick="toggleRec(${idx})">
@@ -1028,8 +1050,8 @@ function receiptHTML(v,idx){
 }
 function toggleRec(i){_openRec[i]=!_openRec[i];render();}
 // histórico colecionável do atleta nos jogos JÁ encerrados (arquivados)
-function archHistoryHTML(pid){
-  const h=playerArchHistory(pid);
+function archHistoryHTML(playerName){
+  const h=playerArchHistory(playerName);
   if(!h||h.games<=0)return"";
   const arch=Object.entries(h.archetypes).sort((a,b)=>b[1]-a[1]);
   const traits=Object.entries(h.traits).sort((a,b)=>b[1]-a[1]);
@@ -1112,7 +1134,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="round"){await loadRound(roundId);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
-    if(view==="result"){APP.entries=await loadEntries();_openRec={};}
+    if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};}
     if(view==="profile"){APP.profile=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;}
     render();window.scrollTo(0,0);
   };
