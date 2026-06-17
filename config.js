@@ -1,19 +1,10 @@
-// ============================================================
-// CONFIG — cole aqui as chaves do seu projeto Supabase
-// ============================================================
-// Onde achar: Supabase > seu projeto > Settings > API
-//   SUPABASE_URL  = "Project URL"
-//   SUPABASE_KEY  = "anon public" key
-// ============================================================
+const SUPABASE_URL = "https://opyegiugrwdfgzxehakd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_iNKuDBbIx5_PHD3_VnMhKg_aAZkFSql";
 
-const SUPABASE_URL = "COLE_SUA_PROJECT_URL_AQUI";
-const SUPABASE_KEY = "COLE_SUA_ANON_KEY_AQUI";
-
-// Não precisa mexer daqui pra baixo.
 const SUPA = {
   url: SUPABASE_URL,
   key: SUPABASE_KEY,
-  ready(){ return !this.url.startsWith("COLE_") && !this.key.startsWith("COLE_"); },
+  ready(){ return this.url.indexOf("supabase.co")>0 && this.key.length>15; },
   headers(){ return {
     "apikey": this.key,
     "Authorization": "Bearer "+this.key,
