@@ -1,8 +1,8 @@
-// ============================================================
+// ============================================================ // teste 123
 // FANTASY PvP — APP (navegação, Supabase, telas)
 // ============================================================
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
-// paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
+// paleta de cores por seleção/clube (código → hex). Fallback  para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB"};
 const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
 // admins: só estes usuários veem os botões de fechar/reabrir pool
