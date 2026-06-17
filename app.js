@@ -80,6 +80,22 @@ function enterGroup(gid){
   go("home");
 }
 function leaveGroupView(){APP.groupId=null;APP.groupName=null;APP.view="groups";render();window.scrollTo(0,0);}
+// admin: excluir um grupo (com confirmação por palavra)
+function askDeleteGroup(gid){
+  if(!isAdmin())return;
+  const g=APP.groups.find(x=>x.id===gid);
+  askConfirm("EXCLUIR",`Excluir o grupo "${g?g.name:""}"`,async()=>{
+    // apaga em ordem: times, jogos abertos, membros, e por fim o grupo
+    await sbDelete("entries",`group_id=eq.${gid}`);
+    await sbDelete("group_rooms",`group_id=eq.${gid}`);
+    await sbDelete("group_members",`group_id=eq.${gid}`);
+    await sbDelete("groups",`id=eq.${gid}`);
+    if(APP.groupId===gid){APP.groupId=null;APP.groupName=null;}
+    await loadGroups();
+    toast("Grupo excluído.");
+    APP.view="groups";render();
+  },"Esta ação exclui o grupo, seus membros e todos os times dele. Não pode ser desfeita.");
+}
 // quais jogos estão abertos neste grupo
 async function loadGroupRooms(){
   if(!APP.groupId)return;
@@ -190,6 +206,7 @@ function groupsHTML(){
   const card=(g,member)=>`<div class="roomrow" onclick="${member?`enterGroup('${g.id}')`:`askJoin('${g.id}')`}">
     <div class="info"><div class="nm">${esc(g.name)}</div><div class="meta">${member?"✓ você é membro · toque pra entrar":"🔒 toque e digite a senha"}</div></div>
     ${member?'<span class="statuspill st-open">MEMBRO</span>':'<span class="statuspill st-closed">SENHA</span>'}
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteGroup('${g.id}')" title="Excluir grupo">🗑</button>`:""}
   </div>`;
   return `<div class="card">
     <div class="h1 disp" style="color:var(--amber)">Grupos</div>
@@ -290,7 +307,7 @@ async function setPoolStatus(status){
 
 // ---------- MANUTENÇÃO / RESET (admin) ----------
 // APP.confirm = {word, label, action} controla o modal de confirmação por texto
-function askConfirm(word,label,action){APP.confirm={word,label,action,typed:""};render();}
+function askConfirm(word,label,action,msg){APP.confirm={word,label,action,msg,typed:""};render();}
 function closeConfirm(){APP.confirm=null;render();}
 function confirmInput(v){if(APP.confirm)APP.confirm.typed=v;}
 function confirmModalHTML(){
@@ -320,7 +337,7 @@ function confirmModalHTML(){
   // modo padrão: confirmação destrutiva por palavra (reset)
   return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
     <div class="h2 disp" style="color:var(--red)">⚠ ${esc(c.label)}</div>
-    <p class="p" style="margin:10px 0">Esta ação <b style="color:var(--chalk)">apaga os times e não pode ser desfeita</b>. Salas e usuários são mantidos. Para confirmar, digite <b style="color:var(--amber)">${c.word}</b> abaixo.</p>
+    <p class="p" style="margin:10px 0">${c.msg?esc(c.msg):'Esta ação <b style="color:var(--chalk)">apaga os times e não pode ser desfeita</b>. Salas e usuários são mantidos.'} Para confirmar, digite <b style="color:var(--amber)">${c.word}</b> abaixo.</p>
     <input id="confirmField" class="input" placeholder="Digite ${c.word}" autocapitalize="characters" autocorrect="off" />
     <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" onclick="runConfirm()">Apagar agora</button>
     <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
@@ -351,7 +368,7 @@ async function runConfirm(){
 // reset de UMA sala
 function resetRoom(){
   if(!isAdmin())return;
-  askConfirm("RESET","Limpar times desta sala",async()=>{
+  askConfirm("LIMPAR","Limpar times desta sala",async()=>{
     await sbDelete("entries",`room_id=eq.${APP.roomId}&group_id=eq.${APP.groupId}`);
     APP.entries=[];
     toast("Times desta sala apagados.");
