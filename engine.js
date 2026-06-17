@@ -181,4 +181,5 @@ function makeEngine(match){
   return { scorePlayer, TACTICS };
 }
 
-if (typeof module!=="undefined") module.exports={makeEngine,TACTICS};
+if (typeof module!=="undefined" && module.exports) module.exports={makeEngine,TACTICS};
+if (typeof window!=="undefined"){ window.makeEngine=makeEngine; window.ENGINE_TACTICS=TACTICS; }

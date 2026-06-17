@@ -1,184 +1,354 @@
 // ============================================================
-// FANTASY PvP ENGINE v2.4.0 — motor de pontuação isolado
-// Não depende de nenhum jogo específico: recebe (player, match, tactic)
-// e devolve a pontuação detalhada. Mesmo motor pra todas as salas.
+// FANTASY PvP — APP (navegação, Supabase, telas)
 // ============================================================
+const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $=id=>document.getElementById(id);
 
-const BASE = { goal:2, assist:1.5, sot:.6, dribble:.35, prgp:.12, pib:.35, tib:.06, sca:.45, gca:1.25,
-  tklint:.9, block:.9, recovery:.22, aerial:.22, clearance:.1,
-  save:.7, penSave:4.5, opa:.85, crossStop:.45, accCross:.2, inaccCross:-.08,
-  yellow:-2, redH1:-10, redH2:-6, errGoal:-5, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2 };
-const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:6, TACT:4 };
-const TIER_EMO = {1:0,2:.4,3:.9,4:1.6};
-const r1 = x => Math.round(x*10)/10;
-const tierXG = v => v>0.5?{b:0,t:1} : v>=0.2?{b:1.2,t:2} : v>=0.08?{b:2.6,t:3} : {b:4.2,t:4};
-const tierSV = v => v<0.1?{b:0,t:1} : v<=0.3?{b:1.2,t:2} : v<=0.6?{b:2.6,t:3} : {b:4.2,t:4};
-
-// ---- TÁTICAS v2.4.1 (lista reformulada) ----
-const TACTICS = {
-  gegenpress:{name:"Gegenpress",desc:"Recuperações ou desarmes acima da média",
-    cond:(p,ts)=>p.recovery>=6||p.tklint>=5, buffs:{recovery:1.18,tklint:1.12}, nerfs:{fouls:1.18,dribbledPast:1.10}},
-  tikitaka:{name:"Tiki-Taka",desc:"Passes progressivos ≥5 ou posse ≥55%",
-    cond:(p,ts)=>p.prgp>=5||ts.poss>=55, buffs:{prgp:1.20,pib:1.10}, nerfs:{recovery:.94,aerial:.94}},
-  onibus:{name:"Ônibus",desc:"Time sofre ≥10 finalizações",
-    cond:(p,ts)=>ts.shotsFaced>=10, buffs:{block:1.20,clearance:1.12}, nerfs:{prgp:.92,tib:.92}},
-  contra:{name:"Contra-ataque",desc:"Posse do time <45%",
-    cond:(p,ts)=>ts.poss<45, buffs:{gca:1.18,sotPts:1.08}, nerfs:{prgp:.94,recovery:.96}},
-  aereo:{name:"Jogo Aéreo",desc:"≥5 duelos aéreos vencidos",
-    cond:(p,ts)=>p.aerial>=5, buffs:{aerial:1.22,tib:1.08}, nerfs:{dribbles:.94,prgp:.94}},
-  bolaparada:{name:"Bola Parada",desc:"Time converteu ≥1 gol/assist de bola parada",
-    cond:(p,ts)=>ts.setPieceGoals>=1, buffs:{sotPts:1.15,aerial:1.12}, nerfs:{dribbles:.94,accCross:.94}},
-  altapressao:{name:"Alta Pressão",desc:"Recuperações ≥4 (pressão alta coordenada)",
-    cond:(p,ts)=>p.recovery>=4, buffs:{recovery:1.20,tklint:1.15}, nerfs:{fouls:1.12,clearance:.94}},
+// estado global
+let APP={
+  user:null,            // {username}
+  view:"home",          // home | room | build | result
+  roomId:null,
+  jogos:[],
+  prepool:null, match:null, roomMeta:null,
+  slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
+  captain:null, tactic:null, tab:"ALL", warn:"",
+  entries:[],           // entries da sala (pro ranking)
 };
 
-// normaliza um player do match.json pra um objeto completo de stats
-function normP(raw){
-  return Object.assign({
-    min:0, started:false, goals:[], assists:[], sots:[], dribbles:0, prgp:0, pib:0, tib:0,
-    sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
-    yellow:0, red:null, errGoal:0, penCom:0, accCross:0, inaccCross:0, gk:null
-  }, raw||{});
+// ---------- Supabase REST helpers ----------
+async function sb(path, opts={}){
+  const r=await fetch(SUPA.url+"/rest/v1/"+path,{headers:SUPA.headers(),...opts});
+  if(!r.ok){const t=await r.text();throw new Error("Supabase "+r.status+": "+t);}
+  if(r.status===204)return null;
+  return r.json();
+}
+async function sbInsert(table,row,upsert=false){
+  const h=SUPA.headers(); h["Prefer"]=upsert?"resolution=merge-duplicates,return=representation":"return=representation";
+  return sb(table,{method:"POST",headers:h,body:JSON.stringify(row)});
 }
 
-function makeEngine(match){
-  const GOALS_TL = match.goals_tl||[];
-  const endMin = match.endMin||96;
-  function scoreAt(min){let h=0,a=0;for(const g of GOALS_TL){if(g.m<min){g.t===match.homeCode?h++:a++;}}return [h,a];}
-  function diffAt(min){const[h,a]=scoreAt(min);return Math.abs(h-a);}
-  function extendsLead(team,min){const[h,a]=scoreAt(min);const lead=team===match.homeCode?h-a:a-h;return lead>=1;}
-  function cleanSheetHalves(team){const g=GOALS_TL.filter(x=>x.t!==team);return{h1:!g.some(x=>x.m>=1&&x.m<=45),h2:!g.some(x=>x.m>=46&&x.m<=endMin)};}
-  function liveShare(){let live=0;for(let m=0;m<endMin;m++){if(diffAt(m+0.5)<=1)live++;}return live/endMin;}
-  const LIVE=liveShare();
-  const ctxDecisive=d=>d<=1?1.06:0.92;
-  const ctxDefEvt=d=>d<=1?1.08:0.94;
-  const ctxDefAgg=LIVE*1.08+(1-LIVE)*0.94;
-  const ctxSmallAgg=LIVE*1.00+(1-LIVE)*0.90;
-  function dvgMult(team){
-    const ownElo=team===match.homeCode?match.homeElo:match.awayElo;
-    const oppElo=team===match.homeCode?match.awayElo:match.homeElo;
-    const mando=match.neutral?1.0:(team===match.homeCode?0.85:1.15);
-    const edge=(oppElo-ownElo)*mando;
-    return 1+Math.min(0.10,Math.max(0,edge/1800));
+// hash de senha bem simples (suficiente pra evitar troca de nome casual)
+function hashPass(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;}return"h"+h.toString(16);}
+
+// ---------- carregar JSONs locais ----------
+async function loadJSON(path){const r=await fetch(path+"?t="+Date.now());if(!r.ok)throw new Error("404 "+path);return r.json();}
+
+// ---------- TOAST ----------
+let _tt=null;
+function toast(m){let e=$("toast");if(!e){e=document.createElement("div");e.id="toast";e.className="toast";document.body.appendChild(e);}e.textContent=m;e.style.opacity="1";clearTimeout(_tt);_tt=setTimeout(()=>e.style.opacity="0",1900);}
+
+// ============================================================
+// LOGIN
+// ============================================================
+function needLogin(){ return !APP.user; }
+function loginModalHTML(){
+  return `<div class="modal" id="loginModal"><div class="box">
+    <div class="h2 disp" style="color:var(--amber)">Entrar</div>
+    <p class="p" style="margin-bottom:12px">Escolha um apelido e uma senha. Se já existe, valida a senha; se é novo, cria a conta.</p>
+    <input class="input" id="li-user" placeholder="Apelido" autocomplete="off">
+    <input class="input" id="li-pass" type="password" placeholder="Senha" autocomplete="off">
+    <div class="warn" id="li-warn" style="display:none"></div>
+    <button class="btn" onclick="doLogin()">Entrar / Criar conta</button>
+  </div></div>`;
+}
+async function doLogin(){
+  const u=$("li-user").value.trim(), p=$("li-pass").value;
+  const warn=$("li-warn");
+  if(u.length<2||p.length<3){warn.style.display="block";warn.textContent="Apelido (2+) e senha (3+) obrigatórios.";return;}
+  if(!SUPA.ready()){warn.style.display="block";warn.textContent="Supabase não configurado (veja config.js).";return;}
+  try{
+    const existing=await sb("users?username=eq."+encodeURIComponent(u)+"&select=*");
+    const ph=hashPass(p);
+    if(existing.length){
+      if(existing[0].pass_hash!==ph){warn.style.display="block";warn.textContent="Senha incorreta para esse apelido.";return;}
+    }else{
+      await sbInsert("users",{username:u,pass_hash:ph});
+    }
+    APP.user={username:u};
+    localStorage_safe_set("fpvp_user",u); localStorage_safe_set("fpvp_pass",ph);
+    render();
+  }catch(e){warn.style.display="block";warn.textContent="Erro: "+e.message;}
+}
+// localStorage pode falhar em alguns contextos; protege
+function localStorage_safe_set(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function localStorage_safe_get(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+async function tryAutoLogin(){
+  const u=localStorage_safe_get("fpvp_user"), ph=localStorage_safe_get("fpvp_pass");
+  if(u&&ph&&SUPA.ready()){
+    try{const ex=await sb("users?username=eq."+encodeURIComponent(u)+"&select=*");
+      if(ex.length&&ex[0].pass_hash===ph){APP.user={username:u};}}catch(e){}
   }
-  function minFactor(p){if(p.started||p.min>=45)return 1.0;return p.min/90;}
-  function redPenalty(red){if(!red)return 0;const h1=red.m<=50;if(red.doubleYellow)return h1?-3.0:-2.0;return h1?BASE.redH1:BASE.redH2;}
+}
+function logout(){APP.user=null;localStorage_safe_set("fpvp_user","");localStorage_safe_set("fpvp_pass","");APP.view="home";render();}
 
-  function indices(p){
-    if(p.min===0)return null;
-    const per90=v=>v/p.min*90;const pct=(v,c)=>Math.max(0,Math.min(100,v/c*100));
-    let iui,tw;
-    if(p.gk){const g=p.gk;iui=pct(per90(g.opa+g.crossStop*0.7),2.5);tw=pct(per90(g.opa*1.2+g.crossStop+g.saves.length*0.3),5);}
-    else{iui=pct(per90(p.sots.length+p.goals.length+p.sca*1.2+p.gca*2+p.prgp*.5+p.pib*.7+p.tib*.25+p.dribbles*.6),{DEF:5,MID:8,ATT:9}[p.pos]||8);
-         tw=pct(per90(p.tklint+p.block+p.recovery*.5+p.aerial*.5+p.clearance*.3+p.prgp*.35+p.sca*.35),{DEF:10,MID:9,ATT:5}[p.pos]||9);}
-    const ev=[...p.goals.map(g=>tierXG(g.xg).b),...p.assists.map(a=>tierXG(a.xag).b),...(p.gk?p.gk.saves.map(s=>tierSV(s.psxg).b):[])];
-    let eff=ev.length?ev.reduce((a,b)=>a+b,0)/ev.length/4.2*100:50;
-    if(p.gk)eff=Math.max(0,eff-p.gk.conceded*8);
-    const fW=p.pos==="DEF"?3:4,dW=p.pos==="DEF"?4:6;
-    const sec=Math.max(0,100-(p.errGoal*45+p.penCom*35+(p.red?40:0)+p.yellow*12+p.fouls*fW+p.dribbledPast*dW));
-    return{iui,eff,sec,tw};
+// ============================================================
+// NAV
+// ============================================================
+async function go(view,roomId){
+  APP.view=view; if(roomId)APP.roomId=roomId;
+  if(view==="room"||view==="build"||view==="result"){
+    await loadRoom(APP.roomId);
   }
-  const lab3=(v,lo,mid,hi)=>v>=65?hi:v>=35?mid:lo;
-
-  function archetype(p,ix,clutch,total){
-    if(!ix)return{arch:"—",traits:["Não entrou em campo"],rarity:"Comum"};
-    let arch="Conector";const traits=[];
-    if(p.gk){const wall=p.gk.saves.length>=5||p.gk.saves.some(s=>tierSV(s.psxg).t===4);arch=!wall&&(p.gk.opa+p.gk.crossStop)>=3&&ix.sec>=60?"GK Líbero":"GK Muralha";}
-    else if(clutch>=2)arch="Herói de Clutch";
-    else if(p.goals.length&&p.goals.every(g=>g.xg<0.2))arch="Finalizador Frio";
-    else if((p.sca+p.gca*2)>=6&&p.pib>=3)arch="Maestro Criador";
-    else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=10)arch="Muralha Aérea";
-    else if(p.pos==="DEF"&&p.prgp>=3&&ix.sec>=70)arch="Zagueiro Construtor";
-    else if(ix.tw>=65&&p.recovery>=6)arch="Motor";
-    else if(ix.tw>=60&&ix.sec>=70&&p.pos!=="ATT")arch="Cão de Guarda";
-    else if(ix.iui>=65&&ix.sec<45)arch="Ponta Caótico";
-    else if(ix.iui>=60&&p.pos==="DEF")arch="Lateral de Corredor";
-    if(clutch>0)traits.push("Mente Fria");
-    if(p.red||(p.yellow>=1&&p.fouls>=3))traits.push("Indisciplinado");
-    if(!p.red&&!p.yellow&&ix.sec>=80)traits.push("Seguro");
-    if(p.goals.some(g=>g.xg<0.08)||(p.gk&&p.gk.saves.some(s=>s.psxg>0.6)))traits.push("Cirúrgico");
-    if(ix.tw>=75&&p.pos!=="ATT")traits.push("Monstro Defensivo");
-    if(total<1&&p.min>=45)traits.push("Apagado");
-    if(!traits.length)traits.push("Regular");
-    let r=0;
-    if(p.goals.some(g=>g.xg<0.08&&g.m>=85))r+=5;
-    if(p.goals.some(g=>tierXG(g.xg).t===4)||(p.gk&&p.gk.saves.some(s=>tierSV(s.psxg).t===4)))r+=3;
-    if(arch==="Herói de Clutch"||arch==="GK Muralha"||arch==="GK Líbero")r+=1;
-    if(total>=15)r+=2;else if(total>=10)r+=1;
-    if(p.red)r=Math.max(0,r-1);
-    const rarity=r>=10?"Lendário":r>=8?"Mítico":r>=6?"Épico":r>=4?"Raro":r>=2?"Incomum":"Comum";
-    return{arch,traits:traits.slice(0,3),rarity};
+  render(); window.scrollTo(0,0);
+}
+async function loadRoom(roomId){
+  const g=window.GAMES.data[roomId];
+  APP.prepool=g.prepool;
+  APP.match=g.match||{status:"pending"};
+  APP.roomMeta=APP.jogos.find(j=>j.room_id===roomId)||{};
+  APP._byId=Object.fromEntries(APP.prepool.players.map(p=>[p.id,p]));
+  // carregar minha entry se existir
+  if(APP.user&&SUPA.ready()){
+    try{
+      const es=await sb("entries?room_id=eq."+roomId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=*");
+      if(es.length){const e=es[0];APP.slots=e.slots;APP.captain=e.captain;APP.tactic=e.tactic;}
+      else{APP.slots={GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null};APP.captain=null;APP.tactic=null;}
+    }catch(e){}
   }
-
-  const STAT_DEFS=[
-    ["Gols",BASE.goal,p=>p.goals.length],["Assistências",BASE.assist,p=>p.assists.length],
-    ["Finalizações no gol",BASE.sot,p=>p.sots.length],["Dribles certos",BASE.dribble,p=>p.dribbles],
-    ["Passes progressivos",BASE.prgp,p=>p.prgp],["Passes na área",BASE.pib,p=>p.pib],
-    ["Toques na área",BASE.tib,p=>p.tib],["Cruzamentos certos",BASE.accCross,p=>p.accCross],
-    ["Cruzamentos errados",BASE.inaccCross,p=>p.inaccCross],["Desarmes + interceptações",BASE.tklint,p=>p.tklint],
-    ["Bloqueios",BASE.block,p=>p.block],["Recuperações de bola",BASE.recovery,p=>p.recovery],
-    ["Duelos aéreos vencidos",BASE.aerial,p=>p.aerial],["Cortes",BASE.clearance,p=>p.clearance],
-    ["Defesas",BASE.save,p=>p.gk?p.gk.saves.length:0],["Defesa de pênalti",BASE.penSave,p=>p.gk?p.gk.penSave:0],
-    ["Saídas (sweeper)",BASE.opa,p=>p.gk?p.gk.opa:0],["Cruzamentos cortados",BASE.crossStop,p=>p.gk?p.gk.crossStop:0],
-    ["Gols sofridos",BASE.concededGk,p=>p.gk?p.gk.conceded:0],["Cartão amarelo",BASE.yellow,p=>p.yellow],
-    ["Faltas",BASE.foul,p=>p.fouls],["Vezes driblado",BASE.dribbledPast,p=>p.dribbledPast],
-    ["Erro → gol",BASE.errGoal,p=>p.errGoal],["Pênalti cometido",BASE.penCom,p=>p.penCom],
-  ];
-  function statLines(p){const o=[];for(const[l,v,c]of STAT_DEFS){const n=c(p);if(n)o.push([l,n,v,r1(n*v)]);}return o;}
-
-  function scorePlayer(p, tacticKey){
-    p=normP(p);
-    if(p.min===0)return{total:0,minutes:0,statLines:[],lines:[],evNote:[],labels:[],meta:archetype(p,null,0,0)};
-    const ts=match.team_stats[p.team];
-    const lines=[];const push=(k,v,n)=>{if(Math.abs(v)>=0.05)lines.push([k+(n?` ${n}`:""),v]);};
-    const mf=minFactor(p);
-    const comp={
-      goal:p.goals.length*BASE.goal,assist:p.assists.length*BASE.assist,sotPts:p.sots.length*BASE.sot,
-      dribbles:r1(p.dribbles*mf)*BASE.dribble,prgp:r1(p.prgp*mf)*BASE.prgp,pib:r1(p.pib*mf)*BASE.pib,tib:r1(p.tib*mf)*BASE.tib,
-      sca:r1(p.sca*mf)*BASE.sca,gca:p.gca*BASE.gca,tklint:r1(p.tklint*mf)*BASE.tklint,block:r1(p.block*mf)*BASE.block,
-      recovery:r1(p.recovery*mf)*BASE.recovery,aerial:r1(p.aerial*mf)*BASE.aerial,clearance:r1(p.clearance*mf)*BASE.clearance,
-      accCross:r1(p.accCross*mf)*BASE.accCross,inaccCross:r1(p.inaccCross*mf)*BASE.inaccCross,
-    };
-    let cs=0;const csEl=p.gk||(p.pos==="DEF"&&p.min>=60);
-    if(csEl){const c=cleanSheetHalves(p.team);if(c.h1)cs+=1.5;if(c.h2)cs+=1.5;}
-    let gkB=0,conc=0;
-    if(p.gk){gkB=p.gk.saves.length*BASE.save+p.gk.opa*BASE.opa+p.gk.crossStop*BASE.crossStop+p.gk.penSave*BASE.penSave;conc=p.gk.conceded*BASE.concededGk;}
-    const negRed=redPenalty(p.red);
-    const neg=p.yellow*BASE.yellow+negRed+p.errGoal*BASE.errGoal+p.penCom*BASE.penCom+r1(p.dribbledPast*mf)*BASE.dribbledPast+r1(p.fouls*mf)*BASE.foul;
-    const baseTot=Object.values(comp).reduce((a,b)=>a+b,0)+gkB+conc+neg+cs;
-    if(mf<1)push(`Stats escalonados (${p.min}', fator ${mf.toFixed(2)})`,0);
-    if(cs>0)push(`Clean sheet ${cs===3?"completo":"(1 metade)"}`,cs);
-    if(p.red)push(`Vermelho${p.red.doubleYellow?" 2º amarelo":""} ${p.red.m<=50?"(1ºT)":"(2ºT)"}`,negRed);
-    const sl=statLines(p);
-    let dif=0,ctx=0,clutch=0;const ev=[];
-    for(const g of p.goals){const t=tierXG(g.xg),d=diffAt(g.m);dif+=t.b;ctx+=(BASE.goal+t.b)*(ctxDecisive(d)-1);if(g.m>=85&&d<=1){const x=extendsLead(p.team,g.m);clutch+=x?0:t.b*0.25+1.0+TIER_EMO[t.t];ev.push(`⚽ Gol ${g.m}' xG ${g.xg.toFixed(2)} (T${t.t}${x?", ampliou":", clutch!"})`);}else ev.push(`⚽ Gol ${g.m}' xG ${g.xg.toFixed(2)} (T${t.t})`);}
-    for(const a of p.assists){const t=tierXG(a.xag),d=diffAt(a.m);dif+=t.b;ctx+=(BASE.assist+t.b)*(ctxDecisive(d)-1);if(a.m>=85&&d<=1&&!extendsLead(p.team,a.m))clutch+=t.b*0.25+1.0+TIER_EMO[t.t];ev.push(`🅰️ Assist ${a.m}' xAG ${a.xag.toFixed(2)} (T${t.t})`);}
-    for(const s of p.sots){const d=diffAt(s.m);ctx+=BASE.sot*(ctxDecisive(d)-1);if(s.m>=85&&d<=1)clutch+=0.6;}
-    if(p.gk)for(const s of p.gk.saves){const t=tierSV(s.psxg),d=diffAt(s.m);dif+=t.b;ctx+=(BASE.save+t.b)*(ctxDefEvt(d)-1);if(s.m>=85&&d<=1){clutch+=t.b*0.25+0.6+TIER_EMO[t.t];ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t}) clutch`);}else if(t.t>=3)ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t})`);}
-    const defAgg=comp.tklint+comp.block+comp.recovery+comp.aerial+comp.clearance;
-    const smallAgg=comp.prgp+comp.pib+comp.tib+comp.sca+comp.dribbles+comp.accCross;
-    ctx+=defAgg*(ctxDefAgg-1)+smallAgg*(ctxSmallAgg-1);
-    clutch=Math.min(clutch,CAPS.CLUTCH);
-    push("Dificuldade (xG·xAG·PSxG)",r1(dif));
-    push(LIVE>=0.99?"Placar — jogo vivo o tempo todo":"Contexto de placar",r1(ctx));
-    if(clutch>0)push(`Clutch 85'+ (cap +${CAPS.CLUTCH})`,r1(clutch));
-    const posSub=Math.max(0,baseTot-conc-neg)+dif+Math.max(0,ctx)+clutch;
-    const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
-    if(dvg>0.05)push(`DvG underdog ×${dm.toFixed(3)}`,r1(dvg));
-    let tact=0;const T=TACTICS[tacticKey];
-    if(T&&T.cond(p,ts)){for(const[k,m]of Object.entries(T.buffs)){tact+=(comp[k]??0)*(m-1);}for(const[k,m]of Object.entries(T.nerfs)){const b=k==="fouls"?p.fouls*BASE.foul:k==="dribbledPast"?p.dribbledPast*BASE.dribbledPast:(comp[k]??0);tact+=b*(m-1);}tact=Math.max(-CAPS.TACT,Math.min(CAPS.TACT,tact));push(`Tática ${T.name} ativada (cap ±${CAPS.TACT})`,r1(tact));}
-    const ix=indices(p);const avg=ix.iui*.3+ix.eff*.3+ix.sec*.2+ix.tw*.2;const perf=r1(Math.max(-3,Math.min(4,-3+avg/100*7)));
-    push("Performance (índices C+)",perf);
-    let total=baseTot+dif+ctx+clutch+dvg+tact+perf;
-    const cap=Math.max(CAPS.FLOOR,Math.min(CAPS.MATCH,total));
-    if(cap!==total)push(`Cap (${CAPS.FLOOR}/+${CAPS.MATCH})`,r1(cap-total));
-    total=r1(cap);
-    const meta=archetype(p,ix,clutch,total);
-    const labels=[`Envolvimento: ${lab3(ix.iui,"discreto","participativo","onipresente")}`,`Eficiência: ${lab3(ix.eff,"abaixo","dentro","acima do esperado")}`,`Segurança: ${lab3(ix.sec,"instável","controlada","impecável")}`,`Duas fases: ${lab3(ix.tw,"unidimensional","equilibrado","completo")}`];
-    return{total,minutes:p.min,statLines:sl,lines:lines.map(([k,v])=>[k,r1(v)]),evNote:ev,labels,meta};
-  }
-
-  return { scorePlayer, TACTICS };
 }
 
-if (typeof module!=="undefined") module.exports={makeEngine,TACTICS};
+// ============================================================
+// TELA: HOME (lista de salas)
+// ============================================================
+function homeHTML(){
+  const rows=APP.jogos.map(j=>{
+    const st=j.status;
+    const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
+    return `<div class="roomrow" onclick="go('room','${j.room_id}')">
+      <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
+      ${pill}</div>`;
+  }).join("");
+  return `<div class="card">
+    <div class="h1 disp" style="color:var(--amber)">Salas</div>
+    <p class="p" style="margin-bottom:14px">Escolha uma partida para montar seu time ou ver o resultado.</p>
+    ${rows||'<p class="p">Nenhuma sala ainda.</p>'}
+  </div>`;
+}
+
+// ============================================================
+// TELA: ROOM (entrada da sala)
+// ============================================================
+function roomHTML(){
+  const pp=APP.prepool, m=APP.match, meta=APP.roomMeta;
+  const finished=m&&m.status==="finished";
+  const open=meta.status==="open";
+  return `<div class="scorebar">
+    <div class="tag">${esc(pp.comp)} · ${esc(pp.venue||"")}</div>
+    <div class="score disp">
+      <div><div class="team">${esc(pp.home.name)}</div><div class="elo mono">ELO ${pp.home.elo}</div></div>
+      <div class="vs mono">${finished?m.score[0]+"–"+m.score[1]:"VS"}</div>
+      <div style="text-align:right"><div class="team">${esc(pp.away.name)}</div><div class="elo mono">ELO ${pp.away.elo}</div></div>
+    </div></div>
+  <div class="card">
+    ${open?`<div class="prebox">⏳ <b>Pool aberta.</b> Monte seu time com o elenco dos dois países. Quem não entrar em campo fica com 0 pontos.</div>`:""}
+    ${finished?`<div class="ok">✓ Jogo finalizado — veja o ranking e a apuração detalhada.</div>`:""}
+    ${!open&&!finished?`<div class="prebox">🔒 Pool fechada, aguardando o jogo terminar.</div>`:""}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      ${open?`<button class="btn" onclick="go('build')">${hasEntry()?"Editar meu time":"Montar meu time"}</button>`:""}
+      ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
+    </div>
+    <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← Voltar</button>
+  </div>`;
+}
+function hasEntry(){return APP.slots&&Object.values(APP.slots).some(Boolean);}
+
+// ============================================================
+// TELA: BUILD (montar time) — reaproveitada do chalkboard
+// ============================================================
+function buildHTML(){
+  const pp=APP.prepool, byId=APP._byId, s=APP.slots;
+  const used=Object.values(s).filter(Boolean);
+  const spent=used.reduce((a,id)=>a+(byId[id]?byId[id].price:0),0);
+  const left=100-spent;
+  const TAC=window.ENGINE_TACTICS;
+  const filt=pp.players.filter(p=>APP.tab==="ALL"||([pp.home.code,pp.away.code].includes(APP.tab)?p.team===APP.tab:p.pos===APP.tab));
+  const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic;
+  const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
+    const pid=s[sl],pl=pid?byId[pid]:null;
+    return `<div class="slot${pl?"":" empty"}" onclick="${pl?`clearSlot('${sl}')`:""}">
+      <div class="lab">${SLOT_LABEL[sl]}${sl==="FLEX"?" ·DEF/MEI/ATA":""}</div>
+      <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
+      ${pl?`<div class="pr mono">${pl.team} · ${pl.price}</div>`:""}
+      ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
+    </div>`;}).join("");
+  const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div></div>`).join("");
+  const tabs=["ALL",pp.home.code,pp.away.code,"GK","DEF","MID","ATT"];
+  const tabsHTML=tabs.map(t=>`<div class="ptab${APP.tab===t?" on":""}" onclick="setTab('${t}')">${t==="ALL"?"TODOS":t===pp.home.code?pp.home.code:t===pp.away.code?pp.away.code:SLOT_LABEL[t]}</div>`).join("");
+  const poolHTML=filt.map(p=>{const sel=used.includes(p.id);const dis=!sel&&left-p.price<0;return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="pos mono">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="flag" style="background:#1b2c22;color:var(--dim)">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}</div><div class="pr mono">${p.price}</div></div>`;}).join("");
+  return `<div class="card">
+    <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
+    <div class="slots">${slotsHTML}</div>
+    <div class="tag" style="margin-bottom:6px">TÁTICA (só ativa se a condição ocorrer no jogo)</div>
+    <div class="tacts">${tactsHTML}</div>
+  </div>
+  <div class="card">
+    <div class="h2 disp">Pool <span class="tag">· ${pp.players.length} JOGADORES</span></div>
+    <div class="postabs">${tabsHTML}</div>
+    <div class="pool">${poolHTML}</div>
+    ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
+    <button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="go('room')">← Voltar</button>
+  </div>`;
+}
+function place(pid){
+  const byId=APP._byId,p=byId[pid],s=APP.slots,used=Object.values(s).filter(Boolean);APP.warn="";
+  if(used.includes(pid)){const sl=Object.keys(s).find(k=>s[k]===pid);s[sl]=null;if(APP.captain===sl)APP.captain=null;render();return;}
+  const spent=used.reduce((a,id)=>a+byId[id].price,0);
+  if(100-spent-p.price<0){APP.warn="Orçamento estourado.";render();return;}
+  let t=null;
+  if(p.pos==="GK")t=!s.GK?"GK":!s.BENCH?"BENCH":null;
+  else{if(!s[p.pos])t=p.pos;else if(!s.FLEX)t="FLEX";else if(!s.BENCH)t="BENCH";}
+  if(!t){APP.warn="Sem slot compatível livre.";render();return;}
+  s[t]=pid;render();
+}
+function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;render();}
+function toggleCap(sl){APP.captain=APP.captain===sl?null:sl;render();}
+function setTactic(k){APP.tactic=k;render();}
+function setTab(t){APP.tab=t;render();}
+
+async function saveEntry(){
+  if(!SUPA.ready()){toast("Supabase não configurado.");return;}
+  try{
+    await sbInsert("entries",{room_id:APP.roomId,username:APP.user.username,slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()},true);
+    toast("Time salvo!");
+    go("room");
+  }catch(e){toast("Erro ao salvar: "+e.message);}
+}
+
+// ============================================================
+// TELA: RESULT (ranking + apuração)
+// ============================================================
+async function loadEntries(){
+  if(!SUPA.ready())return [];
+  return sb("entries?room_id=eq."+APP.roomId+"&select=*");
+}
+function buildMatchCtx(){
+  const pp=APP.prepool,m=APP.match;
+  m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
+  // set piece goals (pra tatica bola parada) — opcional no match.json
+  for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
+  return makeEngine(m);
+}
+function scoreEntry(entry,eng){
+  const pp=APP.prepool,byId=APP._byId,m=APP.match;
+  const slots=["GK","DEF","MID","ATT","FLEX","BENCH"];
+  const res={};
+  for(const sl of slots){
+    const pid=entry.slots[sl];
+    if(!pid){res[sl]=null;continue;}
+    const meta=byId[pid];
+    const raw=m.players?m.players[pid]:null;
+    const p=Object.assign({pos:meta.pos,team:meta.team},raw||{min:0});
+    res[sl]=eng.scorePlayer(p,entry.tactic);
+  }
+  // substituição do banco (v2.4.0)
+  let subOut=null;const benchPid=entry.slots.BENCH,benchMeta=benchPid?byId[benchPid]:null;
+  if(benchMeta&&res.BENCH){
+    if(benchMeta.pos==="GK"){if(res.GK&&res.BENCH.total>res.GK.total){subOut="GK";[res.GK,res.BENCH]=[res.BENCH,res.GK];const t=entry.slots.GK;entry.slots.GK=entry.slots.BENCH;entry.slots.BENCH=t;}}
+    else{const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}if(worst&&res.BENCH.total>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}}
+  }
+  let sum=0;const view=[];
+  for(const sl of slots){const r=res[sl];if(!r){view.push(null);continue;}let pts=r.total,cap=false;if(sl===entry.captain&&sl!=="BENCH"){pts=Math.round(pts*1.2*10)/10;cap=true;}if(sl!=="BENCH")sum+=pts;view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});}
+  return {username:entry.username,total:Math.round(sum*10)/10,view,captain:entry.captain,tactic:entry.tactic,subOut};
+}
+function resultHTML(){
+  const pp=APP.prepool,m=APP.match;
+  if(!m||m.status!=="finished")return `<div class="card"><p class="p">O jogo ainda não foi finalizado.</p><button class="btn ghost" onclick="go('room')">← Voltar</button></div>`;
+  const eng=buildMatchCtx();
+  const scored=APP.entries.map(e=>scoreEntry(JSON.parse(JSON.stringify(e)),eng)).sort((a,b)=>b.total-a.total);
+  const mine=scored.find(s=>s.username===APP.user?.username);
+  const TAC=window.ENGINE_TACTICS;
+  let html=`<div class="scorebar"><div class="tag">${esc(pp.comp)} · FINALIZADO</div>
+    <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">${m.score[0]}–${m.score[1]}</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>`;
+  // ranking
+  html+=`<div class="card"><div class="h2 disp">Ranking da sala</div>`;
+  if(scored.length===0)html+=`<p class="p">Ninguém montou time nesta sala ainda.</p>`;
+  scored.forEach((s,i)=>{html+=`<div class="rank${s.username===APP.user?.username?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(s.username)}<small>cap: ${esc(SLOT_LABEL[s.captain])} · ${TAC[s.tactic]?.name||s.tactic}</small></div><div class="pt mono">${s.total.toFixed(1)}</div></div>`;});
+  html+=`</div>`;
+  // minha apuração detalhada
+  if(mine){
+    html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
+    mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
+    html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
+    if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
+    html+=`</div>`;
+  }
+  html+=`<button class="btn ghost" onclick="go('home')">← Voltar às salas</button>`;
+  return html;
+}
+let _openRec={};
+function receiptHTML(v,idx){
+  const byId=APP._byId,p=byId[v.pid],r=v.r,open=_openRec[idx];
+  let body="";
+  if(open){
+    body=`<div class="rbody">
+      <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 Estatísticas · ${r.minutes}' em campo</div>
+      ${r.statLines.length===0?`<div class="line"><span>Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`:""}
+      ${r.statLines.map(([l,c,u,pts])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
+      ${r.lines.length?`<div class="bsub">⚙️ Modificadores</div>`:""}
+      ${r.lines.map(([k,val])=>`<div class="line"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+      ${v.cap?`<div class="line"><span>Capitão</span><span class="v mono plus">×1.20</span></div>`:""}
+      <div class="line total"><span>TOTAL DO SLOT</span><span class="v mono">${v.pts.toFixed(1)}</span></div>
+      ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
+      <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>
+    </div>`;
+  }
+  return `<div class="receipt"><div class="rhead" onclick="toggleRec(${idx})">
+    <div class="sl mono">${SLOT_LABEL[v.slot]}</div>
+    <div class="nm">${esc(p.name)}<small>${p.team} · ${p.pos}${v.subIn?' · ↑ entrou do banco':''}</small></div>
+    ${v.cap?'<span class="badgeC">C ×1.20</span>':''}
+    <div class="tot mono${v.pts<0?" neg":""}">${v.pts.toFixed(1)}</div></div>${body}</div>`;
+}
+function toggleRec(i){_openRec[i]=!_openRec[i];render();}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render(){
+  const root=$("root");
+  if(needLogin()){root.innerHTML=topbarHTML()+loginModalHTML();return;}
+  let panel="";
+  if(APP.view==="home")panel=homeHTML();
+  else if(APP.view==="room")panel=roomHTML();
+  else if(APP.view==="build")panel=buildHTML();
+  else if(APP.view==="result")panel=resultHTML();
+  root.innerHTML=topbarHTML()+panel+footHTML();
+}
+function topbarHTML(){
+  return `<div class="topbar">
+    <div class="logo" onclick="go('home')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
+    ${APP.user?`<div class="userchip" onclick="logout()">👤 <b>${esc(APP.user.username)}</b> · sair</div>`:""}
+  </div>`;
+}
+function footHTML(){
+  return `<div class="foot">Motor v2.4.0 · ELO eloratings + FootballDatabase<br>Dados FotMob + SofaScore · ${SUPA.ready()?"Supabase conectado":"⚠ configure o config.js"}</div>`;
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+// ENGINE_TACTICS já é definido por engine.js no navegador
+if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
+(async function boot(){
+ try{
+  try{
+    APP.jogos=window.GAMES.index;
+  }catch(e){APP.jogos=[];}
+  await tryAutoLogin();
+  // intercepta: quando entrar em result, precisa carregar entries
+  const _go=go;
+  window.go=async function(view,roomId){
+    APP.view=view;if(roomId)APP.roomId=roomId;
+    if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
+    if(view==="result"){APP.entries=await loadEntries();_openRec={};}
+    render();window.scrollTo(0,0);
+  };
+  render();
+ }catch(err){
+  // em vez de travar no "Carregando...", mostra o erro
+  var r=document.getElementById("root");
+  if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>'+String(err&&err.message?err.message:err)+'<br><br><span style="color:#8FA89A">Tire um print desta tela.</span></div>';
+ }
+})();
