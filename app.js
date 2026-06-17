@@ -157,8 +157,8 @@ async function loadProfileStats(username){
     archetypes:{}, traits:{}, rarities:{}, players:{}, bestPlayer:null
   };
   if(!SUPA.ready()||!APP.groupId)return stats;
-  // só jogos arquivados (encerrados oficialmente) deste catálogo
-  const arq=APP.jogos.filter(j=>isArchived(j.room_id));
+  // todos os jogos FINALIZADOS deste catálogo (arquivado ou não — basta ter resultado)
+  const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
     let entries;
@@ -199,7 +199,7 @@ function playerArchHistory(playerName){
   const hist={archetypes:{},traits:{},best:null,games:0};
   const target=_normName(playerName);
   if(!target)return hist;
-  const arq=APP.jogos.filter(j=>isArchived(j.room_id));
+  const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
     // acha o jogador pelo nome dentro deste jogo
@@ -230,7 +230,7 @@ async function hideMyProfileHistory(senha){
   if(!ok){toast("Senha incorreta.");return;}
   // marca hidden_profile=true nas minhas entries dos jogos arquivados deste grupo
   try{
-    const arq=APP.jogos.filter(j=>isArchived(j.room_id)).map(j=>j.room_id);
+    const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";}).map(j=>j.room_id);
     if(!arq.length){toast("Nenhum jogo encerrado pra ocultar.");return;}
     let n=0;
     for(const rid of arq){
@@ -286,10 +286,25 @@ async function delRoomFromRound(roomId){
   await sbDelete("round_rooms",`round_id=eq.${APP.roundId}&room_id=eq.${roomId}`);
   await loadRound(APP.roundId);render();
 }
+// admin: fecha/reabre a rodada inteira (trava edição de todos os jogos dela)
+async function setRoundStatus(status){
+  if(!isAdmin()||!APP.roundId)return;
+  try{
+    await sbUpdate("rounds",{status},"id=eq."+APP.roundId);
+    await loadRound(APP.roundId);
+    toast(status==="closed"?"Rodada fechada — ninguém edita mais os times.":"Rodada reaberta.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
 function enterRound(roundId){go("round",null,roundId);}
 function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();window.scrollTo(0,0);}
 // jogador: confirmar entrada num jogo da rodada (gasta 1 ficha)
 function askEnterRoundGame(roomId){
+  const closed=APP.round&&APP.round.status&&APP.round.status!=="open";
+  if(closed){
+    if(pickedRoom(roomId)){go("build",roomId);return;} // pode ver o time que montou
+    toast("Rodada fechada — não dá mais pra entrar em jogos.");return;
+  }
   if(pickedRoom(roomId)){go("build",roomId);return;}      // já escolhido: vai direto editar
   if(picksLeft()<=0){toast("Você já usou suas "+APP.round.pick_limit+" escolhas nesta rodada.");return;}
   APP.confirm={mode:"pickGame",roomId,label:"Entrar neste jogo"};render();
@@ -540,17 +555,22 @@ function roundHTML(){
   const foraRows=fora.map(j=>`<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
     <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para adicionar à rodada</div></div>
     <span class="statuspill st-closed">+ ADD</span></div>`).join("");
+  const closed=r.status&&r.status!=="open";
   return `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <div class="h1 disp" style="color:var(--amber)">${esc(r.name)}</div>
       <div class="userchip" onclick="leaveRound()" style="cursor:pointer">← voltar</div>
     </div>
+    ${closed?`<div class="prebox" style="border-color:#3a2e10">🔒 Rodada fechada — os times estão travados, aguardando os jogos terminarem.</div>`:""}
     <div class="warnbox" style="margin:10px 0">Você escolhe <b>${r.pick_limit}</b> jogos nesta rodada. Usadas: <b style="color:var(--amber)">${used}/${r.pick_limit}</b>. Depois de salvar o time, não dá pra trocar de jogo.</div>
     ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
   </div>
-  ${isAdmin()&&fora.length?`<div class="card">
-    <div class="tag" style="margin-bottom:6px">ADMIN · ADICIONAR JOGOS À RODADA</div>
-    ${foraRows}
+  ${isAdmin()?`<div class="card">
+    <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
+    ${closed
+      ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir rodada</button>`
+      : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('closed')">🔒 Fechar rodada (travar times)</button>`}
+    ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À RODADA</div>${foraRows}`:""}
   </div>`:""}`;
 }
 
