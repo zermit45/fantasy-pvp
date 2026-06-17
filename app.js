@@ -2,6 +2,9 @@
 // FANTASY PvP — APP (navegação, Supabase, telas)
 // ============================================================
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
+// paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
+const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB",ENG:"#FF6B6B"};
+const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=id=>document.getElementById(id);
 
@@ -167,16 +170,25 @@ function buildHTML(){
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic;
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
-    return `<div class="slot${pl?"":" empty"}" onclick="${pl?`clearSlot('${sl}')`:""}">
-      <div class="lab">${SLOT_LABEL[sl]}${sl==="FLEX"?" ·DEF/MEI/ATA":""}</div>
+    const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
+    return `<div class="slot${pl?` filled s-${posKey}`:" empty"}${pl&&APP.captain===sl?" cap":""}" onclick="${pl?`clearSlot('${sl}')`:""}">
+      <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}</div>
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
-      ${pl?`<div class="pr mono">${pl.team} · ${pl.price}</div>`:""}
+      ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div></div>`).join("");
   const tabs=["ALL",pp.home.code,pp.away.code,"GK","DEF","MID","ATT"];
-  const tabsHTML=tabs.map(t=>`<div class="ptab${APP.tab===t?" on":""}" onclick="setTab('${t}')">${t==="ALL"?"TODOS":t===pp.home.code?pp.home.code:t===pp.away.code?pp.away.code:SLOT_LABEL[t]}</div>`).join("");
-  const poolHTML=filt.map(p=>{const sel=used.includes(p.id);const dis=!sel&&left-p.price<0;return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="pos mono">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="flag" style="background:#1b2c22;color:var(--dim)">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}</div><div class="pr mono">${p.price}</div></div>`;}).join("");
+  const tabsHTML=tabs.map(t=>{
+    const isTeam=t===pp.home.code||t===pp.away.code;
+    const isPos=["GK","DEF","MID","ATT"].includes(t);
+    const on=APP.tab===t;
+    let style="";
+    if(on&&isTeam)style=`style="--tc:${teamColor(t)};border-color:${teamColor(t)};color:${teamColor(t)};background:color-mix(in srgb,${teamColor(t)} 14%,transparent)"`;
+    else if(on&&isPos)style=`style="border-color:var(--pos-${t});color:var(--pos-${t});background:color-mix(in srgb,var(--pos-${t}) 14%,transparent)"`;
+    return `<div class="ptab${on?" on":""}" ${style} onclick="setTab('${t}')">${t==="ALL"?"TODOS":isTeam?t:SLOT_LABEL[t]}</div>`;
+  }).join("");
+  const poolHTML=filt.map(p=>{const sel=used.includes(p.id);const dis=!sel&&left-p.price<0;return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}</div><div class="pr mono">${p.price}</div></div>`;}).join("");
   return `<div class="card">
     <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
