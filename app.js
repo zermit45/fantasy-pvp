@@ -464,11 +464,13 @@ function confirmModalHTML(){
   }
   // modo: criar rodada (admin)
   if(c.mode==="createRound"){
+    const poolMax=(APP.jogos||[]).length;
+    const defLimit=Math.min(3,poolMax||3);
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:var(--amber)">Criar rodada</div>
-      <p class="p" style="margin:10px 0">Dê um nome e quantos jogos cada um pode escolher.</p>
+      <p class="p" style="margin:10px 0">Dê um nome e quantos jogos cada um pode escolher.${poolMax?` Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).`:""}</p>
       <input id="rndName" class="input" placeholder="Nome (ex: Rodada 1)" autocorrect="off" />
-      <input id="rndLimit" class="input" type="number" inputmode="numeric" placeholder="Quantos jogos escolher (ex: 3)" value="3" />
+      <input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar rodada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
@@ -502,8 +504,10 @@ function submitCreateRound(){
   const n=$("rndName"),l=$("rndLimit");
   const name=n?n.value.trim():"";
   let limit=l?parseInt(l.value,10):3;
+  const poolMax=(APP.jogos||[]).length;
   if(!name){toast("Dê um nome à rodada.");return;}
   if(!limit||limit<1)limit=1;
+  if(poolMax>0&&limit>poolMax){toast("Só há "+poolMax+" jogo(s) no catálogo. Escolha no máximo "+poolMax+".");return;}
   APP.confirm=null;createRound(name,limit).catch(e=>toast("Erro: "+e.message));
 }
 function submitJoin(){

@@ -20,18 +20,18 @@ const tierSV = v => v<0.1?{b:0,t:1} : v<=0.3?{b:1.2,t:2} : v<=0.6?{b:2.6,t:3} : 
 // Se ativar: buff ×1.18 nas ações premiadas, nerf ×0.90 nas penalizadas.
 // buffs/nerfs aplicam a CADA jogador do seu time individualmente.
 const TACTICS = {
-  muralha:{name:"Estacionar o Ônibus",desc:"Seus jogadores em campo somam ≥12 desarmes+interceptações+cortes",
-    cond:(sq)=>(sq.tklint+sq.clearance)>=12, buffs:{tklint:1.18,clearance:1.18}, nerfs:{prgp:0.90,dribbles:0.90}},
-  tridente:{name:"Ataque Total",desc:"Seus jogadores em campo somam ≥3 gols",
-    cond:(sq)=>sq.goals>=3, buffs:{goal:1.18,sotPts:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
-  cerebro:{name:"Tiki-Taka",desc:"Seus jogadores somam ≥8 passes progressivos e ≥4 passes na área",
-    cond:(sq)=>sq.prgp>=8&&sq.pib>=4, buffs:{assist:1.18,sca:1.18,gca:1.18}, nerfs:{aerial:0.90,clearance:0.90}},
-  pressaototal:{name:"Gegenpress",desc:"Seus jogadores em campo somam ≥15 recuperações de bola",
-    cond:(sq)=>sq.recovery>=15, buffs:{recovery:1.18,tklint:1.18}, nerfs:{fouls:1.15,aerial:0.90}},
-  aereo:{name:"Chuveiro na Área",desc:"Seus jogadores em campo somam ≥6 duelos aéreos vencidos",
-    cond:(sq)=>sq.aerial>=6, buffs:{aerial:1.18,goal:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
-  sanguefrio:{name:"Chutar Direto",desc:"Seus jogadores em campo somam ≥4 finalizações no gol",
-    cond:(sq)=>sq.sot>=4, buffs:{sotPts:1.18,goal:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
+  muralha:{name:"Estacionar o Ônibus",desc:"Seu time fica entre os melhores do jogo em desarmes + interceptações + cortes",
+    cond:(sq,base)=>(sq.tklint+sq.clearance)>=(base?base.tklintClr:20), buffs:{tklint:1.18,clearance:1.18}, nerfs:{prgp:0.90,dribbles:0.90}},
+  tridente:{name:"Ataque Total",desc:"Seu time fica entre os melhores do jogo em volume ofensivo (chutes no gol + gols valendo dobro)",
+    cond:(sq,base)=>(sq.sot+sq.goals*2)>=(base?base.sotGoals:6), buffs:{goal:1.18,sotPts:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
+  cerebro:{name:"Tiki-Taka",desc:"Seu time fica entre os melhores do jogo em passes progressivos",
+    cond:(sq,base)=>sq.prgp>=(base?base.prgp:60), buffs:{assist:1.18,sca:1.18,gca:1.18}, nerfs:{aerial:0.90,clearance:0.90}},
+  pressaototal:{name:"Gegenpress",desc:"Seu time fica entre os melhores do jogo em recuperações de bola",
+    cond:(sq,base)=>sq.recovery>=(base?base.recovery:20), buffs:{recovery:1.18,tklint:1.18}, nerfs:{fouls:1.15,aerial:0.90}},
+  aereo:{name:"Chuveiro na Área",desc:"Seu time fica entre os melhores do jogo em duelos aéreos vencidos",
+    cond:(sq,base)=>sq.aerial>=(base?base.aerial:6), buffs:{aerial:1.18,goal:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
+  sanguefrio:{name:"Chutar Direto",desc:"Seu time fica entre os melhores do jogo em finalizações no gol",
+    cond:(sq,base)=>sq.sot>=(base?base.sot:5), buffs:{sotPts:1.18,goal:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
 };
 
 // normaliza um player do match.json pra um objeto completo de stats
@@ -56,6 +56,40 @@ function makeEngine(match){
   const ctxDefEvt=d=>d<=1?1.08:0.94;
   const ctxDefAgg=LIVE*1.08+(1-LIVE)*0.94;
   const ctxSmallAgg=LIVE*1.00+(1-LIVE)*0.90;
+  // ── BASELINE RELATIVO AO JOGO (táticas equilibradas) ──
+  // Cada tática ativa quando o time do usuário está entre os ~TOP38% daquele jogo
+  // na métrica da tática. Assim TODAS têm a mesma chance de ativar em QUALQUER jogo
+  // (um threshold fixo favoreceria jogos de muita posse, muito chute, etc).
+  const TACT_PCTL = 0.62; // alvo: ~38% dos times montados ativam (equilíbrio entre os 6)
+  function _metricsOf(p){return {
+    tklintClr: p.tklint+p.clearance,
+    sotGoals : p.sots.length + p.goals.length*2,
+    prgp     : p.prgp,
+    recovery : p.recovery,
+    aerial   : p.aerial,
+    sot      : p.sots.length,
+  };}
+  function computeMatchBase(){
+    const all=[]; const src=match.players||{};
+    for(const id of Object.keys(src)){
+      const p=normP(src[id]);
+      if(p.min===0||p.subbedOff) continue; // só quem terminou em campo
+      all.push(_metricsOf(p));
+    }
+    const keys=["tklintClr","sotGoals","prgp","recovery","aerial","sot"];
+    const fallback={tklintClr:14,sotGoals:6,prgp:50,recovery:18,aerial:6,sot:4};
+    if(all.length<6) return fallback;
+    const N=4000, SIZE=5, sums={}; keys.forEach(k=>sums[k]=[]);
+    for(let i=0;i<N;i++){
+      const acc={}; keys.forEach(k=>acc[k]=0);
+      for(let j=0;j<SIZE;j++){ const r=all[(Math.random()*all.length)|0]; keys.forEach(k=>acc[k]+=r[k]); }
+      keys.forEach(k=>sums[k].push(acc[k]));
+    }
+    const base={};
+    for(const k of keys){ const arr=sums[k].sort((a,b)=>a-b); base[k]=arr[Math.floor(TACT_PCTL*(arr.length-1))]; }
+    return base;
+  }
+  const MATCH_BASE = computeMatchBase();
   // ── DvG COMPLETO (4 fatores) ──
   // Força ajustada de um time = ELO×0.55 + Forma×0.30 + Mando×0.15  (+Tabela só p/ clubes)
   // O bônus underdog vem da diferença de FORÇA AJUSTADA, não só do ELO cru.
@@ -206,7 +240,7 @@ function makeEngine(match){
     const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
     if(dvg>0.05)push(`DvG underdog ×${dm.toFixed(3)}`,r1(dvg));
     let tact=0;const T=TACTICS[tacticKey];
-    if(T&&squadSum&&T.cond(squadSum)){
+    if(T&&squadSum&&T.cond(squadSum,MATCH_BASE)){
       for(const[k,m]of Object.entries(T.buffs)){
         const base=k==="cleanSheet"?cs:(comp[k]??0);
         tact+=base*(m-1);
@@ -244,7 +278,7 @@ function makeEngine(match){
     return s;
   }
 
-  return { scorePlayer, squadSum, TACTICS };
+  return { scorePlayer, squadSum, TACTICS, matchBase:MATCH_BASE };
 }
 
 if (typeof module!=="undefined" && module.exports) module.exports={makeEngine,TACTICS};
