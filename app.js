@@ -22,7 +22,7 @@ let APP={
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundAllEntries:[], roundRanking:null,
-  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay",
+  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay", homeSearch:"",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null, profileHistory:null,         // estatísticas do perfil (calculadas ao vivo)
@@ -739,49 +739,82 @@ function dayKeyOf(data){
 }
 function dayNum(diaKey){const m=String(diaKey).match(/^(\d{1,2})/);return m?parseInt(m[1],10):999;}
 function setHomeTab(t){APP.homeTab=t;render();}
+function setHomeSearch(v){
+  APP.homeSearch=v;
+  render();
+  // restaura foco e cursor no campo de busca (senão o iPhone perde o foco a cada tecla)
+  requestAnimationFrame(()=>{
+    const inp=document.getElementById("homeSearchInput");
+    if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
+  });
+}
 function homeHTML(){
-  // jogos abertos NESTE grupo (status vem de group_rooms; arquivados nunca aparecem aqui)
-  const abertos=APP.groupRooms.map(gr=>{
+  // jogos abertos NESTE grupo (status vem de group_rooms)
+  const abertosRaw=APP.groupRooms.map(gr=>{
     const cat=APP.jogos.find(j=>j.room_id===gr.room_id);
     return cat?{...cat,status:gr.status}:null;
-  }).filter(Boolean).filter(j=>!isArchived(j.room_id));
-  // anexa info de finalizado/dia a cada jogo
-  const enriched=abertos.map(j=>{
+  }).filter(Boolean);
+  // A JOGAR = abertos, não-arquivados, não-finalizados
+  const toplay=abertosRaw.filter(j=>!isArchived(j.room_id)).map(j=>{
     const g=window.GAMES.data[j.room_id];
     const isFinished=g&&g.match&&g.match.status==="finished";
     return {...j,isFinished,dayKey:dayKeyOf(j.data)};
-  });
+  }).filter(j=>!j.isFinished);
+  // FINALIZADOS = (abertos finalizados não-arquivados) + (todos os arquivados)
+  const finOpen=abertosRaw.filter(j=>!isArchived(j.room_id)).map(j=>{
+    const g=window.GAMES.data[j.room_id];
+    const isFinished=g&&g.match&&g.match.status==="finished";
+    return {...j,isFinished,archived:false,dayKey:dayKeyOf(j.data)};
+  }).filter(j=>j.isFinished);
+  const finArch=APP.jogos.filter(j=>isArchived(j.room_id)).map(j=>({...j,isFinished:true,archived:true,dayKey:dayKeyOf(j.data)}));
+  // evita duplicar se um arquivado também estiver em group_rooms
+  const finIds=new Set(finOpen.map(j=>j.room_id));
+  const finished=[...finOpen,...finArch.filter(j=>!finIds.has(j.room_id))];
+
   const tab=APP.homeTab||"toplay";
-  const lista=enriched.filter(j=>tab==="finished"?j.isFinished:!j.isFinished);
-  const nToplay=enriched.filter(j=>!j.isFinished).length;
-  const nFinished=enriched.filter(j=>j.isFinished).length;
+  const q=(APP.homeSearch||"").trim().toLowerCase();
+  const matchQ=j=>!q||j.match_name.toLowerCase().includes(q);
+  const baseLista=(tab==="finished"?finished:toplay);
+  const lista=baseLista.filter(matchQ);
+  const nToplay=toplay.filter(matchQ).length, nFinished=finished.filter(matchQ).length;
+
   // agrupar por dia
   const grupos={};
   lista.forEach(j=>{(grupos[j.dayKey]=grupos[j.dayKey]||[]).push(j);});
-  // ordenar dias: "a definir" por último, resto por ordem do dia
   const diasOrdenados=Object.keys(grupos).sort((a,b)=>{
     if(a==="A definir")return 1; if(b==="A definir")return -1;
     return dayNum(a)-dayNum(b);
   });
   let listaHTML="";
   if(!lista.length){
-    listaHTML=`<p class="p">${tab==="finished"?"Nenhum jogo finalizado ainda.":"Nenhum jogo a jogar no momento."}</p>`;
+    if(q){
+      // tem na outra aba?
+      const outra=(tab==="finished"?toplay:finished).filter(matchQ);
+      listaHTML=`<p class="p">Nenhum jogo com "${esc(APP.homeSearch)}" ${tab==="finished"?"nos finalizados":"a jogar"}.`;
+      if(outra.length)listaHTML+=` <a onclick="setHomeTab('${tab==="finished"?"toplay":"finished"}')" style="color:var(--amber);cursor:pointer;text-decoration:underline">Ver ${outra.length} em "${tab==="finished"?"A jogar":"Finalizados"}"</a>`;
+      listaHTML+=`</p>`;
+    }
+    else listaHTML=`<p class="p">${tab==="finished"?"Nenhum jogo finalizado ainda.":"Nenhum jogo a jogar no momento."}</p>`;
   }else{
     diasOrdenados.forEach(dia=>{
       listaHTML+=`<div class="bsub" style="border:none;padding:0;margin:14px 0 6px;color:var(--amber);font-size:12px;letter-spacing:.5px">📅 ${esc(dia)}</div>`;
       grupos[dia].forEach(j=>{
-        const st=j.isFinished?"finished":j.status;
-        const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
+        const pill=j.isFinished?'<span class="statuspill st-finished">FINALIZADA</span>':(j.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>');
         const onclick=j.isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
+        // botão admin: arquivar (se finalizado não-arquivado) ou desarquivar (se arquivado)
+        let adminBtn="";
+        if(isAdmin()){
+          if(j.archived)adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
+          else adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar">🗄</button>`;
+        }
         listaHTML+=`<div class="roomrow" onclick="${onclick}">
-          <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)}</div></div>
-          ${pill}
-          ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar (mover p/ Resultados)">🗄</button>`:""}
+          <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)}${j.archived?" · arquivado":""}</div></div>
+          ${pill}${adminBtn}
         </div>`;
       });
     });
   }
-  // jogos do catálogo ainda NÃO abertos neste grupo (só admin) — sem os arquivados
+  // jogos do catálogo ainda NÃO abertos neste grupo (só admin)
   const naoAbertos=APP.jogos.filter(j=>!APP.groupRooms.some(gr=>gr.room_id===j.room_id)&&!isArchived(j.room_id));
   const abrirRows=naoAbertos.map(j=>`<div class="roomrow" onclick="openRoomInGroup('${j.room_id}')">
     <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para abrir neste grupo</div></div>
@@ -792,6 +825,10 @@ function homeHTML(){
       <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
     </div>
     <p class="p" style="margin-bottom:12px">Jogos deste grupo. Escolha uma partida para montar seu time ou ver o resultado.</p>
+    <div style="position:relative;margin-bottom:10px">
+      <input id="homeSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar partida pelo nome do time…" value="${esc(APP.homeSearch||"")}" oninput="setHomeSearch(this.value)" autocorrect="off" />
+      ${q?`<span onclick="setHomeSearch('')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim)">✕</span>`:""}
+    </div>
     <div class="postabs" style="margin-bottom:8px">
       <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar${nToplay?` (${nToplay})`:""}</div>
       <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados${nFinished?` (${nFinished})`:""}</div>
@@ -801,7 +838,6 @@ function homeHTML(){
   ${roundsCardHTML()}
   ${phasesCardHTML()}
   ${leaguesCardHTML()}
-  ${resultsCardHTML()}
   <div class="card" onclick="go('members')" style="cursor:pointer">
     <div class="rhead" style="padding:0"><div class="nm disp" style="font-size:18px">👥 Membros do grupo</div><div class="tot mono" style="color:var(--dim);font-size:14px">›</div></div>
     <p class="p" style="margin-top:6px">Veja quem está no grupo, o perfil de cada um e o histórico de times que escalaram.</p>
