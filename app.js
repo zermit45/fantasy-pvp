@@ -1592,15 +1592,14 @@ function buildHTML(){
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
-  const TACT_LABEL={goal:"gols",sotPts:"chutes no gol",assist:"assistências",sca:"criação de chance",gca:"jogada do gol",
+  const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
     dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
     tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
-    accCross:"cruzamentos certos",fouls:"faltas cometidas"};
+    accCross:"cruzamentos",fouls:"faltas"};
   function tactEffectHTML(t){
-    const ups=Object.keys(t.buffs||{}).map(k=>TACT_LABEL[k]||k);
-    // nerf de fouls é "mais faltas" (ruim); os outros são reduções
-    const downs=Object.entries(t.nerfs||{}).map(([k,v])=>v>1?("mais "+(TACT_LABEL[k]||k)):(TACT_LABEL[k]||k));
-    return `<div class="teff"><div class="up">▲ ${ups.join(", ")}</div><div class="down">▼ ${downs.join(", ")}</div></div>`;
+    const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
+    const uniq=[...new Set(fam)];
+    return `<div class="teff"><div class="up">▲ completa = bônus · ▼ incompleta = ônus menor · foco em ${uniq.join(", ")}</div></div>`;
   }
   const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`).join("");
   // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
@@ -1643,7 +1642,7 @@ function buildHTML(){
     </div>`;
   }
   return `<div class="card">
-    <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
+    <div class="budget"><div class="h2 disp">Seu time${helpBtn("slots")}</div><div><span class="tag">RESTANTE${helpBtn("orcamento")} </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
     <div class="tag" style="margin-bottom:4px">ESCOLHA 1 TÁTICA${helpBtn("tatica")}</div>
     <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
@@ -1780,8 +1779,9 @@ function scoreEntryFor(entry,eng,ctx){
       if(worst&&res.BENCH.total*BENCH_FACTOR>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}
     }
   }
-  const titulares=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean).map(rawOf);
-  const sq=eng.squadSum(titulares);
+  // tática v4: conta TODOS que entraram (titulares + reserva que entrou), mesmo substituídos
+  const entraram=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>entry.slots[sl]).filter(Boolean).map(rawOf).filter(r=>(r.min||0)>0);
+  const sq=eng.squadSum(entraram);
   let sum=0;const view=[];
   for(const sl of slots){
     const pid=entry.slots[sl];
@@ -2060,7 +2060,7 @@ function resultHTML(){
   let html=`<div class="scorebar"><div class="tag">${esc(pp.comp)} · FINALIZADO</div>
     <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">${m.score[0]}–${m.score[1]}</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>`;
   // ranking — toque numa pessoa pra ver o time dela
-  html+=`<div class="card"><div class="h2 disp">Ranking da sala</div>`;
+  html+=`<div class="card"><div class="h2 disp">Ranking da sala${helpBtn("ranking")}</div>`;
   if(scored.length===0)html+=`<p class="p">Ninguém montou time nesta sala ainda.</p>`;
   scored.forEach((s,i)=>{
     const isMe=s.username===APP.user?.username;
@@ -2120,14 +2120,14 @@ function baseAllHTML(eng){
     let body="";
     if(open){
       body=`<div class="rbody">
-        <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 Estatísticas · ${r.minutes}' em campo</div>
+        <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 Estatísticas · ${r.minutes}' em campo${helpBtn("apuracao")}</div>
         ${r.statLines.length===0?`<div class="line"><span>Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`:""}
         ${r.statLines.map(([l,c,u,pts])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
-        ${r.lines.length?`<div class="bsub">⚙️ Modificadores (dificuldade, contexto, DvG, performance)</div>`:""}
+        ${r.lines.length?`<div class="bsub">⚙️ Modificadores${helpBtn("dvg")}</div>`:""}
         ${r.lines.map(([k,val])=>`<div class="line"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
         <div class="line total"><span>NOTA BASE</span><span class="v mono">${r.total.toFixed(1)}</span></div>
         ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
-        <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>
+        <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${helpBtn("arquetipo")}${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span>${helpBtn("raridade")}</div>
       </div>`;
     }
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
@@ -2222,8 +2222,17 @@ const HELP={
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
   capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
   banco:["Banco (reserva)","Se um titular de linha for mal, o reserva pode entrar no lugar — mas rende só 80% da nota (pedágio). Ele só substitui se, já com o desconto, superar o titular. O goleiro reserva só conta se o titular não jogar nenhum minuto."],
-  tatica:["Tática","Depende de como você montou o time: olha as estatísticas somadas dos seus jogadores que terminaram em campo. Se a condição bater, dá bônus em certas ações e desconto em outras. Escolher a tática que combina com seu time é parte da estratégia."],
+  tatica:["Tática","Cada tática tem um ESTILO (ex: marcação, posse, jogo aéreo). Ela fica COMPLETA (bônus) se, na partida, esse estilo for o ponto mais forte do seu time E vários dos seus jogadores produzirem nele. Se faltar um dos dois, fica incompleta (ônus, sempre menor que o bônus). Você escolhe olhando seu time: 'tenho zagueiros que desarmam muito → Muralha', 'meio-campo que toca → Tiki-Taka'. O efeito vem das ações reais deles em campo."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
+  orcamento:["Orçamento","Você tem 100 moedas pra montar os 6 slots (incluindo o banco). Cada jogador tem um preço baseado na qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
+  slots:["Os 6 slots","Seu time tem: 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX e 1 Banco. Cada slot só aceita jogadores da posição certa (o FLEX é mais livre). Quem você escalar mas não jogar a partida real fica com 0 pontos."],
+  flex:["FLEX (curinga)","O slot FLEX aceita um jogador de defesa, meio OU ataque (não goleiro). Serve pra você reforçar a posição que quiser — um 2º atacante, um meia a mais, etc. Ele conta na composição do time pra valer."],
+  banco:["Banco (reserva)","Se um titular de linha for mal, o reserva pode entrar no lugar — mas rende só 80% da nota (pedágio por começar fora). Ele só substitui se, já com o desconto, superar o titular. O goleiro reserva só conta se o titular não jogar nenhum minuto."],
+  ranking:["Classificação","Quando o jogo acaba, todos os times da sala são pontuados e ordenados. Toque num nome pra ver a escalação e a apuração de cada jogador. Em mini rodadas/ligas, os pontos vão somando."],
+  apuracao:["Apuração do jogador","Mostra de onde veio cada ponto: estatísticas (gols, defesas, desarmes...), modificadores (dificuldade, contexto de placar, clutch, tática), o bônus de capitão e o arquétipo. É a 'conta' completa da nota."],
+  dvg:["Bônus de zebra (DvG)","Jogadores do time mais fraco (underdog) ganham um acréscimo, calculado pela diferença de força entre os times (ELO + forma recente). Apostar no azarão certo rende mais — quanto maior a diferença, maior o bônus."],
+  clutch:["Clutch","Ações decisivas nos minutos finais (85'+) com o jogo apertado valem pontos extras. Um gol que decide no fim vale mais que um gol em jogo já ganho."],
+  raridade:["Raridade","Selo de quão especial foi a atuação (Comum → Lendário), baseado na pontuação e no impacto do jogador naquele jogo. Quanto melhor jogou, mais rara a 'carta'."],
   arquetipo:["Arquétipos","Depois do jogo, cada jogador ganha um 'tipo' conforme a atuação (ex: Artilheiro, Muralha, Box-to-Box). É só cosmético/colecionável — não muda os pontos. Você coleciona os que escalou no seu perfil."],
 };
 function helpBtn(key){return `<span class="helpq" onclick="event.stopPropagation();showHelp('${key}')" title="O que é isso?">?</span>`;}
@@ -2245,7 +2254,7 @@ function rulesModalHTML(){
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Os 6 slots:</b> 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Capitão (×1.20):</b> escolha 1 jogador (qualquer um menos o banco) pra pontuar 20% a mais.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele — mas o reserva rende só <b style="color:var(--chalk)">80%</b> da nota (pedágio por começar fora). Ele só entra se, já com o desconto, ainda superar o titular. <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
-    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Ela depende de COMO você montou seu time: olha as estatísticas SOMADAS dos seus jogadores que terminaram a partida em campo (quem foi substituído ou ficou no banco não conta). Se a condição bater, dá bônus em certas ações e desconto em outras (ex: Ataque Total premia times com ≥3 gols, mas enfraquece a defesa deles). Escolher a tática certa pro seu time é estratégia.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Cada tática tem um ESTILO de jogo. Ela fica <b style="color:var(--chalk)">completa (bônus)</b> se, na partida, aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele (ex: Tiki-Taka pede que passes/criação sejam o forte do time e 4+ jogadores criando). Se faltar um dos dois, fica <b style="color:var(--chalk)">incompleta (ônus)</b> — e o ônus é sempre menor que o bônus. Todas as táticas valem o mesmo em pontos (são balanceadas), e o bônus é dividido entre os jogadores conforme quem mais produziu no estilo. Conta todos que entraram, mesmo substituídos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Ranking:</b> quando o jogo acaba, todos os times da sala são pontuados e o ranking aparece, com a apuração detalhada de cada jogador.</p>
     <button class="btn" style="margin-top:8px" onclick="toggleRules()">Entendi</button>
