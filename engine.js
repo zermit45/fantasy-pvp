@@ -32,8 +32,6 @@ const TACTICS = {
     cond:(sq,base)=>sq.aerial>=(base?base.aerial:6), buffs:{aerial:1.18,accCross:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
   contra:{name:"Contra-Ataque",desc:"Seu time fica entre os melhores do jogo em dribles + passes na área (transição rápida)",
     cond:(sq,base)=>(sq.dribbles+sq.pib*0.5)>=(base?base.dribPib:5), buffs:{dribbles:1.18,goal:1.18,pib:1.18}, nerfs:{tklint:0.90,recovery:0.90}},
-  bolaparada:{name:"Bola Parada",desc:"Seu time fica entre os melhores do jogo em finalizações de bola parada e jogo aéreo",
-    cond:(sq,base)=>((sq.setPieceSot||0)+(sq.setPieceGoals||0)*2+sq.aerial*0.5)>=(base?base.setPiece:4), buffs:{goal:1.18,aerial:1.18,accCross:1.18}, nerfs:{dribbles:0.90,recovery:0.90}},
 };
 
 // normaliza um player do match.json pra um objeto completo de stats
