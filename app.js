@@ -4,7 +4,7 @@
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB",
-  CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF"};
+  CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF"};
 const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
 // devs: a conta que tem acesso ao "modo DEV" (poderes de admin).
 const ADMINS=["Lucchini"];
