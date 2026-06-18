@@ -25,7 +25,7 @@ let APP={
   leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
-  profile:null,         // estatísticas do perfil (calculadas ao vivo)
+  profile:null, profileHistory:null,         // estatísticas do perfil (calculadas ao vivo)
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
@@ -1725,7 +1725,7 @@ function profileHTML(){
   if(!st)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
   const medals=computeMedals(st);
   const archDistinct=Object.keys(st.archetypes).length;
-  const TOTAL_ARCH=31; // total de arquétipos possíveis no engine
+  const TOTAL_ARCH=33; // total de arquétipos possíveis no engine
   const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
   const tit=userTitle(st);
@@ -1772,6 +1772,13 @@ function profileHTML(){
     topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
     html+=`</div></div>`;
   }
+  // histórico de partidas (clicável, com detalhe por jogador)
+  const phist=APP.profileHistory;
+  html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
+  if(!phist)html+=`<div class="loading">Carregando histórico…</div>`;
+  else if(!phist.length)html+=`<p class="p" style="margin-top:8px">Você ainda não jogou nenhuma partida finalizada.</p>`;
+  else{html+=`<p class="p" style="margin:6px 0 4px;font-size:12px">Toque numa partida pra abrir, e num jogador pra ver os detalhes da pontuação e o arquétipo.</p>`;phist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"p");});}
+  html+=`</div>`;
   html+=`<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--red)">ZONA DE RISCO</div>
     <p class="p" style="margin-bottom:10px">Excluir seu histórico oculta do seu perfil os times que você montou nos jogos já encerrados (zera medalhas e conquistas). Você continua no ranking das salas. Pede sua senha pra confirmar.</p>
@@ -1837,7 +1844,7 @@ function memberHTML(){
     <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
       ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
       ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("📈",st.avg||0,"média/jogo")}${statBox("🎯",st.podiumRate+"%","pódio")}
-      ${statBox("🃏",archDistinct+"/31","arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
+      ${statBox("🃏",archDistinct+"/33","arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
     </div>
     ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
     ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts.</p>`:""}
@@ -1856,32 +1863,53 @@ function memberHTML(){
   html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
   if(!hist)html+=`<div class="loading">Carregando histórico…</div>`;
   else if(!hist.length)html+=`<p class="p" style="margin-top:8px">Este membro ainda não jogou nenhuma partida finalizada.</p>`;
-  else hist.forEach((h,hi)=>{
-    const open=_openMemberGame[hi];
-    const e=h.entry;
-    html+=`<div class="receipt"><div class="rhead" onclick="toggleMemberGame(${hi})">
-      <div class="sl mono" style="width:auto;color:var(--amber)">${h.pos}º/${h.of}</div>
-      <div class="nm">${esc(h.match_name)}<small>${esc(h.comp||"")} · cap ${SLOT_LABEL[e.captain]} · ${window.ENGINE_TACTICS[e.tactic]?.name||e.tactic||"—"}</small></div>
-      <div class="tot mono${e.total<0?" neg":""}">${e.total.toFixed(1)}</div></div>`;
-    if(open){
-      html+=`<div class="rbody">`;
-      e.view.filter(Boolean).forEach(v=>{
-        const pl=h.ctx.byId[v.pid];
-        const capTag=v.cap?` <span class="badgeC">C</span>`:"";
-        const subTag=v.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
-        const benchTag=v.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
-        html+=`<div class="line" style="padding:6px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}</span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
-      });
-      html+=`</div>`;
-    }
-    html+=`</div>`;
-  });
+  else hist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"m");});
   html+=`</div>`;
   html+=`<button class="btn ghost" onclick="go('members')">← Voltar aos membros</button>`;
   return html;
 }
-let _openMemberGame={};
-function toggleMemberGame(i){_openMemberGame[i]=!_openMemberGame[i];render();}
+// renderiza uma partida do histórico com jogadores CLICÁVEIS (detalhe + arquétipo)
+// prefix distingue contexto ("m"=membro, "p"=perfil próprio) pra estados de toggle separados
+function histGameHTML(h,hi,prefix){
+  const e=h.entry;
+  const open=_openHistGame[prefix+hi];
+  let html=`<div class="receipt"><div class="rhead" onclick="toggleHistGame('${prefix}',${hi})">
+    <div class="sl mono" style="width:auto;color:var(--amber)">${h.pos}º/${h.of}</div>
+    <div class="nm">${esc(h.match_name)}<small>${esc(h.comp||"")} · cap ${SLOT_LABEL[e.captain]} · ${window.ENGINE_TACTICS[e.tactic]?.name||e.tactic||"—"}</small></div>
+    <div class="tot mono${e.total<0?" neg":""}">${e.total.toFixed(1)}</div></div>`;
+  if(open){
+    html+=`<div class="rbody">`;
+    e.view.filter(Boolean).forEach((v,vi)=>{
+      const pl=h.ctx.byId[v.pid];
+      const r=v.r;
+      const pkey=prefix+hi+"_"+vi;
+      const pOpen=_openHistPlayer[pkey];
+      const capTag=v.cap?` <span class="badgeC">C</span>`:"";
+      const subTag=v.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
+      const benchTag=v.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
+      const archTag=r&&r.meta&&r.meta.arch&&r.meta.arch!=="—"?` <span style="font-size:9px;color:var(--amber)">⭑ ${esc(r.meta.arch)}</span>`:"";
+      html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleHistPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}${archTag}</span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+      // detalhe do jogador (statLines + modificadores + arquétipo/traits/raridade)
+      if(pOpen&&r){
+        html+=`<div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;margin:0 0 6px">`;
+        html+=`<div style="font-size:10px;color:var(--dim);margin-bottom:4px">📋 ${r.minutes}' em campo</div>`;
+        if(!r.statLines.length)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`;
+        r.statLines.forEach(([l,c,u,pts])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${l} <b style="color:var(--mid)">${c}×</b> <i style="color:var(--dim);font-size:10px">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`;});
+        if(r.lines.length){html+=`<div style="font-size:10px;color:var(--dim);margin:6px 0 2px">⚙️ Modificadores</div>`;
+          r.lines.forEach(([k,val])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`;});}
+        if(v.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão</span><span class="v mono plus">×1.20</span></div>`;
+        html+=`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>`;
+        html+=`</div>`;
+      }
+    });
+    html+=`</div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+let _openHistGame={}, _openHistPlayer={};
+function toggleHistGame(prefix,i){const k=prefix+i;_openHistGame[k]=!_openHistGame[k];render();}
+function toggleHistPlayer(k){_openHistPlayer[k]=!_openHistPlayer[k];render();}
 function resultHTML(){
   const pp=APP.prepool,m=APP.match;
   if(!m||m.status!=="finished")return `<div class="card"><p class="p">O jogo ainda não foi finalizado.</p><button class="btn ghost" onclick="go('room')">← Voltar</button></div>`;
@@ -2091,10 +2119,10 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="room"){APP.entries=await loadEntries();_openPeek={};}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};}
-    if(view==="profile"){APP.profile=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;}
+    if(view==="profile"){APP.profile=null;APP.profileHistory=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;render();const ph=await loadMemberHistory(APP.user.username);if(APP.view==="profile")APP.profileHistory=ph;}
     if(view==="members"){APP.members=null;render();const ms=await loadGroupMembers();if(APP.view==="members")APP.members=ms;}
     if(view==="member"){
-      APP.memberView=extra;APP.memberProfile=null;APP.memberHistory=null;_openMemberGame={};render();
+      APP.memberView=extra;APP.memberProfile=null;APP.memberHistory=null;_openHistGame={};_openHistPlayer={};render();
       const ps=await loadProfileStats(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberProfile=ps;render();
       const h=await loadMemberHistory(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberHistory=h;
     }
