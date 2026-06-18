@@ -40,6 +40,7 @@ let APP={
   captain:null, tactic:null, tabTeam:"ALL", tabPos:"ALL", warn:"", showRules:false, help:null, confirm:null,
   entries:[],           // entries da sala (pro ranking)
   avulsaLineup:null, members:null, memberView:null, memberProfile:null, memberHistory:null,
+  collapsedModes:{},   // {select:true} = grupo de modo recolhido na home
 };
 
 // ---------- Supabase REST helpers ----------
@@ -1111,12 +1112,14 @@ function roundsCardHTML(){
     const list=avulsas.filter(r=>modeOf(r)===mk);
     if(!list.length)continue;
     const mm=MODE_META[mk];
-    groupsHTML+=`<div style="margin:14px 0 6px;display:flex;align-items:center;gap:8px">
-      <span style="display:inline-flex;align-items:center;gap:6px;font-family:'Saira Condensed';font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:4px 12px">${mm.icon} ${mm.label}</span>
+    const collapsed=!!APP.collapsedModes[mk];
+    groupsHTML+=`<div onclick="toggleModeGroup('${mk}')" style="margin:14px 0 6px;display:flex;align-items:center;gap:8px;cursor:pointer">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-family:'Saira Condensed';font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:4px 12px">${mm.icon} ${mm.label} <span style="font-size:10px;opacity:.8">(${list.length})</span></span>
       <span style="flex:1;height:1px;background:color-mix(in srgb,${mm.color} 30%,transparent)"></span>
+      <span style="color:${mm.color};font-size:13px;transform:rotate(${collapsed?"-90deg":"0deg"});transition:transform .15s">▾</span>
     </div>
-    <p class="p" style="font-size:11px;margin-bottom:8px;color:color-mix(in srgb,${mm.color} 70%,var(--dim))">${mm.desc}</p>
-    ${list.map(roundRowHTML).join("")}`;
+    ${collapsed?"":`<p class="p" style="font-size:11px;margin-bottom:8px;color:color-mix(in srgb,${mm.color} 70%,var(--dim))">${mm.desc}</p>
+    ${list.map(roundRowHTML).join("")}`}`;
   }
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS${helpBtn("minirodada")}</div>
@@ -1126,6 +1129,7 @@ function roundsCardHTML(){
 }
 function askCreateRound(){APP.confirm={mode:"createRound",newMode:"select",label:"Criar mini rodada"};render();}
 function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm.draftName=n.value;APP.confirm.newMode=mk;render();}}
+function toggleModeGroup(mk){APP.collapsedModes[mk]=!APP.collapsedModes[mk];render();}
 
 // ----- RODADAS (phases) avulsas: card na home -----
 function phasesCardHTML(){
@@ -1511,6 +1515,17 @@ function confirmModalHTML(){
     </div></div>`;
   }
   // modo: criar rodada (admin)
+  if(c.mode==="replicate"){
+    const pp=APP.prepool;
+    const nome=pp?`${esc(pp.home.name)} × ${esc(pp.away.name)}`:"estes times";
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--green)">Repor escalação</div>
+      <p class="p" style="margin:10px 0">Tem certeza que quer <b style="color:var(--chalk)">repor TODAS as ${c.count} escalação(ões) disponíveis</b> de <b style="color:var(--chalk)">${nome}</b> com a escalação que você montou agora?</p>
+      <p class="p" style="margin-bottom:12px;font-size:11px">Isso <b>sobrescreve</b> o que você já tinha montado nessas outras partidas (mesmos times, qualquer modo). As que já travaram não são afetadas.</p>
+      <button class="btn" style="margin-top:4px;background:var(--green);color:#06231a" onclick="applyLineupEverywhere()">Sim, repor as ${c.count}</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
   if(c.mode==="createRound"){
     const poolMax=(APP.jogos||[]).length;
     const defLimit=Math.min(3,poolMax||3);
@@ -1731,6 +1746,9 @@ function buildHTML(){
     (APP.tabPos==="ALL"||p.pos===APP.tabPos)
   ).sort((a,b)=>b.price-a.price);
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
+  const hasSomeFilled=Object.values(s).some(Boolean);
+  const sameMatches=sameMatchupRooms(APP.roomId).filter(rid=>{const gg=window.GAMES.data[rid];return !(gg&&gg.match&&gg.match.status==="finished");});
+  const canReplicate=hasSomeFilled&&!gameLocked&&sameMatches.length>0;
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
@@ -1805,6 +1823,8 @@ function buildHTML(){
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
     ${!gameLocked&&inRound&&APP.avulsaLineup?`<button class="btn ghost" style="margin-top:12px;border-color:var(--blue);color:var(--blue)" onclick="copyLineupFromOther()">📋 Copiar escalação da partida solta</button>`:""}
+    ${canReplicate?`<button class="btn ghost" style="margin-top:12px;border-color:var(--green);color:var(--green)" onclick="askReplicate()">📑 Repor esta escalação nas ${sameMatches.length} outra(s) partida(s) dos mesmos times</button>
+       <p class="p" style="margin-top:6px;font-size:11px">Cola exatamente este time (jogadores + capitão + tática) em toda partida ${esc(pp.home.name)} × ${esc(pp.away.name)} disponível, em qualquer modo. Salve este jogo também.</p>`:""}
     ${gameLocked
       ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 O jogo já começou — escalação travada. Não dá mais pra editar.</div>
          <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
@@ -1826,6 +1846,75 @@ async function copyLineupFromOther(){
   APP.captain=src.captain||null;
   APP.tactic=src.tactic||null;
   toast("Escalação copiada da partida solta! Revise e salve.");
+  render();
+}
+// ── REPOR ESCALAÇÃO: aplica a escalação atual em TODAS as outras partidas dos MESMOS times ──
+// Casa jogadores por NOME (IDs são locais por jogo). Salva tanto a versão avulsa quanto
+// as entries nas rodadas (qualquer modo) onde aquele jogo aparece e ainda não travou.
+function sameMatchupRooms(roomId){
+  const g=window.GAMES.data[roomId];if(!g)return[];
+  const a=g.prepool.home.code,b=g.prepool.away.code;
+  const key=[a,b].sort().join("|");
+  return Object.keys(window.GAMES.data).filter(rid=>{
+    if(rid===roomId)return false;
+    const gg=window.GAMES.data[rid];if(!gg)return false;
+    const k=[gg.prepool.home.code,gg.prepool.away.code].sort().join("|");
+    return k===key;
+  });
+}
+function askReplicate(){
+  const n=sameMatchupRooms(APP.roomId).filter(rid=>{const gg=window.GAMES.data[rid];return !(gg&&gg.match&&gg.match.status==="finished");}).length;
+  if(!n){toast("Não há outra partida com os mesmos times.");return;}
+  APP.confirm={mode:"replicate",count:n,label:"Repor escalação"};render();
+}
+async function applyLineupEverywhere(){
+  if(!APP.user){toast("Faça login.");return;}
+  // monta o mapa nome→jogador do jogo ATUAL pros slots escalados
+  const srcById=APP._byId;
+  const srcSlots=APP.slots;
+  const filledNames={}; // slot → nome do jogador escalado
+  for(const sl of ["GK","DEF","MID","ATT","FLEX","BENCH"]){
+    const pid=srcSlots[sl];if(!pid)continue;
+    const meta=srcById[pid];if(meta)filledNames[sl]={name:meta.name,team:meta.team};
+  }
+  if(!Object.values(filledNames).length){toast("Monte o time primeiro.");return;}
+  const targets=sameMatchupRooms(APP.roomId);
+  if(!targets.length){toast("Não há outra partida com os mesmos times.");return;}
+  let applied=0;
+  for(const rid of targets){
+    const g=window.GAMES.data[rid];
+    if(g.match&&g.match.status==="finished")continue; // não mexe em jogo encerrado
+    // monta nome→id local do jogo destino
+    const nameToId={};
+    for(const p of g.prepool.players)nameToId[p.name+"|"+p.team]=p.id;
+    const newSlots={GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null};
+    for(const sl in filledNames){
+      const k=filledNames[sl].name+"|"+filledNames[sl].team;
+      if(nameToId[k]!=null)newSlots[sl]=nameToId[k];
+    }
+    // capitão só vale se o slot foi preenchido no destino
+    const cap=(APP.captain&&newSlots[APP.captain])?APP.captain:null;
+    // 1) salva versão avulsa (round_id null) deste jogo
+    try{
+      const exA=await sb("entries?room_id=eq."+rid+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&round_id=is.null&select=id");
+      const baseA={slots:newSlots,captain:cap,tactic:APP.tactic,updated_at:new Date().toISOString()};
+      if(exA&&exA.length)await sbUpdate("entries",baseA,"id=eq."+exA[0].id);
+      else await sbInsert("entries",Object.assign({room_id:rid,group_id:APP.groupId,round_id:null,username:APP.user.username},baseA));
+      applied++;
+    }catch(e){}
+    // 2) salva nas rodadas (qualquer modo) onde este jogo aparece e não travou
+    try{
+      const rrs=await sb("round_rooms?room_id=eq."+rid+"&select=round_id,status");
+      for(const rr of (rrs||[])){
+        if(rr.status&&rr.status!=="open")continue; // travado pelo admin
+        const exR=await sb("entries?room_id=eq."+rid+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&round_id=eq."+rr.round_id+"&select=id");
+        const baseR={slots:newSlots,captain:cap,tactic:APP.tactic,updated_at:new Date().toISOString()};
+        if(exR&&exR.length)await sbUpdate("entries",baseR,"id=eq."+exR[0].id);
+      }
+    }catch(e){}
+  }
+  APP.confirm=null;
+  toast(applied?`Escalação aplicada em ${applied} partida(s) dos mesmos times!`:"Nada para aplicar.");
   render();
 }
 function place(pid){
