@@ -522,8 +522,11 @@ function isConfirmed(roomId){const e=roundEntryOf(roomId);return e&&e.confirmed=
 // no modo select, "usado" = quantos jogos o usuário travou (confirmed) — não quantas entries existem
 function picksUsed(){return (APP.roundEntries||[]).filter(e=>e.confirmed===true).length;}
 function picksLeft(){return APP.round?Math.max(0,APP.round.pick_limit-picksUsed()):0;}
-// FASE 1 travada? (dev fechou a seleção de jogos) — não troca mais QUAIS jogos
-function picksLocked(){return APP.round&&APP.round.status&&APP.round.status!=="open";}
+// SELEÇÃO travada? Trava se o admin fechou manualmente OU o 1º jogo da pool começou (automático).
+function picksLocked(){
+  if(APP.round&&APP.round.status&&APP.round.status!=="open")return true; // admin fechou
+  return boostLocked(); // 1º jogo da pool começou (mesma trava temporal do impulso)
+}
 // jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
 // trava por HORÁRIO (jogo começou) ou jogo finalizado — não inclui trava manual do admin
 function roomTimeLocked(roomId){
