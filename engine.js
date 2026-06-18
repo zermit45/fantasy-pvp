@@ -82,7 +82,7 @@ const TACTICS = {
 // cruzamentos). Por isso normalizamos cada família por um divisor de referência,
 // para que "dominante" signifique "o time se destacou NAQUILO relativo ao normal
 // daquela ação", e não simplesmente a ação de maior volume bruto (passe sempre venceria).
-const TACT_NORM={ muralha:45, pressaototal:70, cerebro:113, tridente:13, aereo:26, contra:28 };
+const TACT_NORM={ muralha:45, pressaototal:70, cerebro:113, tridente:11, aereo:26, contra:28 };
 const TACT_FAMILIES={
   muralha:p=>p.tklint+p.clearance+p.block,
   pressaototal:p=>p.recovery+p.tklint,
@@ -415,9 +415,9 @@ function makeEngine(match){
     for(const k of Object.keys(TACT_FAMILIES)){famNorm[k]=famRaw[k]/(TACT_NORM[k]||1);}
     const maxFam=Math.max(...Object.values(famNorm),0);
     // status por tática
-    // ranking das famílias por valor normalizado (top 2 contam como "estilo do time")
+    // ranking das famílias por valor normalizado (top 3 contam como "estilo do time")
     const ranked=Object.entries(famNorm).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
-    const top2=new Set(ranked.slice(0,2));
+    const top2=new Set(ranked.slice(0,3));
     const status={};
     for(const[key,T]of Object.entries(TACTICS)){
       const mine=famNorm[key]||0;
