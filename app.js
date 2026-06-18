@@ -4,7 +4,7 @@
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB",
-  CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF"};
+  CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF",ECU:"#FFD23F",CUW:"#3D54FF",CIV:"#FF7A1A",SWE:"#4D7BFF",TUN:"#E63946",BEL:"#E63946",IRN:"#54E0A8",NZL:"#EEF2FB",EGY:"#E63946",SAU:"#1FA85A",URU:"#62C9F5",CPV:"#3DA35D"};
 const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
 // devs: a conta que tem acesso ao "modo DEV" (poderes de admin).
 const ADMINS=["Lucchini"];
@@ -496,15 +496,22 @@ function picksLeft(){return APP.round?Math.max(0,APP.round.pick_limit-picksUsed(
 // FASE 1 travada? (dev fechou a seleção de jogos) — não troca mais QUAIS jogos
 function picksLocked(){return APP.round&&APP.round.status&&APP.round.status!=="open";}
 // jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
-function roomLockedInRound(roomId){
-  const rr=APP.roundRooms.find(x=>x.room_id===roomId);
-  if(rr&&rr.status&&rr.status!=="open")return true;        // admin travou a mini rodada
+// trava por HORÁRIO (jogo começou) ou jogo finalizado — não inclui trava manual do admin
+function roomTimeLocked(roomId){
   const g=window.GAMES.data[roomId];
-  if(g&&g.match&&g.match.status==="finished")return true;   // jogo acabou
-  // jogo já começou? (kickoff passou) → trava a escalação
+  if(g&&g.match&&g.match.status==="finished")return true;
   const idx=(APP.jogos||[]).find(j=>j.room_id===roomId);
   if(idx&&idx.kickoff){const k=new Date(idx.kickoff);if(!isNaN(k)&&Date.now()>=k.getTime())return true;}
   return false;
+}
+// trava manual do admin (status da round_room)
+function roomAdminLocked(roomId){
+  const rr=APP.roundRooms.find(x=>x.room_id===roomId);
+  return !!(rr&&rr.status&&rr.status!=="open");
+}
+// escalação travada para o jogador (qualquer um dos dois)
+function roomLockedInRound(roomId){
+  return roomAdminLocked(roomId)||roomTimeLocked(roomId);
 }
 
 // FASE 1 — selecionar um jogo pra jogar (cria entry vazia, sem time ainda)
@@ -543,9 +550,17 @@ async function confirmTeam(roomId){
 async function setRoundRoomStatus(roomId,status){
   if(!isAdmin()||!APP.roundId)return;
   try{
-    await sbUpdate("round_rooms",{status},"round_id=eq."+APP.roundId+"&room_id=eq."+roomId);
+    const res=await sbUpdate("round_rooms",{status},"round_id=eq."+APP.roundId+"&room_id=eq."+encodeURIComponent(roomId));
+    // se o PATCH não retornou a linha atualizada, o update não pegou (RLS ou linha inexistente)
+    if(!res||!res.length){
+      toast("Não consegui alterar (verifique as permissões da tabela round_rooms).");
+      return;
+    }
+    // atualiza em memória de imediato (não depende só do reload)
+    const rr=APP.roundRooms.find(x=>x.room_id===roomId);
+    if(rr)rr.status=status;
     await loadRound(APP.roundId);
-    toast(status==="locked"?"Escalação deste jogo travada (todos).":"Escalação deste jogo liberada.");
+    toast(status==="locked"?"Escalação deste jogo travada (todos).":"Escalação deste jogo destravada (liberada).");
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
@@ -1184,7 +1199,9 @@ function roundHTML(){
     const finished=g&&g.match&&g.match.status==="finished";
     const picked=pickedRoom(rid);
     const team=hasTeam(rid);
-    const locked=roomLockedInRound(rid); // jogo começou ou admin travou
+    const timeLocked=roomTimeLocked(rid);
+    const adminLocked=roomAdminLocked(rid);
+    const locked=timeLocked||adminLocked;
     let tag,meta,clickable=true;
     if(finished){tag='<span class="statuspill st-finished">VER RESULTADO</span>';meta="jogo encerrado · toque p/ ver";}
     else if(!picked){
@@ -1192,7 +1209,8 @@ function roundHTML(){
       else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já usou suas "+r.pick_limit+" fichas";clickable=false;}
       else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque no + verde p/ gastar 1 ficha aqui";clickable=false;}
     }
-    else if(locked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada · toque p/ ver";}
+    else if(timeLocked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada · toque p/ ver";}
+    else if(adminLocked){tag='<span class="statuspill st-closed">🔒 TRAVADO</span>';meta="escalação travada pelo admin · toque p/ ver";}
     else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="vaga garantida · toque p/ ajustar (livre até o jogo começar)";}
     else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="ficha gasta ✓ · toque p/ escalar";}
     // ação principal (jogador): selecionar ou desfazer — UM botão só
@@ -1205,10 +1223,13 @@ function roundHTML(){
     // bloco de admin (separado, com divisória sutil)
     let devBlock="";
     if(isAdmin()){
-      const rr=APP.roundRooms.find(x=>x.room_id===rid);
-      const devLocked=rr&&rr.status&&rr.status!=="open";
+      const devLocked=adminLocked; // trava MANUAL do admin (independente do horário)
+      // se o jogo já começou/acabou, não dá pra mexer na trava (o tempo já travou pra todos)
+      const lockBtn=timeLocked
+        ? `<span style="font-size:19px;padding:4px;opacity:.3" title="O jogo já começou — escalação travada pelo horário">🔒</span>`
+        : `<span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>`;
       devBlock=`<div style="display:flex;gap:14px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line);flex-shrink:0">
-        <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>
+        ${lockBtn}
         <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
