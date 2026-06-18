@@ -1522,9 +1522,8 @@ function roundHTML(){
     let devBlock="";
     if(isAdmin()){
       const devLocked=adminLocked;
-      const lockBtn=timeLocked
-        ? `<span style="font-size:19px;padding:4px;opacity:.3" title="O jogo já começou — escalação travada pelo horário">🔒</span>`
-        : `<span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>`;
+      // o cadeado continua clicável mesmo após o jogo começar (admin libera o espiar quando quiser)
+      const lockBtn=`<span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (libera o espiar p/ todos)"}">${devLocked?"🔓":"🔒"}</span>`;
       devBlock=`<div style="display:flex;gap:14px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line);flex-shrink:0">
         ${lockBtn}
         <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
@@ -1625,8 +1624,22 @@ async function setPoolStatus(status){
   try{
     await sbUpdate("group_rooms",{status},`group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}`);
     APP.roomMeta.status=status;
+    // PROPAGA: travar/destravar a pool avulsa também trava/destrava o MESMO jogo nas mini rodadas DESTE grupo
+    const rrStatus=status==="closed"?"locked":"open";
+    let propagou=0;
+    try{
+      if(!APP.rounds||!APP.rounds.length){try{await loadRounds();}catch(e){}}
+      const myRoundIds=(APP.rounds||[]).map(r=>r.id);
+      if(myRoundIds.length){
+        const inList="("+myRoundIds.join(",")+")";
+        const res=await sbUpdate("round_rooms",{status:rrStatus},`room_id=eq.${encodeURIComponent(APP.roomId)}&round_id=in.${inList}`);
+        propagou=(res&&res.length)||0;
+      }
+    }catch(e){/* se round_rooms não permitir, segue só com a avulsa */}
     await loadGroupRooms();
-    toast(status==="closed"?"Pool fechada. Ninguém mais edita.":"Pool reaberta.");
+    toast(status==="closed"
+      ? `Pool fechada.${propagou?` Este jogo também travou em ${propagou} mini rodada(s).`:""}`
+      : `Pool reaberta.${propagou?` Destravado nas mini rodadas.`:""}`);
     render();
   }catch(e){toast("Erro ao mudar status: "+e.message);}
 }
