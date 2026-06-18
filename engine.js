@@ -191,16 +191,22 @@ function makeEngine(match){
     else if(clutch>=2) arch="Herói de Clutch";
     else if(G>=1&&golaco) arch="Finalizador Frio";
     else if(G>=1&&A>=1) arch="Decisivo";                                   // gol + assist
+    else if(A>=3) arch="Rei das Assistências";                             // 3+ assists
     else if(A>=2) arch="Garçom";
+    else if((p.sca+p.gca*2)>=8&&p.pib>=4) arch="Cérebro do Time";          // criação altíssima
     else if((p.sca+p.gca*2)>=6&&p.pib>=3) arch="Maestro Criador";
+    else if(p.pos==="ATT"&&p.dribbles>=5) arch="Driblador";                // muito drible
     else if(p.pos==="ATT"&&p.sots.length>=3) arch="Lobo Solitário";        // muito chute
     else if(p.pos==="ATT"&&p.aerial>=4) arch="Pivô de Área";
     else if(p.pos==="ATT") arch="Homem de Frente";                         // atacante padrão
+    else if(p.pos==="DEF"&&(p.tklint+p.clearance+p.block)>=14) arch="Xerife";  // defensor dominante
     else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=10) arch="Muralha Aérea";
     else if(p.pos==="DEF"&&p.prgp>=3&&ix.sec>=70) arch="Zagueiro Construtor";
+    else if(p.pos==="DEF"&&p.dribbles>=3&&ix.iui>=60) arch="Ala Moderno";   // lateral ofensivo
     else if(p.pos==="DEF"&&ix.iui>=60) arch="Lateral de Corredor";
     else if(p.pos==="MID"&&ix.iui>=70&&ix.tw>=70) arch="Box-to-Box";        // completo de verdade
     else if(p.pos==="MID"&&(p.sca+p.gca*2)>=4) arch="Camisa 10";
+    else if(p.pos==="MID"&&p.dribbles>=4) arch="Condutor";                  // conduz a bola
     else if((p.tklint+p.recovery)>=8&&ix.tw>=65) arch="Volante";
     else if(ix.tw>=65&&p.recovery>=6) arch="Motor";
     else if(ix.tw>=60&&ix.sec>=70&&p.pos!=="ATT") arch="Cão de Guarda";
@@ -216,6 +222,11 @@ function makeEngine(match){
     if(defLimpa) traits.push("Cadeado");                // goleiro/zaga sem sofrer gol
     if(!p.gk&&p.sots.length>=3) traits.push("Pé Quente");
     if((p.sca+p.gca*2)>=5) traits.push("Maestro");
+    if(!p.gk&&p.dribbles>=5) traits.push("Pernas de Pau Quebradas");  // drible em série
+    if(G>=1&&A>=1) traits.push("Mão na Massa");                        // participou de 2 gols
+    if(p.pos==="DEF"&&G>=1) traits.push("Zagueiro Artilheiro");
+    if(p.recovery>=10) traits.push("Aspirador");                       // recupera muita bola
+    if(p.aerial>=6) traits.push("Dono do Ar");
     if(p.gk&&p.gk.saves.some(s=>s.psxg>0.6)) traits.push("Paredão");
     if(ix.tw>=88&&p.pos!=="ATT") traits.push("Monstro Defensivo");
     if(!p.red&&!p.yellow&&p.fouls===0&&p.dribbledPast===0&&ix.sec>=92) traits.push("Seguro");

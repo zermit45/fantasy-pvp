@@ -158,42 +158,82 @@ const RARITY_ORDER=["Comum","Incomum","Raro","Épico","Mítico","Lendário"];
 async function loadProfileStats(username){
   const stats={
     games:0, wins:0, podiums:0, bestScore:0, bestGame:null, totalPoints:0,
-    archetypes:{}, traits:{}, rarities:{}, players:{}, bestPlayer:null
+    archetypes:{}, traits:{}, rarities:{}, players:{}, bestPlayer:null,
+    playerPts:{}, topPlayer:null, bestPerf:null,
+    tactics:{}, topTactic:null, capHits:0, capTotal:0,
+    bestStreak:0, zebraWins:0
   };
   if(!SUPA.ready()||!APP.groupId)return stats;
-  // todos os jogos FINALIZADOS deste catálogo (arquivado ou não — basta ter resultado)
   const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
+  // ordenar por ordem do catálogo pra calcular sequências de pódio
+  const myResults=[]; // {pos, podium} na ordem que joguei
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
     let entries;
     try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
     catch(e){continue;}
     if(!entries||!entries.length)continue;
-    // respeita "ocultar do perfil": não conta minhas entries marcadas
     entries=entries.filter(e=>!(e.username===username&&e.hidden_profile===true));
     const scored=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
     const myIdx=scored.findIndex(s=>s.username===username);
-    if(myIdx<0)continue; // não participei deste jogo
+    if(myIdx<0)continue;
     const me=scored[myIdx];
     stats.games++;
     stats.totalPoints+=me.total;
     if(myIdx===0)stats.wins++;
     if(myIdx<3)stats.podiums++;
+    myResults.push(myIdx<3);
     if(me.total>stats.bestScore){stats.bestScore=me.total;stats.bestGame=j.match_name;}
-    // arquétipos / traits / raridades / jogadores escalados (só os que entraram em campo)
+    // tática usada
+    if(me.tactic){const tn=window.ENGINE_TACTICS[me.tactic]?window.ENGINE_TACTICS[me.tactic].name:me.tactic;stats.tactics[tn]=(stats.tactics[tn]||0)+1;}
+    // zebra: venceu escalando maioria de jogadores do time underdog (menor ELO)
+    if(myIdx===0){
+      const m=ctx.match,homeUnder=m.homeElo<m.awayElo;
+      const underCode=homeUnder?m.homeCode:m.awayCode;
+      let underN=0,tot=0;
+      for(const v of me.view){if(!v||v.slot==="BENCH")continue;const pl=ctx.byId[v.pid];if(pl){tot++;if(pl.team===underCode)underN++;}}
+      if(tot&&underN/tot>=0.6)stats.zebraWins++;
+    }
+    // capitão certeiro: o capitão foi o maior pontuador (titular) do meu time?
+    let capPts=null,maxTitular=-1e9;
     for(const v of me.view){
       if(!v||v.slot==="BENCH")continue;
-      const meta=v.r&&v.r.meta;if(!meta)continue;
+      const meta=v.r&&v.r.meta;
       const pl=ctx.byId[v.pid];
-      if(meta.arch&&meta.arch!=="—"){stats.archetypes[meta.arch]=(stats.archetypes[meta.arch]||0)+1;}
-      (meta.traits||[]).forEach(t=>{if(t!=="Regular"&&t!=="Não entrou em campo")stats.traits[t]=(stats.traits[t]||0)+1;});
-      if(meta.rarity)stats.rarities[meta.rarity]=(stats.rarities[meta.rarity]||0)+1;
-      if(pl){const key=pl.name;stats.players[key]=(stats.players[key]||0)+1;}
+      if(meta&&meta.arch&&meta.arch!=="—")stats.archetypes[meta.arch]=(stats.archetypes[meta.arch]||0)+1;
+      if(meta)(meta.traits||[]).forEach(t=>{if(t!=="Regular"&&t!=="Não entrou em campo")stats.traits[t]=(stats.traits[t]||0)+1;});
+      if(meta&&meta.rarity)stats.rarities[meta.rarity]=(stats.rarities[meta.rarity]||0)+1;
+      if(pl){
+        stats.players[pl.name]=(stats.players[pl.name]||0)+1;
+        // pontos somados por jogador (craque favorito) e melhor atuação individual
+        const base=v.cap?v.pts/1.2:v.pts; // pontos do jogador sem o bônus de capitão (pra comparar justo)
+        stats.playerPts[pl.name]=(stats.playerPts[pl.name]||0)+v.pts;
+        if(!stats.bestPerf||v.pts>stats.bestPerf.pts){
+          stats.bestPerf={name:pl.name,team:pl.team,pts:v.pts,game:j.match_name,cap:v.cap};
+        }
+        if(v.cap)capPts=v.pts/1.2;
+        if(v.pts>maxTitular)maxTitular=v.pts;
+      }
     }
+    // capitão acertou se o jogador capitão (pontos sem bônus) foi o melhor titular
+    if(capPts!=null){stats.capTotal++;const capWithBonus=capPts*1.2;if(Math.abs(capWithBonus-maxTitular)<0.01||capWithBonus>=maxTitular)stats.capHits++;}
   }
-  // jogador mais escalado
+  // jogador mais escalado (frequência)
   let top=null;for(const[name,n]of Object.entries(stats.players)){if(!top||n>top.n)top={name,n};}
   stats.bestPlayer=top;
+  // craque favorito (mais pontos somados)
+  let tp=null;for(const[name,pts]of Object.entries(stats.playerPts)){if(!tp||pts>tp.pts)tp={name,pts:Math.round(pts*10)/10};}
+  stats.topPlayer=tp;
+  // tática preferida
+  let tt=null;for(const[name,n]of Object.entries(stats.tactics)){if(!tt||n>tt.n)tt={name,n};}
+  stats.topTactic=tt;
+  // melhor sequência de pódios
+  let cur=0;for(const ok of myResults){if(ok){cur++;if(cur>stats.bestStreak)stats.bestStreak=cur;}else cur=0;}
+  // derivados
+  stats.avg=stats.games?Math.round(stats.totalPoints/stats.games*10)/10:0;
+  stats.podiumRate=stats.games?Math.round(stats.podiums/stats.games*100):0;
+  stats.winRate=stats.games?Math.round(stats.wins/stats.games*100):0;
+  stats.capRate=stats.capTotal?Math.round(stats.capHits/stats.capTotal*100):0;
   return stats;
 }
 // ── MEMBROS DO GRUPO ──
@@ -1642,6 +1682,7 @@ function computeMedals(st){
   const m=[];
   const archDistinct=Object.keys(st.archetypes).length;
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const tacticsUsed=Object.keys(st.tactics||{}).length;
   const add=x=>{if(x)m.push(x);};
   add(tier(st.wins,[[1,"Primeira Vitória"],[3,"Vencedor"],[7,"Campeão de Sala"],[15,"Dominador"]],"🏆","wins","vitória(s)"));
   add(tier(st.podiums,[[3,"Pódio Frequente"],[10,"Sempre no Topo"]],"🥇","pod","pódio(s)"));
@@ -1649,7 +1690,34 @@ function computeMedals(st){
   add(tier(archDistinct,[[5,"Colecionador"],[12,"Curador"],[20,"Enciclopédia"]],"🃏","arch","arquétipos"));
   add(tier(rareCount,[[1,"Sortudo"],[5,"Caçador de Raros"],[12,"Lapidador"]],"💎","rare","carta(s) rara(s)"));
   add(tier(Math.floor(st.bestScore),[[20,"Boa Cartada"],[35,"Tacada de Mestre"],[50,"Jogo Perfeito"]],"📊","best","pts num jogo"));
+  // NOVAS
+  add(tier(st.bestStreak||0,[[2,"Embalado"],[3,"Invicto"],[5,"Imparável"]],"🔥","streak","pódios seguidos"));
+  add(tier(st.zebraWins||0,[[1,"Zebra Master"],[3,"Rei da Zebra"]],"🦓","zebra","vitória(s) com zebra"));
+  add(tier(tacticsUsed,[[3,"Tático"],[5,"Estrategista"],[6,"Maestro da Tática"]],"🧠","tac","táticas usadas"));
+  if(st.capTotal>=4)add(tier(st.capRate,[[60,"Braçadeira de Ouro"],[80,"Capitão Certeiro"]],"🎖️","cap","% de acerto no capitão"));
+  if(st.games>=4)add(tier(Math.floor(st.avg),[[20,"Regularidade"],[30,"Consistente"],[40,"Máquina de Pontos"]],"📈","avg","pts de média"));
   return m;
+}
+// título/nível do usuário — evolui com experiência + resultados
+function userTitle(st){
+  // pontuação de XP: jogos + vitórias valem mais + pódios + variedade de cartas
+  const archDistinct=Object.keys(st.archetypes||{}).length;
+  const xp=st.games*10 + st.wins*25 + st.podiums*8 + archDistinct*3;
+  const niveis=[
+    [0,  "Novato",          "🥚"],
+    [40, "Escalador",       "📋"],
+    [90, "Treinador",       "📣"],
+    [160,"Tático",          "🧠"],
+    [260,"Estrategista",    "♟️"],
+    [400,"Mestre",          "🎩"],
+    [600,"Lenda",           "👑"],
+  ];
+  let cur=niveis[0],next=null;
+  for(let i=0;i<niveis.length;i++){
+    if(xp>=niveis[i][0]){cur=niveis[i];next=niveis[i+1]||null;}
+  }
+  const prog=next?Math.round((xp-cur[0])/(next[0]-cur[0])*100):100;
+  return {name:cur[1], emoji:cur[2], xp, next:next?{name:next[1],falta:next[0]-xp}:null, prog};
 }
 function openProfile(){go("profile");}
 function profileHTML(){
@@ -1657,12 +1725,21 @@ function profileHTML(){
   if(!st)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
   const medals=computeMedals(st);
   const archDistinct=Object.keys(st.archetypes).length;
-  const TOTAL_ARCH=26; // total de arquétipos possíveis no engine
+  const TOTAL_ARCH=31; // total de arquétipos possíveis no engine
   const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const tit=userTitle(st);
   let html=`<div class="card">
     <div class="h1 disp" style="color:var(--amber)">${esc(APP.user.username)}</div>
-    <p class="p" style="margin-bottom:4px">Conquistas no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
+    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px">
+      <span style="font-size:28px">${tit.emoji}</span>
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--chalk);font-size:17px">${tit.name}</div>
+        <div style="font-size:11px;color:var(--dim)">${tit.next?`faltam ${tit.next.falta} XP pra ${tit.next.name}`:"nível máximo!"} · ${tit.xp} XP</div>
+        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${tit.prog}%;background:var(--amber)"></div></div>
+      </div>
+    </div>
+    <p class="p" style="margin-bottom:0">Conquistas no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
   </div>`;
   // resumo em números
   html+=`<div class="card"><div class="h2 disp">Resumo</div>
@@ -1671,11 +1748,18 @@ function profileHTML(){
       ${statBox("🏆",st.wins,"vitórias")}
       ${statBox("🥇",st.podiums,"pódios")}
       ${statBox("📊",st.bestScore.toFixed(1),"recorde")}
+      ${statBox("📈",st.avg||0,"média/jogo")}
+      ${statBox("🎯",st.podiumRate+"%","pódio")}
       ${statBox("🃏",archDistinct+"/"+TOTAL_ARCH,"arquétipos")}
       ${statBox("💎",rareCount,"raros")}
+      ${statBox("🔥",st.bestStreak||0,"sequência")}
     </div>
     ${st.bestGame?`<p class="p" style="margin-top:10px">Sua melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
-    ${st.bestPlayer?`<p class="p" style="margin-top:4px">Jogador mais escalado: <b style="color:var(--amber)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação individual: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts em ${esc(st.bestPerf.game)}${st.bestPerf.cap?" (capitão)":""}.</p>`:""}
+    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito (mais pontos): <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts somados).</p>`:""}
+    ${st.bestPlayer?`<p class="p" style="margin-top:4px">📋 Mais escalado: <b style="color:var(--chalk)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b> (${st.topTactic.n}×).</p>`:""}
+    ${st.capTotal>=1?`<p class="p" style="margin-top:4px">🎖️ Capitão certeiro: <b style="color:var(--chalk)">${st.capRate}%</b> (acertou o melhor ${st.capHits}/${st.capTotal}).</p>`:""}
   </div>`;
   // medalhas
   html+=`<div class="card"><div class="h2 disp">Medalhas</div>`;
@@ -1740,14 +1824,25 @@ function memberHTML(){
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
   const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const medals=computeMedals(st);
+  const tit=userTitle(st);
+  // título/nível
+  html+=`<div class="card"><div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:26px">${tit.emoji}</span>
+    <div style="flex:1"><div style="font-weight:700;color:var(--chalk);font-size:16px">${tit.name}</div>
+    <div style="font-size:11px;color:var(--dim)">${tit.xp} XP</div>
+    <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${tit.prog}%;background:var(--amber)"></div></div></div>
+  </div></div>`;
   // resumo
   html+=`<div class="card"><div class="h2 disp">Resumo</div>
     <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
       ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
-      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("🃏",archDistinct+"/26","arquétipos")}${statBox("💎",rareCount,"raros")}
+      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("📈",st.avg||0,"média/jogo")}${statBox("🎯",st.podiumRate+"%","pódio")}
+      ${statBox("🃏",archDistinct+"/31","arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
     </div>
     ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
-    ${st.bestPlayer?`<p class="p" style="margin-top:4px">Jogador mais escalado: <b style="color:var(--amber)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts.</p>`:""}
+    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito: <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts).</p>`:""}
+    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b>.</p>`:""}
   </div>`;
   // medalhas
   if(medals.length)html+=`<div class="card"><div class="h2 disp">Medalhas</div><div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div></div>`;
