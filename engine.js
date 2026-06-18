@@ -94,6 +94,9 @@ function makeEngine(match){
     }
     const base={};
     for(const k of keys){ const arr=sums[k].sort((a,b)=>a-b); base[k]=arr[Math.floor(TACT_PCTL*(arr.length-1))]; }
+    // piso mínimo: evita que jogos de poucos eventos zerem o limiar (tática ativaria sempre)
+    const PISO={tklintClr:8,sotGoals:3,prgp:30,recovery:12,aerial:4,sot:3,dribPib:4,setPiece:3,longShot:2};
+    for(const k of keys){ if(base[k]<PISO[k]) base[k]=PISO[k]; }
     return base;
   }
   const MATCH_BASE = computeMatchBase();
