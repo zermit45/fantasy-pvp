@@ -1229,8 +1229,8 @@ function roundRankingHTML(){
     const g=window.GAMES.data[rr.room_id];
     const nome=g?g.prepool.home.name+" × "+g.prepool.away.name:rr.room_id;
     const finished=g&&g.match&&g.match.status==="finished";
-    // espiar libera se: jogo finalizado OU (jogo começou E o admin travou aquele jogo)
-    const started=finished||(roomTimeLocked(rr.room_id)&&roomAdminLocked(rr.room_id));
+    // espiar libera assim que o jogo começa (a escalação já trava sozinha no kickoff) ou finaliza
+    const started=roomTimeLocked(rr.room_id);
     let here=all.filter(e=>e.room_id===rr.room_id);
     // SELECIONE: só mostra quem TRAVOU este jogo (confirmed); não-travados são descartados
     if(mode==="select")here=here.filter(e=>e.confirmed===true);
@@ -1608,7 +1608,7 @@ function roomHTML(){
       ${!open&&!finished&&hasEntry()?`<button class="btn" onclick="go('build')">👀 Ver meu time escalado</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
-    ${!open&&!finished&&roomTimeLocked(APP.roomId)?peekTeamsHTML():""}
+    ${!finished&&roomTimeLocked(APP.roomId)?peekTeamsHTML():""}
     ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
       <div class="tag" style="margin-bottom:6px">ADMIN</div>
       ${open
@@ -1652,7 +1652,7 @@ function peekTeamsHTML(){
   const TAC=window.ENGINE_TACTICS;
   let html=`<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
     <div class="h2 disp">👀 Times dos membros</div>
-    <p class="p" style="margin:6px 0 10px">A pool fechou e o jogo começou — agora dá pra ver o que cada um escalou. As pontuações aparecem quando o jogo acabar.</p>`;
+    <p class="p" style="margin:6px 0 10px">O jogo começou — agora dá pra ver o que cada um escalou. As pontuações aparecem quando o jogo acabar.</p>`;
   if(!ents.length){html+=`<p class="p">Ninguém montou time neste jogo.</p></div>`;return html;}
   ents.forEach((e,i)=>{
     const open=_openPeek[i];
