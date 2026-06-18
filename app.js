@@ -600,9 +600,11 @@ function isConfirmed(roomId){const e=roundEntryOf(roomId);return e&&e.confirmed=
 function picksUsed(){return (APP.roundEntries||[]).filter(e=>e.confirmed===true).length;}
 function picksLeft(){return APP.round?Math.max(0,APP.round.pick_limit-picksUsed()):0;}
 // SELEÇÃO travada? Trava se o admin fechou manualmente OU o 1º jogo da pool começou (automático).
+// EXCEÇÃO admin: se o dev reabriu manualmente (picks_reopened), destrava mesmo após o kickoff.
 function picksLocked(){
-  if(APP.round&&APP.round.status&&APP.round.status!=="open")return true; // admin fechou
-  return boostLocked(); // 1º jogo da pool começou (mesma trava temporal do impulso)
+  if(APP.round&&APP.round.status&&APP.round.status!=="open")return true; // admin fechou manualmente
+  if(APP.round&&APP.round.picks_reopened===true)return false;            // admin reabriu (vence o tempo)
+  return boostLocked(); // 1º jogo da pool começou (trava automática por tempo)
 }
 // jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
 // trava por HORÁRIO (jogo começou) ou jogo finalizado — não inclui trava manual do admin
@@ -782,7 +784,10 @@ function delRoomFromRound(roomId){
 async function setRoundStatus(status){
   if(!isAdmin()||!APP.roundId)return;
   try{
-    await sbUpdate("rounds",{status},"id=eq."+APP.roundId);
+    // ao reabrir (open), marca picks_reopened pra vencer a trava automática do tempo;
+    // ao fechar (locked_picks), limpa a marca.
+    const patch={status, picks_reopened: status==="open"};
+    await sbUpdate("rounds",patch,"id=eq."+APP.roundId);
     await loadRound(APP.roundId);
     toast(status==="locked_picks"?"Seleção de jogos fechada.":"Seleção de jogos reaberta.");
     render();
