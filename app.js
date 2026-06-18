@@ -29,6 +29,7 @@ let APP={
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
   captain:null, tactic:null, tabTeam:"ALL", tabPos:"ALL", warn:"", showRules:false, confirm:null,
   entries:[],           // entries da sala (pro ranking)
+  members:null, memberView:null, memberProfile:null, memberHistory:null,
 };
 
 // ---------- Supabase REST helpers ----------
@@ -192,6 +193,33 @@ async function loadProfileStats(username){
   let top=null;for(const[name,n]of Object.entries(stats.players)){if(!top||n>top.n)top={name,n};}
   stats.bestPlayer=top;
   return stats;
+}
+// ── MEMBROS DO GRUPO ──
+async function loadGroupMembers(){
+  if(!SUPA.ready()||!APP.groupId)return [];
+  try{
+    const rows=await sb("group_members?group_id=eq."+APP.groupId+"&select=username");
+    // distintos
+    return [...new Set((rows||[]).map(r=>r.username))];
+  }catch(e){return [];}
+}
+// histórico de partidas que um membro jogou: time escalado + pontuação detalhada
+async function loadMemberHistory(username){
+  const out=[];
+  if(!SUPA.ready()||!APP.groupId)return out;
+  const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
+  for(const j of arq){
+    const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
+    let entries;
+    try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
+    catch(e){continue;}
+    if(!entries||!entries.length)continue;
+    const scored=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
+    const idx=scored.findIndex(s=>s.username===username);
+    if(idx<0)continue;
+    out.push({room_id:j.room_id,match_name:j.match_name,comp:j.comp,pos:idx+1,of:scored.length,entry:scored[idx],ctx});
+  }
+  return out;
 }
 // histórico de um atleta (quantas vezes teve cada arquétipo/selo) nos jogos arquivados.
 // casa por NOME normalizado: os IDs são locais de cada jogo e colidem entre partidas.
@@ -554,6 +582,10 @@ function homeHTML(){
   </div>
   ${roundsCardHTML()}
   ${resultsCardHTML()}
+  <div class="card" onclick="go('members')" style="cursor:pointer">
+    <div class="rhead" style="padding:0"><div class="nm disp" style="font-size:18px">👥 Membros do grupo</div><div class="tot mono" style="color:var(--dim);font-size:14px">›</div></div>
+    <p class="p" style="margin-top:6px">Veja quem está no grupo, o perfil de cada um e o histórico de times que escalaram.</p>
+  </div>
   ${isAdmin()&&naoAbertos.length?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · ABRIR JOGO NESTE GRUPO</div>
     <p class="p" style="margin-bottom:10px">Jogos do catálogo ainda não abertos aqui:</p>
@@ -1181,6 +1213,90 @@ function statBox(emoji,val,label){
     <div style="font-size:9px;letter-spacing:.1em;color:var(--dim);margin-top:2px;text-transform:uppercase">${label}</div>
   </div>`;
 }
+// ── LISTA DE MEMBROS DO GRUPO ──
+function membersHTML(){
+  const list=APP.members;
+  let html=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="h1 disp" style="color:var(--amber)">👥 Membros</div>
+      <div class="userchip" onclick="go('home')" style="cursor:pointer">← voltar</div>
+    </div>
+    <p class="p" style="margin-top:6px">Grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>. Toque num membro pra ver o perfil e o histórico de times.</p>
+  </div><div class="card">`;
+  if(!list)html+=`<div class="loading">Carregando membros…</div>`;
+  else if(!list.length)html+=`<p class="p">Nenhum membro encontrado.</p>`;
+  else html+=list.map(u=>{
+    const isMe=u===APP.user?.username;
+    return `<div class="rank${isMe?" me":""}" style="cursor:pointer" onclick="openMember('${encodeURIComponent(u)}')"><div class="po">👤</div><div class="nm">${esc(u)}${isMe?" <small>(você)</small>":""}</div><div class="pt mono" style="font-size:15px">›</div></div>`;
+  }).join("");
+  html+=`</div>`;
+  return html;
+}
+function openMember(encU){const u=decodeURIComponent(encU);go("member",null,null,u);}
+// ── PERFIL + HISTÓRICO DE UM MEMBRO ──
+function memberHTML(){
+  const u=APP.memberView;
+  const st=APP.memberProfile;
+  const hist=APP.memberHistory;
+  let html=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="h1 disp" style="color:var(--amber)">${esc(u||"")}</div>
+      <div class="userchip" onclick="go('members')" style="cursor:pointer">← membros</div>
+    </div>
+    <p class="p" style="margin-top:6px">Perfil no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
+  </div>`;
+  if(!st){html+=`<div class="card"><div class="loading">Calculando perfil…</div></div>`;return html;}
+  const archDistinct=Object.keys(st.archetypes).length;
+  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const medals=computeMedals(st);
+  // resumo
+  html+=`<div class="card"><div class="h2 disp">Resumo</div>
+    <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+      ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
+      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("🃏",archDistinct+"/26","arquétipos")}${statBox("💎",rareCount,"raros")}
+    </div>
+    ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
+    ${st.bestPlayer?`<p class="p" style="margin-top:4px">Jogador mais escalado: <b style="color:var(--amber)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+  </div>`;
+  // medalhas
+  if(medals.length)html+=`<div class="card"><div class="h2 disp">Medalhas</div><div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div></div>`;
+  // arquétipos
+  if(topArch.length){
+    html+=`<div class="card"><div class="h2 disp">Arquétipos mais frequentes</div><div style="margin-top:10px">`;
+    topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
+    html+=`</div></div>`;
+  }
+  // histórico de partidas com times escalados
+  html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
+  if(!hist)html+=`<div class="loading">Carregando histórico…</div>`;
+  else if(!hist.length)html+=`<p class="p" style="margin-top:8px">Este membro ainda não jogou nenhuma partida finalizada.</p>`;
+  else hist.forEach((h,hi)=>{
+    const open=_openMemberGame[hi];
+    const e=h.entry;
+    html+=`<div class="receipt"><div class="rhead" onclick="toggleMemberGame(${hi})">
+      <div class="sl mono" style="width:auto;color:var(--amber)">${h.pos}º/${h.of}</div>
+      <div class="nm">${esc(h.match_name)}<small>${esc(h.comp||"")} · cap ${SLOT_LABEL[e.captain]} · ${window.ENGINE_TACTICS[e.tactic]?.name||e.tactic||"—"}</small></div>
+      <div class="tot mono${e.total<0?" neg":""}">${e.total.toFixed(1)}</div></div>`;
+    if(open){
+      html+=`<div class="rbody">`;
+      e.view.filter(Boolean).forEach(v=>{
+        const pl=h.ctx.byId[v.pid];
+        const capTag=v.cap?` <span class="badgeC">C</span>`:"";
+        const subTag=v.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
+        const benchTag=v.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
+        html+=`<div class="line" style="padding:6px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}</span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  html+=`<button class="btn ghost" onclick="go('members')">← Voltar aos membros</button>`;
+  return html;
+}
+let _openMemberGame={};
+function toggleMemberGame(i){_openMemberGame[i]=!_openMemberGame[i];render();}
 function resultHTML(){
   const pp=APP.prepool,m=APP.match;
   if(!m||m.status!=="finished")return `<div class="card"><p class="p">O jogo ainda não foi finalizado.</p><button class="btn ghost" onclick="go('room')">← Voltar</button></div>`;
@@ -1326,6 +1442,8 @@ function render(){
   else if(APP.view==="build")panel=buildHTML();
   else if(APP.view==="result")panel=resultHTML();
   else if(APP.view==="profile")panel=profileHTML();
+  else if(APP.view==="members")panel=membersHTML();
+  else if(APP.view==="member")panel=memberHTML();
   root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
 }
 function topbarHTML(){
@@ -1374,7 +1492,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   const dm=localStorage_safe_get("fpvp_devmode");
   if(dm==="0")APP.devMode=false; else APP.devMode=true;
   // go central: carrega o que cada view precisa
-  window.go=async function(view,roomId,roundId){
+  window.go=async function(view,roomId,roundId,extra){
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
     if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();}
@@ -1383,6 +1501,12 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};}
     if(view==="profile"){APP.profile=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;}
+    if(view==="members"){APP.members=null;render();const ms=await loadGroupMembers();if(APP.view==="members")APP.members=ms;}
+    if(view==="member"){
+      APP.memberView=extra;APP.memberProfile=null;APP.memberHistory=null;_openMemberGame={};render();
+      const ps=await loadProfileStats(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberProfile=ps;render();
+      const h=await loadMemberHistory(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberHistory=h;
+    }
     render();window.scrollTo(0,0);
   };
   // tela inicial: grupos (se logado). carrega a lista antes.
