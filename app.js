@@ -62,6 +62,14 @@ async function sbUpdate(table,patch,filter){
 async function sbDelete(table,filter){
   return sb(`${table}?${filter}`,{method:"DELETE",headers:SUPA.headers()});
 }
+// Filtro COMPLETO e seguro pra uma entry do usuário atual num jogo+rodada específicos.
+// Sempre fixa room_id + group_id + username + round_id (tratando rodada avulsa = null),
+// pra nenhuma ação de uma rodada vazar pra outra. roundId opcional usa APP.roundId.
+function entryFilter(roomId,roundId){
+  const rid=(roundId!==undefined)?roundId:APP.roundId;
+  const base=`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&username=eq.${encodeURIComponent(APP.user.username)}`;
+  return base+(rid?`&round_id=eq.${rid}`:`&round_id=is.null`);
+}
 
 // ---------- GRUPOS ----------
 async function loadGroups(){
@@ -583,7 +591,7 @@ async function changeBoost(roomId,delta){
   if(next<0)next=0;
   if(delta>0&&boostLeft()<=0){toast("Você já gastou todos os seus tokens de impulso.");return;}
   try{
-    await sbUpdate("entries",{boost:next,confirmed:false,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await sbUpdate("entries",{boost:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
     await loadRound(APP.roundId);
     render();
   }catch(e2){toast("Erro: "+e2.message);}
@@ -622,7 +630,7 @@ async function unselectRoundGame(roomId){
   if(picksLocked()){toast("A seleção já foi fechada — não dá pra remover.");return;}
   if(roomLockedInRound(roomId)){toast("Este jogo já travou.");return;}
   try{
-    await sbDelete("entries",`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await sbDelete("entries",entryFilter(roomId));
     await loadRound(APP.roundId);
     toast("Seleção desfeita.");
     render();
@@ -643,7 +651,7 @@ async function toggleSelectLock(roomId){
     if(roomTimeLocked(roomId)){toast("O jogo já começou — trava definitiva.");return;}
   }
   try{
-    await sbUpdate("entries",{confirmed:willLock,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await sbUpdate("entries",{confirmed:willLock,updated_at:new Date().toISOString()},entryFilter(roomId));
     await loadRound(APP.roundId);
     toast(willLock?"Jogo travado — esse vale! (escalação ainda editável)":"Jogo destravado.");
     render();
@@ -652,7 +660,7 @@ async function toggleSelectLock(roomId){
 // FASE 2 — usuário confirma a equipe de um jogo (salva slots atuais + trava)
 async function confirmTeam(roomId){
   try{
-    await sbUpdate("entries",{slots:APP.slots,captain:APP.captain,tactic:APP.tactic,confirmed:true,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await sbUpdate("entries",{slots:APP.slots,captain:APP.captain,tactic:APP.tactic,confirmed:true,updated_at:new Date().toISOString()},entryFilter(roomId));
     await loadRound(APP.roundId);
     toast("Equipe confirmada! Esse time está travado.");
     go("round",null,APP.roundId);
