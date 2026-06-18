@@ -21,7 +21,7 @@ let APP={
   roomId:null,
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
-  rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundRanking:null,
+  rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundAllEntries:[], roundRanking:null,
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null,         // estatísticas do perfil (calculadas ao vivo)
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
@@ -289,7 +289,9 @@ async function loadRound(roundId){
     if(APP.user){
       APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,confirmed");
     }
-  }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
+    // entries de TODOS os membros nesta rodada (pra mostrar quem escolheu o quê / quem montou)
+    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,confirmed");
+  }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
 }
@@ -616,13 +618,46 @@ function resultsCardHTML(){
 function askArchive(roomId){APP.confirm={mode:"archive",roomId,label:"Arquivar jogo"};render();}
 // ranking acumulado da rodada (aparece quando há jogos finalizados)
 function roundRankingHTML(){
-  const rk=APP.roundRanking;
-  if(!rk||!rk.length)return"";
-  let html=`<div class="card"><div class="h2 disp">🏆 Classificação da rodada</div>
-    <p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta rodada.</p>`;
-  rk.forEach((u,i)=>{
-    const me=u.username===APP.user?.username;
-    html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+  const r=APP.round;if(!r)return"";
+  const selLocked=picksLocked();
+  const rk=APP.roundRanking||[];
+  const all=APP.roundAllEntries||[];
+  const TAC=window.ENGINE_TACTICS;
+  // quantos jogos da rodada já finalizaram
+  const finishedCount=APP.roundRooms.filter(rr=>{const g=window.GAMES.data[rr.room_id];return g&&g.match&&g.match.status==="finished";}).length;
+  let html="";
+  // ── CLASSIFICAÇÃO ──
+  html+=`<div class="card"><div class="h2 disp">🏆 Classificação da rodada</div>`;
+  if(rk.length){
+    html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}.</p>`;
+    rk.forEach((u,i)=>{
+      const me=u.username===APP.user?.username;
+      html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+    });
+  }else{
+    html+=`<p class="p">⏳ Aguardando os jogos escolhidos terminarem. A classificação aparece aqui conforme as partidas forem sendo apuradas.</p>`;
+  }
+  html+=`</div>`;
+  // ── PARTICIPANTES: quem escolheu cada jogo / quem já montou ──
+  html+=`<div class="card"><div class="h2 disp">👥 Quem está disputando</div>`;
+  if(!all.length){
+    html+=`<p class="p" style="margin-top:6px">Ninguém escolheu jogos nesta rodada ainda.</p></div>`;
+    return html;
+  }
+  // agrupar por jogo
+  APP.roundRooms.forEach(rr=>{
+    const g=window.GAMES.data[rr.room_id];
+    const nome=g?g.prepool.home.name+" × "+g.prepool.away.name:rr.room_id;
+    const here=all.filter(e=>e.room_id===rr.room_id);
+    if(!here.length)return;
+    html+=`<div style="margin-top:10px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)}</div>`;
+    here.forEach(e=>{
+      const me=e.username===APP.user?.username;
+      const montou=e.slots&&Object.values(e.slots).some(Boolean);
+      const status=e.confirmed?`<span style="color:var(--green);font-size:10px">✓ confirmado</span>`:montou?`<span style="color:var(--amber);font-size:10px">escalado</span>`:`<span style="color:var(--dim);font-size:10px">só escolheu</span>`;
+      html+=`<div class="line" style="padding:4px 0"><span style="${me?"color:var(--amber);font-weight:700":""}">${esc(e.username)}${me?" (você)":""}</span>${status}</div>`;
+    });
+    html+=`</div>`;
   });
   html+=`</div>`;
   return html;
