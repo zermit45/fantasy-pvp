@@ -22,6 +22,8 @@ let APP={
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundAllEntries:[], roundRanking:null,
+  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table",
+  phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null,         // estatísticas do perfil (calculadas ao vivo)
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
@@ -279,6 +281,96 @@ async function loadRounds(){
   try{APP.rounds=await sb("rounds?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
   catch(e){APP.rounds=[];}
 }
+// ── LIGAS (nível 1) > RODADAS/phases (nível 2) > MINI RODADAS/rounds (nível 3) ──
+const TABLE_POINTS=[10,7,5,3]; // 1º=10, 2º=7, 3º=5, 4º=3, resto=1
+function tablePointsFor(pos){return pos<=TABLE_POINTS.length?TABLE_POINTS[pos-1]:1;}
+async function loadLeagues(){
+  if(!APP.groupId)return;
+  try{APP.leagues=await sb("leagues?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
+  catch(e){APP.leagues=[];}
+}
+async function loadPhases(){
+  if(!APP.groupId)return;
+  try{APP.phases=await sb("phases?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
+  catch(e){APP.phases=[];}
+}
+async function createLeague(name){
+  const rows=await sbInsert("leagues",{group_id:APP.groupId,name});
+  await loadLeagues();
+  toast("Liga criada!");
+  if(rows&&rows[0])enterLeague(rows[0].id); else render();
+}
+async function createPhase(name,leagueId){
+  const rows=await sbInsert("phases",{group_id:APP.groupId,name,league_id:leagueId||null});
+  await loadPhases();
+  toast("Rodada criada!");
+  render();
+  return rows&&rows[0]?rows[0].id:null;
+}
+function enterLeague(leagueId){go("league",null,null,null,leagueId);}
+function leaveLeague(){APP.leagueId=null;APP.league=null;APP.view="home";render();window.scrollTo(0,0);}
+function enterPhase(phaseId){go("phase",null,null,null,null,phaseId);}
+function leavePhase(){APP.phaseId=null;APP.phase=null;APP.view="home";render();window.scrollTo(0,0);}
+async function loadLeague(leagueId){
+  APP.leagueId=leagueId;
+  try{
+    const ls=await sb("leagues?id=eq."+leagueId+"&select=*");
+    APP.league=ls&&ls[0]?ls[0]:null;
+    APP.leaguePhases=await sb("phases?league_id=eq."+leagueId+"&group_id=eq."+APP.groupId+"&select=*&order=created_at");
+  }catch(e){APP.league=null;APP.leaguePhases=[];}
+  APP.leagueStanding=await computeLeagueStanding(leagueId);
+}
+async function loadPhase(phaseId){
+  APP.phaseId=phaseId;
+  try{
+    const ps=await sb("phases?id=eq."+phaseId+"&select=*");
+    APP.phase=ps&&ps[0]?ps[0]:null;
+    // mini rodadas (rounds) desta rodada (phase)
+    APP.phaseRounds=await sb("rounds?phase_id=eq."+phaseId+"&group_id=eq."+APP.groupId+"&select=*&order=created_at");
+  }catch(e){APP.phase=null;APP.phaseRounds=[];}
+  APP.phaseStanding=await computePhaseStanding(phaseId);
+}
+// soma de pontos de uma MINI RODADA → retorna {username:{classic,table}} (Opção B)
+async function miniRoundPoints(roundId){
+  const out={};
+  const rk=await computeRoundRanking(roundId); // [{username,total,games}] ordenado desc
+  rk.forEach((u,idx)=>{out[u.username]={classic:u.total,table:tablePointsFor(idx+1)};});
+  return out;
+}
+// classificação de uma RODADA (phase): soma as mini rodadas dela (Opção B)
+async function computePhaseStanding(phaseId){
+  const out={};
+  try{
+    const rounds=APP.phaseRounds||[];
+    for(const rd of rounds){
+      const pts=await miniRoundPoints(rd.id);
+      for(const [user,p] of Object.entries(pts)){
+        if(!out[user])out[user]={username:user,classic:0,table:0,roundsPlayed:0};
+        out[user].classic+=p.classic;out[user].table+=p.table;out[user].roundsPlayed++;
+      }
+    }
+  }catch(e){}
+  return Object.values(out).map(u=>({...u,classic:Math.round(u.classic*10)/10}));
+}
+// classificação da LIGA: soma todas as rodadas (phases) da liga, que por sua vez somam mini rodadas (Opção B)
+async function computeLeagueStanding(leagueId){
+  const out={};
+  try{
+    const phases=APP.leaguePhases||[];
+    for(const ph of phases){
+      // mini rodadas desta phase
+      const rounds=await sb("rounds?phase_id=eq."+ph.id+"&group_id=eq."+APP.groupId+"&select=id");
+      for(const rd of (rounds||[])){
+        const pts=await miniRoundPoints(rd.id);
+        for(const [user,p] of Object.entries(pts)){
+          if(!out[user])out[user]={username:user,classic:0,table:0,roundsPlayed:0};
+          out[user].classic+=p.classic;out[user].table+=p.table;out[user].roundsPlayed++;
+        }
+      }
+    }
+  }catch(e){}
+  return Object.values(out).map(u=>({...u,classic:Math.round(u.classic*10)/10}));
+}
 async function loadRound(roundId){
   APP.roundId=roundId;
   try{
@@ -379,10 +471,10 @@ async function setRoundRoomStatus(roomId,status){
   }catch(e){toast("Erro: "+e.message);}
 }
 // admin: criar rodada
-async function createRound(name,limit){
-  const rows=await sbInsert("rounds",{group_id:APP.groupId,name,pick_limit:limit,status:"open"});
+async function createRound(name,limit,phaseId){
+  const rows=await sbInsert("rounds",{group_id:APP.groupId,name,pick_limit:limit,status:"open",phase_id:phaseId||null});
   await loadRounds();
-  toast("Rodada criada!");
+  toast("Mini rodada criada!");
   if(rows&&rows[0]){enterRound(rows[0].id);}else render();
 }
 async function addRoomToRound(roomId){
@@ -583,6 +675,8 @@ function homeHTML(){
     ${rows||'<p class="p">Nenhum jogo aberto neste grupo ainda.</p>'}
   </div>
   ${roundsCardHTML()}
+  ${phasesCardHTML()}
+  ${leaguesCardHTML()}
   ${resultsCardHTML()}
   <div class="card" onclick="go('members')" style="cursor:pointer">
     <div class="rhead" style="padding:0"><div class="nm disp" style="font-size:18px">👥 Membros do grupo</div><div class="tot mono" style="color:var(--dim);font-size:14px">›</div></div>
@@ -627,9 +721,9 @@ function roundRankingHTML(){
   const finishedCount=APP.roundRooms.filter(rr=>{const g=window.GAMES.data[rr.room_id];return g&&g.match&&g.match.status==="finished";}).length;
   let html="";
   // ── CLASSIFICAÇÃO ──
-  html+=`<div class="card"><div class="h2 disp">🏆 Classificação da rodada</div>`;
+  html+=`<div class="card"><div class="h2 disp">🏆 Classificação da mini rodada</div>`;
   if(rk.length){
-    html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}.</p>`;
+    html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta mini rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}.</p>`;
     rk.forEach((u,i)=>{
       const me=u.username===APP.user?.username;
       html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
@@ -664,9 +758,10 @@ function roundRankingHTML(){
 }
 
 
-// ----- RODADAS: card na home -----
+// ----- MINI RODADAS: card na home (só as avulsas, sem phase) -----
 function roundsCardHTML(){
-  const rows=APP.rounds.map(r=>{
+  const avulsas=APP.rounds.filter(r=>!r.phase_id);
+  const rows=avulsas.map(r=>{
     const pill=r.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>';
     return `<div class="roomrow" onclick="enterRound('${r.id}')">
       <div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div>
@@ -674,15 +769,161 @@ function roundsCardHTML(){
       ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
     </div>`;
   }).join("");
-  if(!APP.rounds.length&&!isAdmin())return"";
+  if(!avulsas.length&&!isAdmin())return"";
   return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--mid)">RODADAS · ESCOLHA SEUS JOGOS</div>
-    <p class="p" style="margin-bottom:10px">Numa rodada você escolhe poucos jogos pra entrar. Acertar os jogos certos é a estratégia.</p>
-    ${rows||'<p class="p">Nenhuma rodada ainda.</p>'}
-    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateRound()">+ Criar rodada</button>`:""}
+    <div class="tag" style="margin-bottom:6px;color:var(--mid)">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS</div>
+    <p class="p" style="margin-bottom:10px">Mini rodada solta (fora de liga): escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia.</p>
+    ${rows||'<p class="p">Nenhuma mini rodada avulsa.</p>'}
+    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
   </div>`;
 }
-function askCreateRound(){APP.confirm={mode:"createRound",label:"Criar rodada"};render();}
+function askCreateRound(){APP.confirm={mode:"createRound",label:"Criar mini rodada"};render();}
+
+// ----- RODADAS (phases) avulsas: card na home -----
+function phasesCardHTML(){
+  const avulsas=(APP.phases||[]).filter(p=>!p.league_id);
+  if(!avulsas.length&&!isAdmin())return"";
+  const rows=avulsas.map(p=>`<div class="roomrow" onclick="enterPhase('${p.id}')">
+    <div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">rodada · toque pra ver mini rodadas</div></div>
+    <span class="statuspill st-finished">VER</span>
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeletePhase('${p.id}')">🗑</button>`:""}
+  </div>`).join("");
+  return `<div class="card">
+    <div class="tag" style="margin-bottom:6px;color:var(--mid)">RODADAS AVULSAS</div>
+    <p class="p" style="margin-bottom:10px">Uma rodada (ex: "Fase de Grupos") agrupa várias mini rodadas. Fora de liga.</p>
+    ${rows||'<p class="p">Nenhuma rodada avulsa.</p>'}
+    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreatePhase(null)">+ Criar rodada avulsa</button>`:""}
+  </div>`;
+}
+function askDeletePhase(id){APP.confirm={mode:"deletePhase",phaseId:id,label:"Excluir rodada"};render();}
+
+// ----- LIGAS: card na home -----
+function leaguesCardHTML(){
+  const rows=(APP.leagues||[]).map(l=>{
+    const nPh=(APP.phases||[]).filter(p=>p.league_id===l.id).length;
+    return `<div class="roomrow" onclick="enterLeague('${l.id}')">
+      <div class="info"><div class="nm">🏆 ${esc(l.name)}</div><div class="meta">${nPh} rodada${nPh!==1?"s":""} · classificação geral</div></div>
+      <span class="statuspill st-finished">VER</span>
+      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteLeague('${l.id}')">🗑</button>`:""}
+    </div>`;
+  }).join("");
+  if(!(APP.leagues||[]).length&&!isAdmin())return"";
+  return `<div class="card">
+    <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA</div>
+    <p class="p" style="margin-bottom:10px">Uma liga junta várias rodadas numa classificação geral. Dois rankings: pontos de tabela (10/7/5/3/1 por colocação) e pontuação clássica acumulada.</p>
+    ${rows||'<p class="p">Nenhuma liga ainda.</p>'}
+    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
+  </div>`;
+}
+function askCreateLeague(){APP.confirm={mode:"createLeague",label:"Criar liga"};render();}
+function askDeleteLeague(id){APP.confirm={mode:"deleteLeague",leagueId:id,label:"Excluir liga"};render();}
+// ----- LIGAS: tela de uma liga -----
+function leagueHTML(){
+  const l=APP.league;
+  if(!l)return `<div class="card"><div class="loading">Carregando liga…</div></div>`;
+  const st=APP.leagueStanding;
+  const tab=APP.leagueTab||"table";
+  const phases=APP.leaguePhases||[];
+  const fora=(APP.phases||[]).filter(p=>!p.league_id);
+  let html=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="h1 disp" style="color:var(--amber)">🏆 ${esc(l.name)}</div>
+      <div class="userchip" onclick="leaveLeague()" style="cursor:pointer">← voltar</div>
+    </div>
+    <p class="p" style="margin-top:6px">${phases.length} rodada${phases.length!==1?"s":""} nesta liga.</p>
+  </div>`;
+  html+=standingCardHTML(st,tab,"setLeagueTab","liga");
+  // rodadas (phases) da liga
+  html+=`<div class="card"><div class="h2 disp">Rodadas desta liga</div>`;
+  if(!phases.length)html+=`<p class="p" style="margin-top:6px">Nenhuma rodada vinculada ainda.</p>`;
+  else phases.forEach(p=>{
+    const nMini=(APP.phases===phases?0:0); // placeholder
+    html+=`<div class="roomrow" onclick="enterPhase('${p.id}')"><div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">toque pra ver as mini rodadas</div></div><span class="statuspill st-finished">VER</span></div>`;
+  });
+  html+=`</div>`;
+  if(isAdmin()){
+    html+=`<div class="card"><div class="tag" style="margin-bottom:6px">ADMIN · RODADAS</div>
+      <button class="btn" style="margin-bottom:10px" onclick="askCreatePhase('${l.id}')">+ Criar rodada nesta liga</button>`;
+    if(fora.length){
+      html+=`<p class="p" style="margin-bottom:8px">Rodadas avulsas (sem liga) — toque pra adicionar:</p>`;
+      fora.forEach(p=>{html+=`<div class="roomrow" onclick="addPhaseToLeague('${p.id}')"><div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">adicionar a esta liga</div></div><span class="statuspill st-closed">+ ADD</span></div>`;});
+    }
+    html+=`</div>`;
+  }
+  html+=`<button class="btn ghost" onclick="leaveLeague()">← Voltar</button>`;
+  return html;
+}
+// tela de uma RODADA (phase): classificação + suas mini rodadas
+function phaseHTML(){
+  const ph=APP.phase;
+  if(!ph)return `<div class="card"><div class="loading">Carregando rodada…</div></div>`;
+  const st=APP.phaseStanding;
+  const tab=APP.phaseTab||"table";
+  const minis=APP.phaseRounds||[];
+  const fora=(APP.rounds||[]).filter(r=>!r.phase_id);
+  let html=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="h1 disp" style="color:var(--amber)">${esc(ph.name)}</div>
+      <div class="userchip" onclick="${ph.league_id?`enterLeague('${ph.league_id}')`:"go('home')"}" style="cursor:pointer">← voltar</div>
+    </div>
+    <p class="p" style="margin-top:6px">${minis.length} mini rodada${minis.length!==1?"s":""} nesta rodada.</p>
+  </div>`;
+  html+=standingCardHTML(st,tab,"setPhaseTab","rodada");
+  // mini rodadas (rounds) desta phase
+  html+=`<div class="card"><div class="h2 disp">Mini rodadas</div>`;
+  if(!minis.length)html+=`<p class="p" style="margin-top:6px">Nenhuma mini rodada ainda.</p>`;
+  else minis.forEach(r=>{
+    html+=`<div class="roomrow" onclick="enterRound('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div><span class="statuspill ${r.status==="open"?"st-open":"st-closed"}">${r.status==="open"?"ABERTA":"FECHADA"}</span></div>`;
+  });
+  html+=`</div>`;
+  if(isAdmin()){
+    html+=`<div class="card"><div class="tag" style="margin-bottom:6px">ADMIN · MINI RODADAS</div>
+      <button class="btn" style="margin-bottom:10px" onclick="askCreateRoundInPhase('${ph.id}')">+ Criar mini rodada aqui</button>`;
+    if(fora.length){
+      html+=`<p class="p" style="margin-bottom:8px">Mini rodadas avulsas — toque pra adicionar:</p>`;
+      fora.forEach(r=>{html+=`<div class="roomrow" onclick="addRoundToPhase('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">adicionar a esta rodada</div></div><span class="statuspill st-closed">+ ADD</span></div>`;});
+    }
+    html+=`</div>`;
+  }
+  html+=`<button class="btn ghost" onclick="${ph.league_id?`enterLeague('${ph.league_id}')`:"go('home')"}">← Voltar</button>`;
+  return html;
+}
+// card de classificação reutilizável (liga ou phase)
+function standingCardHTML(st,tab,tabFn,nivel){
+  let html=`<div class="card"><div class="postabs" style="margin-bottom:12px">
+    <div class="ptab${tab==="table"?" on":""}" onclick="${tabFn}('table')">🏁 Pontos de tabela</div>
+    <div class="ptab${tab==="classic"?" on":""}" onclick="${tabFn}('classic')">📊 Pontuação clássica</div>
+  </div>`;
+  if(!st){html+=`<div class="loading">Calculando…</div></div>`;return html;}
+  if(!st.length){
+    html+=`<p class="p">⏳ Ainda não há resultados. A classificação da ${nivel} aparece conforme as mini rodadas forem apuradas.</p></div>`;
+    return html;
+  }
+  const sorted=[...st].sort((a,b)=>tab==="table"?(b.table-a.table||b.classic-a.classic):(b.classic-a.classic));
+  html+=`<p class="p" style="margin-bottom:10px">${tab==="table"?"Soma dos pontos de tabela (colocação em cada mini rodada).":"Soma da pontuação de fantasy em todas as mini rodadas."}</p>`;
+  sorted.forEach((u,i)=>{
+    const me=u.username===APP.user?.username;
+    const val=tab==="table"?u.table:u.classic.toFixed(1);
+    const sub=tab==="table"?`${u.classic.toFixed(1)} pts clássicos · ${u.roundsPlayed} mini`:`${u.table} pts de tabela · ${u.roundsPlayed} mini`;
+    html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${sub}</small></div><div class="pt mono">${val}</div></div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
+function setLeagueTab(t){APP.leagueTab=t;render();}
+function setPhaseTab(t){APP.phaseTab=t;render();}
+function askCreatePhase(leagueId){APP.confirm={mode:"createPhase",leagueId,label:"Criar rodada"};render();}
+function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",phaseId,label:"Criar mini rodada"};render();}
+async function addPhaseToLeague(phaseId){
+  if(!isAdmin())return;
+  try{await sbUpdate("phases",{league_id:APP.leagueId},`id=eq.${phaseId}`);await loadPhases();await loadLeague(APP.leagueId);toast("Rodada adicionada à liga.");render();}
+  catch(e){toast("Erro: "+e.message);}
+}
+async function addRoundToPhase(roundId){
+  if(!isAdmin())return;
+  try{await sbUpdate("rounds",{phase_id:APP.phaseId},`id=eq.${roundId}`);await loadRounds();await loadPhase(APP.phaseId);toast("Mini rodada adicionada à rodada.");render();}
+  catch(e){toast("Erro: "+e.message);}
+}
 
 // ----- RODADAS: tela de uma rodada -----
 function roundHTML(){
@@ -723,7 +964,7 @@ function roundHTML(){
       const devLocked=rr&&rr.status&&rr.status!=="open";
       devBlock=`<div style="display:flex;gap:10px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line)">
         <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:17px;opacity:${devLocked?"1":".55"}" title="${devLocked?"Liberar escalação (todos)":"Travar escalação (todos)"}">${devLocked?"🔓":"🔒"}</span>
-        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:16px;opacity:.5" title="Remover jogo da rodada">🗑</span>
+        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:16px;opacity:.5" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
     return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="${clickable||finished?"":"cursor:default"}">
@@ -733,7 +974,7 @@ function roundHTML(){
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
   const foraRows=fora.map(j=>`<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
-    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para adicionar à rodada</div></div>
+    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para adicionar à mini rodada</div></div>
     <span class="statuspill st-closed">+ ADD</span></div>`).join("");
   return `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -752,7 +993,7 @@ function roundHTML(){
     ${selLocked
       ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
       : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`}
-    ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À RODADA</div>${foraRows}`:""}
+    ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${foraRows}`:""}
   </div>`:""}`;
 }
 
@@ -888,11 +1129,47 @@ function confirmModalHTML(){
     const poolMax=(APP.jogos||[]).length;
     const defLimit=Math.min(3,poolMax||3);
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Criar rodada</div>
+      <div class="h2 disp" style="color:var(--amber)">Criar mini rodada</div>
       <p class="p" style="margin:10px 0">Dê um nome e quantos jogos cada um pode escolher.${poolMax?` Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).`:""}</p>
-      <input id="rndName" class="input" placeholder="Nome (ex: Rodada 1)" autocorrect="off" />
+      <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" />
       <input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />
-      <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar rodada</button>
+      <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createPhase"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar rodada</div>
+      <p class="p" style="margin:10px 0">Uma rodada (ex: "Fase de Grupos") agrupa várias mini rodadas. Você cria as mini rodadas depois, dentro dela.</p>
+      <input id="phName" class="input" placeholder="Nome (ex: Fase de Grupos)" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitCreatePhase()">Criar rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createLeague"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar liga</div>
+      <p class="p" style="margin:10px 0">Uma liga agrupa várias rodadas numa classificação geral (pontos de tabela + pontuação clássica). Você adiciona as rodadas depois, dentro da liga.</p>
+      <input id="lgName" class="input" placeholder="Nome (ex: Liga Copa 2026)" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitCreateLeague()">Criar liga</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="deletePhase"){
+    const p=(APP.phases||[]).find(x=>x.id===c.phaseId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--red)">Excluir rodada</div>
+      <p class="p" style="margin:10px 0">Excluir <b style="color:var(--chalk)">${esc(p?p.name:"")}</b>? As mini rodadas dela <b>não</b> são apagadas — voltam a ser avulsas. Times e pontuações continuam intactos.</p>
+      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="closeConfirm();deletePhase('${c.phaseId}')">🗑 Excluir rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="deleteLeague"){
+    const l=(APP.leagues||[]).find(x=>x.id===c.leagueId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--red)">Excluir liga</div>
+      <p class="p" style="margin:10px 0">Excluir <b style="color:var(--chalk)">${esc(l?l.name:"")}</b>? As rodadas dela <b>não</b> são apagadas — apenas voltam a ser avulsas. Os times e pontuações continuam intactos.</p>
+      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="closeConfirm();deleteLeague('${c.leagueId}')">🗑 Excluir liga</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
@@ -933,10 +1210,46 @@ function submitCreateRound(){
   const name=n?n.value.trim():"";
   let limit=l?parseInt(l.value,10):3;
   const poolMax=(APP.jogos||[]).length;
-  if(!name){toast("Dê um nome à rodada.");return;}
+  if(!name){toast("Dê um nome à mini rodada.");return;}
   if(!limit||limit<1)limit=1;
   if(poolMax>0&&limit>poolMax){toast("Só há "+poolMax+" jogo(s) no catálogo. Escolha no máximo "+poolMax+".");return;}
-  APP.confirm=null;createRound(name,limit).catch(e=>toast("Erro: "+e.message));
+  const phaseId=APP.confirm&&APP.confirm.phaseId?APP.confirm.phaseId:null;
+  APP.confirm=null;createRound(name,limit,phaseId).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreatePhase(){
+  const n=$("phName");
+  const name=n?n.value.trim():"";
+  if(!name){toast("Dê um nome à rodada.");return;}
+  const leagueId=APP.confirm&&APP.confirm.leagueId?APP.confirm.leagueId:null;
+  APP.confirm=null;createPhase(name,leagueId).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreateLeague(){
+  const n=$("lgName");
+  const name=n?n.value.trim():"";
+  if(!name){toast("Dê um nome à liga.");return;}
+  APP.confirm=null;createLeague(name).catch(e=>toast("Erro: "+e.message));
+}
+async function deleteLeague(id){
+  if(!isAdmin())return;
+  try{
+    await sbUpdate("phases",{league_id:null},`league_id=eq.${id}`);
+    await sbDelete("leagues",`id=eq.${id}`);
+    await loadPhases();await loadLeagues();
+    APP.leagueId=null;APP.league=null;APP.view="home";
+    toast("Liga excluída. As rodadas voltaram a ser avulsas.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+async function deletePhase(id){
+  if(!isAdmin())return;
+  try{
+    await sbUpdate("rounds",{phase_id:null},`phase_id=eq.${id}`);
+    await sbDelete("phases",`id=eq.${id}`);
+    await loadRounds();await loadPhases();
+    APP.phaseId=null;APP.phase=null;APP.view="home";
+    toast("Rodada excluída. As mini rodadas voltaram a ser avulsas.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
 }
 function submitJoin(){
   const c=APP.confirm;const f=$("joinPass");
@@ -1098,7 +1411,7 @@ function setTabPos(t){APP.tabPos=t;render();}
 
 async function saveEntry(){
   if(!SUPA.ready()){toast("Supabase não configurado.");return;}
-  // está numa rodada? (roundId setado e este jogo pertence à rodada)
+  // está numa rodada? (roundId setado e este jogo pertence à mini rodada)
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   try{
     if(inRound){
@@ -1418,7 +1731,7 @@ function resultHTML(){
     const arq=isArchived(APP.roomId);
     html+=`<button class="btn ghost" style="border-color:${arq?"var(--green)":"var(--amber)"};color:${arq?"var(--green)":"var(--amber)"};margin-bottom:10px" onclick="${arq?`unarchiveGame('${APP.roomId}')`:`askArchive('${APP.roomId}')`}">${arq?"♻️ Desarquivar partida":"📥 Arquivar partida (mandar pro histórico)"}</button>`;
   }
-  html+=`<button class="btn ghost" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}">← Voltar${inRound?" à rodada":" às salas"}</button>`;
+  html+=`<button class="btn ghost" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}">← Voltar${inRound?" à mini rodada":" às salas"}</button>`;
   return html;
 }
 let _openBaseAll=false;
@@ -1515,6 +1828,8 @@ function render(){
   else if(APP.view==="profile")panel=profileHTML();
   else if(APP.view==="members")panel=membersHTML();
   else if(APP.view==="member")panel=memberHTML();
+  else if(APP.view==="league")panel=leagueHTML();
+  else if(APP.view==="phase")panel=phaseHTML();
   root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
 }
 function topbarHTML(){
@@ -1563,11 +1878,13 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   const dm=localStorage_safe_get("fpvp_devmode");
   if(dm==="0")APP.devMode=false; else APP.devMode=true;
   // go central: carrega o que cada view precisa
-  window.go=async function(view,roomId,roundId,extra){
+  window.go=async function(view,roomId,roundId,extra,leagueId,phaseId){
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
-    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();}
+    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();}
     if(view==="round"){await loadRound(roundId);}
+    if(view==="league"){await loadLeague(leagueId);}
+    if(view==="phase"){await loadPhase(phaseId);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="room"){APP.entries=await loadEntries();_openPeek={};}
