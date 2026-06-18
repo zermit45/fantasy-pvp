@@ -1194,6 +1194,11 @@ function resultHTML(){
     html+=baseAllHTML(eng);
   }
   html+=`</div>`;
+  // admin: arquivar/desarquivar a partida
+  if(isAdmin()){
+    const arq=isArchived(APP.roomId);
+    html+=`<button class="btn ghost" style="border-color:${arq?"var(--green)":"var(--amber)"};color:${arq?"var(--green)":"var(--amber)"};margin-bottom:10px" onclick="${arq?`unarchiveGame('${APP.roomId}')`:`askArchive('${APP.roomId}')`}">${arq?"♻️ Desarquivar partida":"📥 Arquivar partida (mandar pro histórico)"}</button>`;
+  }
   html+=`<button class="btn ghost" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}">← Voltar${inRound?" à rodada":" às salas"}</button>`;
   return html;
 }
@@ -1205,13 +1210,33 @@ function baseAllHTML(eng){
     const st=m.players[String(meta.id)];
     if(!st||!st.min)return null; // só quem jogou
     const r=eng.scorePlayer(Object.assign({pos:meta.pos},st),null,null);
-    return {name:meta.name,team:meta.team,pos:meta.pos,pts:r.total,min:r.minutes};
+    return {meta,r,name:meta.name,team:meta.team,pos:meta.pos,pts:r.total,min:r.minutes};
   }).filter(Boolean).sort((a,b)=>b.pts-a.pts);
   if(!rows.length)return `<p class="p">Sem dados de jogadores.</p>`;
-  return `<div class="pool" style="max-height:none">`+rows.map(r=>
-    `<div class="prow" style="cursor:default"><div class="posbar pb-${r.pos}"></div><div class="pos mono pc-${r.pos}">${SLOT_LABEL[r.pos]}</div><div class="nm">${esc(r.name)}<span class="teamtag" style="--tc:${teamColor(r.team)};margin-left:6px">${r.team}</span> <span class="age">${r.min}'</span></div><div class="pr mono" style="color:${r.pts>0?"var(--green)":r.pts<0?"var(--red)":"var(--dim)"}">${r.pts>0?"+":""}${r.pts.toFixed(1)}</div></div>`
-  ).join("")+`</div>`;
+  return rows.map((row,i)=>{
+    const open=_openBase[i];
+    const r=row.r;
+    let body="";
+    if(open){
+      body=`<div class="rbody">
+        <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 Estatísticas · ${r.minutes}' em campo</div>
+        ${r.statLines.length===0?`<div class="line"><span>Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`:""}
+        ${r.statLines.map(([l,c,u,pts])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
+        ${r.lines.length?`<div class="bsub">⚙️ Modificadores (dificuldade, contexto, DvG, performance)</div>`:""}
+        ${r.lines.map(([k,val])=>`<div class="line"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+        <div class="line total"><span>NOTA BASE</span><span class="v mono">${r.total.toFixed(1)}</span></div>
+        ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
+        <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>
+      </div>`;
+    }
+    return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
+      <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
+      <div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
+      <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div>${body}</div>`;
+  }).join("");
 }
+let _openBase={};
+function toggleBase(i){_openBase[i]=!_openBase[i];render();}
 let _openRec={};
 let _openRank={};
 function toggleRank(i){_openRank[i]=!_openRank[i];render();}
