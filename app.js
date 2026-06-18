@@ -1379,6 +1379,7 @@ function buildHTML(){
     ${tabsHTML}
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
+    ${!gameLocked?`<button class="btn ghost" style="margin-top:12px;border-color:var(--blue);color:var(--blue)" onclick="copyLineupFromOther()">📋 Copiar escalação que fiz neste mesmo jogo</button>`:""}
     ${gameLocked
       ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 Esta escalação está travada (confirmada ou jogo começou). Não dá mais pra editar.</div>
          <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
@@ -1391,6 +1392,29 @@ function buildHTML(){
 }
 function askConfirmTeam(){
   APP.confirm={mode:"confirmTeam",roomId:APP.roomId,label:"Confirmar equipe"};render();
+}
+// copia a escalação que o usuário fez neste MESMO jogo no outro contexto
+// (se estou montando numa mini rodada, busca a avulsa; se avulsa, busca de mini rodadas)
+async function copyLineupFromOther(){
+  if(!SUPA.ready())return;
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  try{
+    let es=[];
+    if(inRound){
+      // busca a entry avulsa (round_id null) do mesmo jogo
+      es=await sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&round_id=is.null&select=slots,captain,tactic");
+    }else{
+      // avulso: busca qualquer entry minha do mesmo jogo em alguma mini rodada (a mais recente com time)
+      es=await sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&round_id=not.is.null&select=slots,captain,tactic,updated_at&order=updated_at.desc");
+    }
+    const src=(es||[]).find(e=>e.slots&&Object.values(e.slots).some(Boolean));
+    if(!src){toast(inRound?"Você não montou este jogo na versão avulsa.":"Você não montou este jogo em nenhuma mini rodada.");return;}
+    APP.slots=Object.assign({GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},src.slots);
+    APP.captain=src.captain||null;
+    APP.tactic=src.tactic||null;
+    toast("Escalação copiada! Revise e salve.");
+    render();
+  }catch(e){toast("Erro ao copiar: "+e.message);}
 }
 function place(pid){
   const byId=APP._byId,p=byId[pid],s=APP.slots,used=Object.values(s).filter(Boolean);APP.warn="";
