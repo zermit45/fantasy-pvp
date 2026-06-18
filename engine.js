@@ -8,7 +8,7 @@ const BASE = { goal:2, assist:1.5, sot:.6, dribble:.35, prgp:.12, pib:.35, tib:.
   tklint:.9, block:.9, recovery:.22, aerial:.22, clearance:.1,
   save:.7, penSave:4.5, opa:.85, crossStop:.45, accCross:.2, inaccCross:-.08,
   yellow:-2, redH1:-10, redH2:-6, errGoal:-5, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2 };
-const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:5 };
+const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
 const TIER_EMO = {1:0,2:.4,3:.9,4:1.6};
 const r1 = x => Math.round(x*10)/10;
 const tierXG = v => v>0.5?{b:0,t:1} : v>=0.2?{b:1.2,t:2} : v>=0.08?{b:2.6,t:3} : {b:4.2,t:4};
@@ -46,8 +46,8 @@ const tierSV = v => v<0.1?{b:0,t:1} : v<=0.3?{b:1.2,t:2} : v<=0.6?{b:2.6,t:3} : 
 // da família. Completa soma ~+2.5 pts distribuídos entre os jogadores; incompleta tira
 // ~−1.0 pt (ônus sempre menor que o bônus). A distribuição é proporcional ao quanto
 // cada jogador produziu na família, então quem "fez a tática acontecer" leva mais.
-const TACT_BONUS_PTS = 3.5;
-const TACT_ONUS_PTS  = -1.5;
+const TACT_BONUS_PTS = 10;
+const TACT_ONUS_PTS  = -4.0;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
 const TACT_PTSREF = { muralha:29.1, pressaototal:31.2, cerebro:22.6, tridente:12.6, aereo:6.7, contra:11.8 };
@@ -382,7 +382,7 @@ function makeEngine(match){
     // entre os jogadores conforme a fatia de cada um na família.
     if(T&&squadSum&&squadSum.status){
       const st=squadSum.status[tacticKey];
-      const alvo=st==="full"?TACT_BONUS_PTS:TACT_ONUS_PTS; // +3.5 completa / -1.5 incompleta (no time todo)
+      const alvo=st==="full"?TACT_BONUS_PTS:TACT_ONUS_PTS; // +10 completa / -4 incompleta (no time todo) — tática é o fator decisivo
       let famPts=0; for(const k of T.fam){famPts+=(comp[k]??0);}
       const ref=TACT_PTSREF[tacticKey]||10;
       tact=alvo*(famPts/ref); // a fatia deste jogador no bônus do time
