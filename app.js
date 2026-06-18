@@ -22,7 +22,7 @@ let APP={
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundAllEntries:[], roundRanking:null,
-  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay", homeSearch:"",
+  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay", homeSearch:"", homeDay:"todos",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null, profileHistory:null,         // estatísticas do perfil (calculadas ao vivo)
@@ -586,6 +586,25 @@ function askEnterRoundGame(roomId){
   go("build",roomId);
 }
 // admin: excluir rodada
+// ----- RENOMEAR liga / rodada(phase) / mini rodada(round) -----
+function askRenameLeague(id){const l=(APP.leagues||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"league",id,cur:l?l.name:"",label:"Renomear liga"};render();}
+function askRenamePhase(id){const p=(APP.phases||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"phase",id,cur:p?p.name:"",label:"Renomear rodada"};render();}
+function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",label:"Renomear mini rodada"};render();}
+async function submitRename(){
+  const c=APP.confirm;if(!c||!isAdmin())return;
+  const f=$("renameInput");const novo=f?f.value.trim():"";
+  if(!novo){toast("Digite um nome.");return;}
+  const tbl=c.kind==="league"?"leagues":c.kind==="phase"?"phases":"rounds";
+  APP.confirm=null;
+  try{
+    await sbUpdate(tbl,{name:novo},`id=eq.${c.id}`);
+    await loadLeagues();await loadPhases();await loadRounds();
+    // recarrega a tela aberta se for o caso
+    if(c.kind==="league"&&APP.leagueId===c.id)await loadLeague(c.id);
+    if(c.kind==="phase"&&APP.phaseId===c.id)await loadPhase(c.id);
+    toast("Nome alterado!");render();
+  }catch(e){toast("Erro: "+e.message);}
+}
 function askDeleteRound(roundId){
   if(!isAdmin())return;
   const r=APP.rounds.find(x=>x.id===roundId);
@@ -738,7 +757,40 @@ function dayKeyOf(data){
   return "A definir";
 }
 function dayNum(diaKey){const m=String(diaKey).match(/^(\d{1,2})/);return m?parseInt(m[1],10):999;}
-function setHomeTab(t){APP.homeTab=t;render();}
+// formata o kickoff de forma rica, sempre no fuso de Brasília (onde os jogos acontecem)
+const _DOW=["dom","seg","ter","qua","qui","sex","sáb"];
+const _MON=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+function kickoffInfo(iso){
+  if(!iso)return null;
+  const d=new Date(iso);
+  if(isNaN(d))return null;
+  // extrai componentes no fuso de São Paulo (Brasília), independente do fuso do aparelho
+  let parts;
+  try{
+    const fmt=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false,weekday:"short"});
+    parts={};fmt.formatToParts(d).forEach(p=>parts[p.type]=p.value);
+  }catch(e){parts=null;}
+  let Y,M,D,hh,mm;
+  if(parts){Y=+parts.year;M=+parts.month;D=+parts.day;hh=parts.hour==="24"?"00":parts.hour;mm=parts.minute;}
+  else{Y=d.getFullYear();M=d.getMonth()+1;D=d.getDate();hh=String(d.getHours()).padStart(2,"0");mm=String(d.getMinutes()).padStart(2,"0");}
+  // "hoje" também no fuso de Brasília
+  const hojeStr=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const [hY,hM,hD]=hojeStr.split("-").map(Number);
+  const dGame=Date.UTC(Y,M-1,D), dHoje=Date.UTC(hY,hM-1,hD);
+  const diff=Math.round((dGame-dHoje)/86400000);
+  let rel="";
+  if(diff===0)rel="Hoje"; else if(diff===1)rel="Amanhã"; else if(diff===-1)rel="Ontem";
+  // dia da semana no fuso certo
+  const dowIdx=new Date(Date.UTC(Y,M-1,D)).getUTCDay();
+  const dow=_DOW[dowIdx];
+  const dd=String(D).padStart(2,"0");
+  const mm2=String(M).padStart(2,"0");
+  return {ts:d.getTime(), rel, dow, dd, mon:_MON[M-1], yr:Y, hh:hh+":"+mm, diff,
+    dayKey:`${dow} ${dd}/${mm2}`,
+    full:`${rel?rel+" · ":""}${dow} ${dd}/${mm2}/${Y} · ${hh}:${mm}`};
+}
+function setHomeTab(t){APP.homeTab=t;APP.homeDay="todos";render();}
+function setHomeDay(d){APP.homeDay=decodeURIComponent(d);render();}
 function setHomeSearch(v){
   APP.homeSearch=v;
   render();
@@ -748,6 +800,10 @@ function setHomeSearch(v){
     if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
   });
 }
+// tira acentos e normaliza (ç→c) pra busca tolerante: "sao"/"são", "suica"/"suíça" batem igual
+function normTxt(s){
+  return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/ç/g,"c");
+}
 function homeHTML(){
   // jogos abertos NESTE grupo (status vem de group_rooms)
   const abertosRaw=APP.groupRooms.map(gr=>{
@@ -755,40 +811,48 @@ function homeHTML(){
     return cat?{...cat,status:gr.status}:null;
   }).filter(Boolean);
   // A JOGAR = abertos, não-arquivados, não-finalizados
-  const toplay=abertosRaw.filter(j=>!isArchived(j.room_id)).map(j=>{
-    const g=window.GAMES.data[j.room_id];
-    const isFinished=g&&g.match&&g.match.status==="finished";
-    return {...j,isFinished,dayKey:dayKeyOf(j.data)};
-  }).filter(j=>!j.isFinished);
+  const enrich=(j,extra)=>{const g=window.GAMES.data[j.room_id];const isFinished=g&&g.match&&g.match.status==="finished";const ki=kickoffInfo(j.kickoff);return {...j,isFinished,ki,dayKey:ki?ki.dayKey:"A definir",ts:ki?ki.ts:Infinity,...extra};};
+  const toplay=abertosRaw.filter(j=>!isArchived(j.room_id)).map(j=>enrich(j)).filter(j=>!j.isFinished);
   // FINALIZADOS = (abertos finalizados não-arquivados) + (todos os arquivados)
-  const finOpen=abertosRaw.filter(j=>!isArchived(j.room_id)).map(j=>{
-    const g=window.GAMES.data[j.room_id];
-    const isFinished=g&&g.match&&g.match.status==="finished";
-    return {...j,isFinished,archived:false,dayKey:dayKeyOf(j.data)};
-  }).filter(j=>j.isFinished);
-  const finArch=APP.jogos.filter(j=>isArchived(j.room_id)).map(j=>({...j,isFinished:true,archived:true,dayKey:dayKeyOf(j.data)}));
-  // evita duplicar se um arquivado também estiver em group_rooms
+  const finOpen=abertosRaw.filter(j=>!isArchived(j.room_id)).map(j=>enrich(j,{archived:false})).filter(j=>j.isFinished);
+  const finArch=APP.jogos.filter(j=>isArchived(j.room_id)).map(j=>enrich(j,{archived:true,isFinished:true}));
   const finIds=new Set(finOpen.map(j=>j.room_id));
   const finished=[...finOpen,...finArch.filter(j=>!finIds.has(j.room_id))];
 
   const tab=APP.homeTab||"toplay";
-  const q=(APP.homeSearch||"").trim().toLowerCase();
-  const matchQ=j=>!q||j.match_name.toLowerCase().includes(q);
+  const q=normTxt((APP.homeSearch||"").trim());
+  const matchQ=j=>!q||normTxt(j.match_name).includes(q);
   const baseLista=(tab==="finished"?finished:toplay);
-  const lista=baseLista.filter(matchQ);
+  // dias disponíveis nesta aba (ordenados por data; "A definir" por último)
+  const dayOrder={};baseLista.forEach(j=>{if(dayOrder[j.dayKey]===undefined||j.ts<dayOrder[j.dayKey])dayOrder[j.dayKey]=j.ts;});
+  const diasDisp=[...new Set(baseLista.map(j=>j.dayKey))].sort((a,b)=>{
+    if(a==="A definir")return 1; if(b==="A definir")return -1;
+    return tab==="finished"?(dayOrder[b]-dayOrder[a]):(dayOrder[a]-dayOrder[b]); // finalizados: recente primeiro; a jogar: próximo primeiro
+  });
+  let diaSel=APP.homeDay||"todos";
+  if(diaSel!=="todos"&&!diasDisp.includes(diaSel))diaSel="todos";
+  const lista=baseLista.filter(matchQ).filter(j=>diaSel==="todos"||j.dayKey===diaSel);
   const nToplay=toplay.filter(matchQ).length, nFinished=finished.filter(matchQ).length;
+  let diaChips="";
+  if(diasDisp.length>1){
+    diaChips=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span onclick="setHomeDay('todos')" class="daychip${diaSel==="todos"?" on":""}">Todos</span>
+      ${diasDisp.map(d=>`<span onclick="setHomeDay('${encodeURIComponent(d)}')" class="daychip${diaSel===d?" on":""}">${d==="A definir"?"📅 a definir":"📅 "+esc(d)}</span>`).join("")}
+    </div>`;
+  }
 
-  // agrupar por dia
+  // agrupar por dia, ordenando os jogos por horário dentro do dia
   const grupos={};
   lista.forEach(j=>{(grupos[j.dayKey]=grupos[j.dayKey]||[]).push(j);});
   const diasOrdenados=Object.keys(grupos).sort((a,b)=>{
     if(a==="A definir")return 1; if(b==="A definir")return -1;
-    return dayNum(a)-dayNum(b);
+    return tab==="finished"?(dayOrder[b]-dayOrder[a]):(dayOrder[a]-dayOrder[b]);
   });
+  // dentro de cada dia: a jogar = mais cedo primeiro; finalizado = mais tarde (recente) primeiro
+  Object.values(grupos).forEach(arr=>arr.sort((a,b)=>tab==="finished"?(b.ts-a.ts):(a.ts-b.ts)));
   let listaHTML="";
   if(!lista.length){
     if(q){
-      // tem na outra aba?
       const outra=(tab==="finished"?toplay:finished).filter(matchQ);
       listaHTML=`<p class="p">Nenhum jogo com "${esc(APP.homeSearch)}" ${tab==="finished"?"nos finalizados":"a jogar"}.`;
       if(outra.length)listaHTML+=` <a onclick="setHomeTab('${tab==="finished"?"toplay":"finished"}')" style="color:var(--amber);cursor:pointer;text-decoration:underline">Ver ${outra.length} em "${tab==="finished"?"A jogar":"Finalizados"}"</a>`;
@@ -797,18 +861,22 @@ function homeHTML(){
     else listaHTML=`<p class="p">${tab==="finished"?"Nenhum jogo finalizado ainda.":"Nenhum jogo a jogar no momento."}</p>`;
   }else{
     diasOrdenados.forEach(dia=>{
-      listaHTML+=`<div class="bsub" style="border:none;padding:0;margin:14px 0 6px;color:var(--amber);font-size:12px;letter-spacing:.5px">📅 ${esc(dia)}</div>`;
+      // título do dia: usa o "rel" (Hoje/Amanhã/Ontem) do primeiro jogo do grupo
+      const first=grupos[dia][0];
+      const relTag=first.ki&&first.ki.rel?`<span style="color:var(--green)">${first.ki.rel}</span> · `:"";
+      listaHTML+=`<div class="bsub" style="border:none;padding:0;margin:14px 0 6px;color:var(--amber);font-size:12px;letter-spacing:.5px">📅 ${relTag}${esc(dia)}${first.ki?"/"+first.ki.yr:""}</div>`;
       grupos[dia].forEach(j=>{
         const pill=j.isFinished?'<span class="statuspill st-finished">FINALIZADA</span>':(j.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>');
         const onclick=j.isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
-        // botão admin: arquivar (se finalizado não-arquivado) ou desarquivar (se arquivado)
         let adminBtn="";
         if(isAdmin()){
           if(j.archived)adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
           else adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar">🗄</button>`;
         }
+        // linha de horário: "🕐 13:00" + (Hoje/Amanhã) já no título do dia
+        const hora=j.ki?`<span style="color:var(--chalk)">🕐 ${j.ki.hh}</span>`:`<span style="color:var(--dim)">horário a definir</span>`;
         listaHTML+=`<div class="roomrow" onclick="${onclick}">
-          <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)}${j.archived?" · arquivado":""}</div></div>
+          <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${hora} · ${esc(j.comp)}${j.archived?" · arquivado":""}</div></div>
           ${pill}${adminBtn}
         </div>`;
       });
@@ -833,6 +901,7 @@ function homeHTML(){
       <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar${nToplay?` (${nToplay})`:""}</div>
       <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados${nFinished?` (${nFinished})`:""}</div>
     </div>
+    ${diaChips}
     ${listaHTML}
   </div>
   ${roundsCardHTML()}
@@ -937,7 +1006,7 @@ function roundsCardHTML(){
     return `<div class="roomrow" onclick="enterRound('${r.id}')">
       <div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div>
       ${pill}
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
+      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameRound('${r.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
     </div>`;
   }).join("");
   if(!avulsas.length&&!isAdmin())return"";
@@ -957,7 +1026,7 @@ function phasesCardHTML(){
   const rows=avulsas.map(p=>`<div class="roomrow" onclick="enterPhase('${p.id}')">
     <div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">rodada · toque pra ver mini rodadas</div></div>
     <span class="statuspill st-finished">VER</span>
-    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeletePhase('${p.id}')">🗑</button>`:""}
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenamePhase('${p.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeletePhase('${p.id}')">🗑</button>`:""}
   </div>`).join("");
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--mid)">RODADAS AVULSAS</div>
@@ -975,7 +1044,7 @@ function leaguesCardHTML(){
     return `<div class="roomrow" onclick="enterLeague('${l.id}')">
       <div class="info"><div class="nm">🏆 ${esc(l.name)}</div><div class="meta">${nPh} rodada${nPh!==1?"s":""} · classificação geral</div></div>
       <span class="statuspill st-finished">VER</span>
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteLeague('${l.id}')">🗑</button>`:""}
+      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameLeague('${l.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteLeague('${l.id}')">🗑</button>`:""}
     </div>`;
   }).join("");
   if(!(APP.leagues||[]).length&&!isAdmin())return"";
@@ -1305,6 +1374,15 @@ function confirmModalHTML(){
       <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" />
       <input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="rename"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Renomear mini rodada"}</div>
+      <p class="p" style="margin:10px 0">Escolha o novo nome. Os times, pontos e vínculos continuam intactos.</p>
+      <input id="renameInput" class="input" value="${esc(c.cur||"")}" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitRename()">Salvar nome</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
