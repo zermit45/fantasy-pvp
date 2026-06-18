@@ -517,6 +517,50 @@ function roundUserTeamsHTML(username){
 }
 let _openTeamPlayer={};
 function toggleTeamPlayer(k){_openTeamPlayer[k]=!_openTeamPlayer[k];render();}
+let _openPeekRound={};
+function togglePeekRound(k){_openPeekRound[k]=!_openPeekRound[k];render();}
+// ESPIAR a escalação de um usuário num jogo que JÁ COMEÇOU (mesmo antes de apurar).
+// Se o jogo já foi apurado, mostra os pontos; se só começou, mostra os jogadores escalados.
+function peekLineupHTML(entry,roomId){
+  const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"CURINGA",BENCH:"BANCO"};
+  const g=window.GAMES.data[roomId];
+  const finished=g&&g.match&&g.match.status==="finished";
+  const tacName=entry.tactic&&window.ENGINE_TACTICS[entry.tactic]?window.ENGINE_TACTICS[entry.tactic].name:"sem tática";
+  const tk=parseInt(entry.boost,10)||0;
+  let html=`<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;margin:2px 0 8px 6px;border-left:2px solid var(--line)">`;
+  html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tk>0?` · <span style="color:#FFC247">⚡ +${tk*10}%</span>`:""}</div>`;
+  // catálogo de jogadores do jogo (pid → nome/pos)
+  const cat={};
+  if(g&&g.prepool&&g.prepool.players)for(const p of g.prepool.players)cat[p.id]={name:p.name,pos:p.pos,team:p.team};
+  if(finished){
+    // jogo apurado: mostra com pontos
+    const ctx=buildCtxFor(roomId);
+    if(ctx){
+      const sc=scoreEntryFor(JSON.parse(JSON.stringify(entry)),ctx.eng,ctx);
+      sc.view.filter(Boolean).forEach(v=>{
+        const meta=ctx.byId[v.pid];if(!meta)return;
+        const isBench=v.slot==="BENCH";
+        const capTag=v.cap?' <span style="color:var(--amber)">©</span>':"";
+        const subTag=v.subIn?' <span style="color:var(--blue);font-size:10px">entrou</span>':"";
+        html+=`<div class="line" style="padding:3px 0"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[v.slot]}</span> ${esc(meta.name)}${capTag}${subTag}${isBench?' <span style="font-size:9px;color:var(--dim)">banco</span>':""}</span><span class="mono" style="color:${isBench?"var(--dim)":(v.pts>=0?"var(--green)":"var(--red)")}">${isBench?"—":(v.pts>=0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+      });
+      html+=`<div class="line" style="padding:5px 0 0;border-top:1px solid var(--line);margin-top:4px"><span style="font-weight:700">Total</span><span class="mono" style="color:var(--amber);font-weight:700">${sc.total.toFixed(1)}</span></div>`;
+    }
+  }else{
+    // jogo começou mas não apurou: mostra só os jogadores escalados (sem pontos)
+    const slots=entry.slots||{};
+    ["GK","DEF","MID","ATT","FLEX","BENCH"].forEach(slot=>{
+      const pid=slots[slot];if(!pid)return;
+      const meta=cat[pid];
+      const capTag=entry.captain===slot?' <span style="color:var(--amber)">©</span>':"";
+      const benchTag=slot==="BENCH"?' <span style="font-size:9px;color:var(--dim)">banco</span>':"";
+      html+=`<div class="line" style="padding:3px 0"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[slot]}</span> ${meta?esc(meta.name):"?"}${capTag}${benchTag}</span></div>`;
+    });
+    html+=`<p class="p" style="font-size:10px;color:var(--dim);margin:4px 0 0">Pontos aparecem quando o jogo for apurado.</p>`;
+  }
+  html+=`</div>`;
+  return html;
+}
 function toggleRoundUser(u){
   const name=decodeURIComponent(u);
   APP._openRoundUser=APP._openRoundUser===name?null:name;
@@ -1150,23 +1194,22 @@ function roundRankingHTML(){
   APP.roundRooms.forEach(rr=>{
     const g=window.GAMES.data[rr.room_id];
     const nome=g?g.prepool.home.name+" × "+g.prepool.away.name:rr.room_id;
+    const started=roomTimeLocked(rr.room_id); // jogo começou (ou finalizou) → pode espiar
     let here=all.filter(e=>e.room_id===rr.room_id);
     // SELECIONE: só mostra quem TRAVOU este jogo (confirmed); não-travados são descartados
     if(mode==="select")here=here.filter(e=>e.confirmed===true);
     if(!here.length)return;
-    html+=`<div style="margin-top:10px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)}</div>`;
+    html+=`<div style="margin-top:10px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)}${started?` <span style="font-size:9px;color:var(--blue)">· toque p/ espiar</span>`:""}</div>`;
     here.forEach(e=>{
       const me=e.username===APP.user?.username;
       const montou=e.slots&&Object.values(e.slots).some(Boolean);
       let status;
       if(mode==="select"){
-        // já filtrado: todos aqui travaram. Distingue se montou o time.
         status=montou
           ? `<span style="color:var(--green);font-size:10px">🔒 travou ✓ escalado</span>`
           : `<span style="color:var(--amber);font-size:10px">🔒 travou, sem time</span>`;
       }else if(mode==="boost"){
         const tk=parseInt(e.boost,10)||0;
-        // tokens dos OUTROS só aparecem depois da trava; os meus sempre aparecem
         const showTokens=me||bLockedNow;
         const tkTag=(showTokens&&tk>0)?` · <span style="color:#FFC247">⚡ +${tk*10}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
         status=montou
@@ -1175,7 +1218,13 @@ function roundRankingHTML(){
       }else{
         status=montou?`<span style="color:var(--green);font-size:10px">✓ escalado</span>`:`<span style="color:var(--dim);font-size:10px">sem time</span>`;
       }
-      html+=`<div class="line" style="padding:4px 0"><span style="${me?"color:var(--amber);font-weight:700":""}">${esc(e.username)}${me?" (você)":""}</span>${status}</div>`;
+      // após o jogo começar, a linha vira clicável pra espiar a escalação
+      const pkey="peek_"+rr.room_id+"_"+encodeURIComponent(e.username);
+      const canPeek=started&&montou;
+      const isOpen=_openPeekRound[pkey];
+      const arrow=canPeek?` <span style="color:var(--blue);font-size:10px">${isOpen?"▲":"▼"}</span>`:"";
+      html+=`<div class="line" style="padding:4px 0;${canPeek?"cursor:pointer":""}" ${canPeek?`onclick="togglePeekRound('${pkey}')"`:""}><span style="${me?"color:var(--amber);font-weight:700":""}">${esc(e.username)}${me?" (você)":""}${arrow}</span>${status}</div>`;
+      if(canPeek&&isOpen)html+=peekLineupHTML(e,rr.room_id);
     });
     html+=`</div>`;
   });
@@ -1524,7 +1573,7 @@ function roomHTML(){
       ${!open&&!finished&&hasEntry()?`<button class="btn" onclick="go('build')">👀 Ver meu time escalado</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
-    ${!open&&!finished?peekTeamsHTML():""}
+    ${(!open&&!finished)||(roomTimeLocked(APP.roomId)&&!finished)?peekTeamsHTML():""}
     ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
       <div class="tag" style="margin-bottom:6px">ADMIN</div>
       ${open
@@ -2653,7 +2702,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
     if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();}
-    if(view==="round"){await loadRound(roundId);}
+    if(view==="round"){await loadRound(roundId);_openPeekRound={};}
     if(view==="league"){await loadLeague(leagueId);}
     if(view==="phase"){await loadPhase(phaseId);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
