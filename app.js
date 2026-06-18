@@ -580,13 +580,29 @@ async function changeBoost(roomId,delta){
   if(next<0)next=0;
   if(delta>0&&boostLeft()<=0){toast("Você já gastou todos os seus tokens de impulso.");return;}
   try{
-    await sbUpdate("entries",{boost:next,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await sbUpdate("entries",{boost:next,confirmed:false,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
     await loadRound(APP.roundId);
     render();
   }catch(e2){toast("Erro: "+e2.message);}
 }
-
-// FASE 1 — selecionar um jogo pra jogar (cria entry vazia, sem time ainda)
+// IMPULSO — confirmar/reabrir a distribuição de tokens. Usa entry.confirmed (sem outro uso no boost).
+// Reeditável até o 1º jogo começar (boostLocked).
+function boostConfirmed(){
+  const es=(APP.roundEntries||[]);
+  if(!es.length)return false;
+  // confirmado = todas as entries do usuário marcadas confirmed
+  return es.every(e=>e.confirmed===true);
+}
+async function toggleBoostConfirm(){
+  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  const willConfirm=!boostConfirmed();
+  try{
+    await sbUpdate("entries",{confirmed:willConfirm,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await loadRound(APP.roundId);
+    toast(willConfirm?"Impulsos confirmados! (dá pra reeditar até o 1º jogo)":"Impulsos reabertos pra edição.");
+    render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
 async function selectRoundGame(roomId){
   if(picksLocked()){toast("A seleção de jogos já foi fechada.");return;}
   if(pickedRoom(roomId)){toast("Você já selecionou este jogo.");return;}
@@ -1099,22 +1115,42 @@ function roundRankingHTML(){
   }
   html+=`</div>`;
   // ── PARTICIPANTES: quem escolheu cada jogo / quem já montou ──
+  const mode=modeOf(APP.round);
+  const bLockedNow=boostLocked(); // impulsos revelados só depois do 1º jogo
   html+=`<div class="card"><div class="h2 disp">👥 Quem está disputando</div>`;
+  if(mode==="boost")html+=`<p class="p" style="font-size:11px;margin:4px 0 0">${bLockedNow?"Impulsos travados — onde cada um gastou já está revelado.":"⚡ Os impulsos de cada um só aparecem depois que o 1º jogo começar."}</p>`;
   if(!all.length){
-    html+=`<p class="p" style="margin-top:6px">Ninguém escolheu jogos nesta rodada ainda.</p></div>`;
+    html+=`<p class="p" style="margin-top:6px">Ninguém entrou nesta rodada ainda.</p></div>`;
     return html;
   }
-  // agrupar por jogo
   APP.roundRooms.forEach(rr=>{
     const g=window.GAMES.data[rr.room_id];
     const nome=g?g.prepool.home.name+" × "+g.prepool.away.name:rr.room_id;
-    const here=all.filter(e=>e.room_id===rr.room_id);
+    let here=all.filter(e=>e.room_id===rr.room_id);
+    // SELECIONE: só mostra quem TRAVOU este jogo (confirmed); não-travados são descartados
+    if(mode==="select")here=here.filter(e=>e.confirmed===true);
     if(!here.length)return;
     html+=`<div style="margin-top:10px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)}</div>`;
     here.forEach(e=>{
       const me=e.username===APP.user?.username;
       const montou=e.slots&&Object.values(e.slots).some(Boolean);
-      const status=montou?`<span style="color:var(--green);font-size:10px">✓ escalado</span>`:`<span style="color:var(--dim);font-size:10px">ficha gasta, sem time</span>`;
+      let status;
+      if(mode==="select"){
+        // já filtrado: todos aqui travaram. Distingue se montou o time.
+        status=montou
+          ? `<span style="color:var(--green);font-size:10px">🔒 travou ✓ escalado</span>`
+          : `<span style="color:var(--amber);font-size:10px">🔒 travou, sem time</span>`;
+      }else if(mode==="boost"){
+        const tk=parseInt(e.boost,10)||0;
+        // tokens dos OUTROS só aparecem depois da trava; os meus sempre aparecem
+        const showTokens=me||bLockedNow;
+        const tkTag=(showTokens&&tk>0)?` · <span style="color:#FFC247">⚡ +${tk*10}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
+        status=montou
+          ? `<span style="color:var(--green);font-size:10px">✓ escalado${tkTag}</span>`
+          : `<span style="color:var(--dim);font-size:10px">sem time</span>`;
+      }else{
+        status=montou?`<span style="color:var(--green);font-size:10px">✓ escalado</span>`:`<span style="color:var(--dim);font-size:10px">sem time</span>`;
+      }
       html+=`<div class="line" style="padding:4px 0"><span style="${me?"color:var(--amber);font-weight:700":""}">${esc(e.username)}${me?" (você)":""}</span>${status}</div>`;
     });
     html+=`</div>`;
@@ -1398,8 +1434,10 @@ function roundHTML(){
   let banner;
   if(isBoost){
     const cap=r.boost_tokens||0;
+    const bConf=boostConfirmed();
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos. Você tem <b>${cap}</b> token(s) de impulso — cada um dá <b>+10%</b> nos pontos da partida onde for usado (pode empilhar vários no mesmo jogo). ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Restam <b>${boostLeft()}/${cap}</b>. Travam quando o 1º jogo começar.`}</div>`;
+      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos. Você tem <b>${cap}</b> token(s) de impulso — cada um dá <b>+10%</b> nos pontos da partida onde for usado (pode empilhar vários no mesmo jogo). ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Restam <b>${boostLeft()}/${cap}</b>. Travam quando o 1º jogo começar.`}</div>
+      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
   }else{
