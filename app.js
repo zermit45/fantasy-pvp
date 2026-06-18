@@ -1461,9 +1461,9 @@ function roundHTML(){
     let playerBtn="";
     if(isSelect&&!finished&&!timeLocked&&!selLocked&&team){
       if(locked2){
-        playerBtn=`<button class="cbtn" style="position:static;width:auto;padding:0 10px;height:34px;color:var(--red);border-color:var(--red);font-size:12px;font-weight:700" title="Destravar (enquanto a seleção está aberta)" onclick="event.stopPropagation();toggleSelectLock('${rid}')">🔓 destravar</button>`;
+        playerBtn=`<span class="statuspill" style="background:transparent;border:1px solid var(--red);color:var(--red);cursor:pointer" title="Destravar (enquanto a seleção está aberta)" onclick="event.stopPropagation();toggleSelectLock('${rid}')">DESTRAVAR</span>`;
       }else if(left>0){
-        playerBtn=`<button class="cbtn" style="position:static;width:auto;padding:0 10px;height:34px;color:var(--green);border-color:var(--green);font-size:12px;font-weight:700" title="Travar — este jogo vai contar" onclick="event.stopPropagation();toggleSelectLock('${rid}')">🔒 travar</button>`;
+        playerBtn=`<span class="statuspill" style="background:var(--amber);color:#0A0E1C;cursor:pointer" title="Travar — este jogo vai contar" onclick="event.stopPropagation();toggleSelectLock('${rid}')">TRAVAR</span>`;
       }
     }
     // controle de IMPULSO (modo boost): +/− tokens, enquanto não travou e o time foi montado
