@@ -22,7 +22,7 @@ let APP={
   jogos:[],
   groups:[], groupId:null, groupName:null, myGroups:[], groupRooms:[],
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundAllEntries:[], roundRanking:null,
-  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table",
+  leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   profile:null,         // estatísticas do perfil (calculadas ao vivo)
@@ -690,25 +690,57 @@ function groupsHTML(){
 function askCreateGroup(){APP.confirm={mode:"createGroup",label:"Criar grupo"};render();}
 // modal de entrar com senha
 function askJoin(gid){APP.confirm={mode:"join",gid,label:"Entrar no grupo"};render();}
+// extrai uma chave de dia legível do campo data (ex: "17 Jun 2026" → "17 Jun", "Jun 2026" → "A definir")
+function dayKeyOf(data){
+  if(!data)return "A definir";
+  const m=String(data).match(/^(\d{1,2})\s+([A-Za-zçÇ]+)/);
+  if(m)return m[1]+" "+m[2];
+  return "A definir";
+}
+function dayNum(diaKey){const m=String(diaKey).match(/^(\d{1,2})/);return m?parseInt(m[1],10):999;}
+function setHomeTab(t){APP.homeTab=t;render();}
 function homeHTML(){
   // jogos abertos NESTE grupo (status vem de group_rooms; arquivados nunca aparecem aqui)
   const abertos=APP.groupRooms.map(gr=>{
     const cat=APP.jogos.find(j=>j.room_id===gr.room_id);
     return cat?{...cat,status:gr.status}:null;
   }).filter(Boolean).filter(j=>!isArchived(j.room_id));
-  const rows=abertos.map(j=>{
+  // anexa info de finalizado/dia a cada jogo
+  const enriched=abertos.map(j=>{
     const g=window.GAMES.data[j.room_id];
     const isFinished=g&&g.match&&g.match.status==="finished";
-    const st=isFinished?"finished":j.status;
-    const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
-    // jogo finalizado → vai direto pro resultado; senão entra na sala
-    const onclick=isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
-    return `<div class="roomrow" onclick="${onclick}">
-      <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
-      ${pill}
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar (mover p/ Resultados)">🗄</button>`:""}
-    </div>`;
-  }).join("");
+    return {...j,isFinished,dayKey:dayKeyOf(j.data)};
+  });
+  const tab=APP.homeTab||"toplay";
+  const lista=enriched.filter(j=>tab==="finished"?j.isFinished:!j.isFinished);
+  const nToplay=enriched.filter(j=>!j.isFinished).length;
+  const nFinished=enriched.filter(j=>j.isFinished).length;
+  // agrupar por dia
+  const grupos={};
+  lista.forEach(j=>{(grupos[j.dayKey]=grupos[j.dayKey]||[]).push(j);});
+  // ordenar dias: "a definir" por último, resto por ordem do dia
+  const diasOrdenados=Object.keys(grupos).sort((a,b)=>{
+    if(a==="A definir")return 1; if(b==="A definir")return -1;
+    return dayNum(a)-dayNum(b);
+  });
+  let listaHTML="";
+  if(!lista.length){
+    listaHTML=`<p class="p">${tab==="finished"?"Nenhum jogo finalizado ainda.":"Nenhum jogo a jogar no momento."}</p>`;
+  }else{
+    diasOrdenados.forEach(dia=>{
+      listaHTML+=`<div class="bsub" style="border:none;padding:0;margin:14px 0 6px;color:var(--amber);font-size:12px;letter-spacing:.5px">📅 ${esc(dia)}</div>`;
+      grupos[dia].forEach(j=>{
+        const st=j.isFinished?"finished":j.status;
+        const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
+        const onclick=j.isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
+        listaHTML+=`<div class="roomrow" onclick="${onclick}">
+          <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)}</div></div>
+          ${pill}
+          ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar (mover p/ Resultados)">🗄</button>`:""}
+        </div>`;
+      });
+    });
+  }
   // jogos do catálogo ainda NÃO abertos neste grupo (só admin) — sem os arquivados
   const naoAbertos=APP.jogos.filter(j=>!APP.groupRooms.some(gr=>gr.room_id===j.room_id)&&!isArchived(j.room_id));
   const abrirRows=naoAbertos.map(j=>`<div class="roomrow" onclick="openRoomInGroup('${j.room_id}')">
@@ -719,8 +751,12 @@ function homeHTML(){
       <div class="h1 disp" style="color:var(--amber)">${esc(APP.groupName||"Salas")}</div>
       <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
     </div>
-    <p class="p" style="margin-bottom:14px">Jogos deste grupo. Escolha uma partida para montar seu time ou ver o resultado.</p>
-    ${rows||'<p class="p">Nenhum jogo aberto neste grupo ainda.</p>'}
+    <p class="p" style="margin-bottom:12px">Jogos deste grupo. Escolha uma partida para montar seu time ou ver o resultado.</p>
+    <div class="postabs" style="margin-bottom:8px">
+      <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar${nToplay?` (${nToplay})`:""}</div>
+      <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados${nFinished?` (${nFinished})`:""}</div>
+    </div>
+    ${listaHTML}
   </div>
   ${roundsCardHTML()}
   ${phasesCardHTML()}
