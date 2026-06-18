@@ -21,17 +21,19 @@ const tierSV = v => v<0.1?{b:0,t:1} : v<=0.3?{b:1.2,t:2} : v<=0.6?{b:2.6,t:3} : 
 // buffs/nerfs aplicam a CADA jogador do seu time individualmente.
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",desc:"Seu time fica entre os melhores do jogo em desarmes + interceptações + cortes",
-    cond:(sq,base)=>(sq.tklint+sq.clearance)>=(base?base.tklintClr:20), buffs:{tklint:1.18,clearance:1.18}, nerfs:{prgp:0.90,dribbles:0.90}},
-  tridente:{name:"Ataque Total",desc:"Seu time fica entre os melhores do jogo em volume ofensivo (chutes no gol + gols valendo dobro)",
-    cond:(sq,base)=>(sq.sot+sq.goals*2)>=(base?base.sotGoals:6), buffs:{goal:1.18,sotPts:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
-  cerebro:{name:"Tiki-Taka",desc:"Seu time fica entre os melhores do jogo em passes progressivos",
-    cond:(sq,base)=>sq.prgp>=(base?base.prgp:60), buffs:{assist:1.18,sca:1.18,gca:1.18}, nerfs:{aerial:0.90,clearance:0.90}},
+    cond:(sq,base)=>(sq.tklint+sq.clearance)>=(base?base.tklintClr:20), buffs:{tklint:1.18,clearance:1.18,block:1.18}, nerfs:{prgp:0.90,dribbles:0.90}},
   pressaototal:{name:"Gegenpress",desc:"Seu time fica entre os melhores do jogo em recuperações de bola",
     cond:(sq,base)=>sq.recovery>=(base?base.recovery:20), buffs:{recovery:1.18,tklint:1.18}, nerfs:{fouls:1.15,aerial:0.90}},
+  cerebro:{name:"Tiki-Taka",desc:"Seu time fica entre os melhores do jogo em passes progressivos",
+    cond:(sq,base)=>sq.prgp>=(base?base.prgp:60), buffs:{assist:1.18,sca:1.18,gca:1.18}, nerfs:{aerial:0.90,clearance:0.90}},
+  tridente:{name:"Ataque Total",desc:"Seu time fica entre os melhores do jogo em volume ofensivo (chutes no gol + gols valendo dobro)",
+    cond:(sq,base)=>(sq.sot+sq.goals*2)>=(base?base.sotGoals:6), buffs:{goal:1.18,sotPts:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
   aereo:{name:"Chuveiro na Área",desc:"Seu time fica entre os melhores do jogo em duelos aéreos vencidos",
-    cond:(sq,base)=>sq.aerial>=(base?base.aerial:6), buffs:{aerial:1.18,goal:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
-  sanguefrio:{name:"Chutar Direto",desc:"Seu time fica entre os melhores do jogo em finalizações no gol",
-    cond:(sq,base)=>sq.sot>=(base?base.sot:5), buffs:{sotPts:1.18,goal:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
+    cond:(sq,base)=>sq.aerial>=(base?base.aerial:6), buffs:{aerial:1.18,accCross:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
+  contra:{name:"Contra-Ataque",desc:"Seu time fica entre os melhores do jogo em dribles + passes na área (transição rápida)",
+    cond:(sq,base)=>(sq.dribbles+sq.pib*0.5)>=(base?base.dribPib:5), buffs:{dribbles:1.18,goal:1.18,pib:1.18}, nerfs:{tklint:0.90,recovery:0.90}},
+  bolaparada:{name:"Bola Parada",desc:"Seu time fica entre os melhores do jogo em finalizações de bola parada e jogo aéreo",
+    cond:(sq,base)=>((sq.setPieceSot||0)+(sq.setPieceGoals||0)*2+sq.aerial*0.5)>=(base?base.setPiece:4), buffs:{goal:1.18,aerial:1.18,accCross:1.18}, nerfs:{dribbles:0.90,recovery:0.90}},
 };
 
 // normaliza um player do match.json pra um objeto completo de stats
@@ -39,7 +41,9 @@ function normP(raw){
   return Object.assign({
     min:0, started:false, goals:[], assists:[], sots:[], dribbles:0, prgp:0, pib:0, tib:0,
     sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
-    yellow:0, red:null, errGoal:0, penCom:0, accCross:0, inaccCross:0, gk:null
+    yellow:0, red:null, errGoal:0, penCom:0, accCross:0, inaccCross:0, gk:null,
+    // dados de finalização (capturados do shotmap): bola parada e chute de fora
+    setPieceSot:0, setPieceGoals:0, longSot:0, longGoals:0
   }, raw||{});
 }
 
@@ -60,7 +64,7 @@ function makeEngine(match){
   // Cada tática ativa quando o time do usuário está entre os ~TOP38% daquele jogo
   // na métrica da tática. Assim TODAS têm a mesma chance de ativar em QUALQUER jogo
   // (um threshold fixo favoreceria jogos de muita posse, muito chute, etc).
-  const TACT_PCTL = 0.62; // alvo: ~38% dos times montados ativam (equilíbrio entre os 6)
+  const TACT_PCTL = 0.62; // alvo: ~38% dos times montados ativam (equilíbrio entre as táticas)
   function _metricsOf(p){return {
     tklintClr: p.tklint+p.clearance,
     sotGoals : p.sots.length + p.goals.length*2,
@@ -68,6 +72,9 @@ function makeEngine(match){
     recovery : p.recovery,
     aerial   : p.aerial,
     sot      : p.sots.length,
+    dribPib  : p.dribbles + p.pib*0.5,                 // contra-ataque: dribles + passes na área
+    setPiece : (p.setPieceSot||0) + (p.setPieceGoals||0)*2 + p.aerial*0.5, // bola parada
+    longShot : (p.longSot||0) + (p.longGoals||0)*2,    // meia-lua: chutes de fora
   };}
   function computeMatchBase(){
     const all=[]; const src=match.players||{};
@@ -76,8 +83,8 @@ function makeEngine(match){
       if(p.min===0||p.subbedOff) continue; // só quem terminou em campo
       all.push(_metricsOf(p));
     }
-    const keys=["tklintClr","sotGoals","prgp","recovery","aerial","sot"];
-    const fallback={tklintClr:14,sotGoals:6,prgp:50,recovery:18,aerial:6,sot:4};
+    const keys=["tklintClr","sotGoals","prgp","recovery","aerial","sot","dribPib","setPiece","longShot"];
+    const fallback={tklintClr:14,sotGoals:6,prgp:50,recovery:18,aerial:6,sot:4,dribPib:5,setPiece:4,longShot:2};
     if(all.length<6) return fallback;
     const N=4000, SIZE=5, sums={}; keys.forEach(k=>sums[k]=[]);
     for(let i=0;i<N;i++){
@@ -318,13 +325,15 @@ function makeEngine(match){
   // 'finishers' = array de objetos player (já com stats do match). Quem foi
   // substituído (subbedOff:true) ou não jogou (min=0) NÃO entra.
   function squadSum(finishers){
-    const s={goals:0,assists:0,sot:0,prgp:0,pib:0,tklint:0,recovery:0,aerial:0,clearance:0,block:0,dribbles:0};
+    const s={goals:0,assists:0,sot:0,prgp:0,pib:0,tklint:0,recovery:0,aerial:0,clearance:0,block:0,dribbles:0,setPieceSot:0,setPieceGoals:0,longSot:0,longGoals:0};
     for(const raw of finishers){
       const p=normP(raw);
       if(p.min===0||p.subbedOff) continue; // não terminou em campo
       s.goals+=p.goals.length; s.assists+=p.assists.length; s.sot+=p.sots.length;
       s.prgp+=p.prgp; s.pib+=p.pib; s.tklint+=p.tklint; s.recovery+=p.recovery;
       s.aerial+=p.aerial; s.clearance+=p.clearance; s.block+=p.block; s.dribbles+=p.dribbles;
+      s.setPieceSot+=p.setPieceSot||0; s.setPieceGoals+=p.setPieceGoals||0;
+      s.longSot+=p.longSot||0; s.longGoals+=p.longGoals||0;
     }
     return s;
   }
