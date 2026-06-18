@@ -1187,8 +1187,30 @@ function resultHTML(){
     html+=`</div>`;
   }
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  // botão + tabela de pontuação base de TODOS os jogadores do jogo (histórico, sem cap/tática/banco)
+  html+=`<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleBaseAll()"><div class="nm disp" style="font-size:16px">📊 Base de todos os jogadores</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openBaseAll?"▲":"▼"}</div></div>`;
+  if(_openBaseAll){
+    html+=`<p class="p" style="margin:8px 0 10px">Nota individual de cada jogador na partida (sem capitão, tática ou banco). Só quem entrou em campo.</p>`;
+    html+=baseAllHTML(eng);
+  }
+  html+=`</div>`;
   html+=`<button class="btn ghost" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}">← Voltar${inRound?" à rodada":" às salas"}</button>`;
   return html;
+}
+let _openBaseAll=false;
+function toggleBaseAll(){_openBaseAll=!_openBaseAll;render();}
+function baseAllHTML(eng){
+  const pp=APP.prepool,m=APP.match;
+  const rows=pp.players.map(meta=>{
+    const st=m.players[String(meta.id)];
+    if(!st||!st.min)return null; // só quem jogou
+    const r=eng.scorePlayer(Object.assign({pos:meta.pos},st),null,null);
+    return {name:meta.name,team:meta.team,pos:meta.pos,pts:r.total,min:r.minutes};
+  }).filter(Boolean).sort((a,b)=>b.pts-a.pts);
+  if(!rows.length)return `<p class="p">Sem dados de jogadores.</p>`;
+  return `<div class="pool" style="max-height:none">`+rows.map(r=>
+    `<div class="prow" style="cursor:default"><div class="posbar pb-${r.pos}"></div><div class="pos mono pc-${r.pos}">${SLOT_LABEL[r.pos]}</div><div class="nm">${esc(r.name)}<span class="teamtag" style="--tc:${teamColor(r.team)};margin-left:6px">${r.team}</span> <span class="age">${r.min}'</span></div><div class="pr mono" style="color:${r.pts>0?"var(--green)":r.pts<0?"var(--red)":"var(--dim)"}">${r.pts>0?"+":""}${r.pts.toFixed(1)}</div></div>`
+  ).join("")+`</div>`;
 }
 let _openRec={};
 let _openRank={};
