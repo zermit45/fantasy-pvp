@@ -50,31 +50,31 @@ const TACT_BONUS_PTS = 2.5;
 const TACT_ONUS_PTS  = -1.0;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:7.3, pressaototal:9.8, cerebro:20.3, tridente:2.3, aereo:2.7, contra:6.3 };
+const TACT_PTSREF = { muralha:29.1, pressaototal:31.2, cerebro:22.6, tridente:12.6, aereo:6.7, contra:11.8 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
     desc:"Defesa em bloco. Ativa se a marcação (desarmes, cortes, bloqueios) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
     fam:["tklint","clearance","block"], minPlayers:3,
-    metric:p=>p.tklint+p.clearance+p.block, partMin:3},
+    metric:p=>p.tklint+p.clearance+p.block, partMin:2},
   pressaototal:{name:"Gegenpress",
     desc:"Pressão alta. Ativa se recuperar a bola (recuperações + desarmes) for o ponto forte do seu time e 3+ jogadores pressionarem.",
     fam:["recovery","tklint"], minPlayers:3,
-    metric:p=>p.recovery+p.tklint, partMin:4},
+    metric:p=>p.recovery+p.tklint, partMin:2},
   cerebro:{name:"Tiki-Taka",
     desc:"Posse e troca de passes. Ativa se a construção (passes progressivos + criação de chances) for o forte do seu time e 3+ jogadores criarem.",
     fam:["prgp","sca","gca","assist"], minPlayers:3,
-    metric:p=>p.prgp+p.sca+p.gca*2, partMin:4},
+    metric:p=>p.prgp+p.sca+p.gca*2, partMin:2},
   tridente:{name:"Ataque Total",
-    desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 2+ jogadores finalizarem.",
-    fam:["goal","sotPts"], minPlayers:2,
-    metric:p=>p.sots.length+p.goals.length*2, partMin:1},
+    desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 3+ jogadores finalizarem.",
+    fam:["goal","sotPts"], minPlayers:3,
+    metric:p=>p.sots.length+p.goals.length*2, partMin:2},
   aereo:{name:"Chuveiro na Área",
-    desc:"Jogo aéreo e cruzamentos. Ativa se o jogo pelo alto (duelos aéreos + cruzamentos certos) for o forte do seu time e 2+ jogadores brigarem por cima.",
-    fam:["aerial","accCross","goal"], minPlayers:2,
+    desc:"Jogo aéreo e cruzamentos. Ativa se o jogo pelo alto (duelos aéreos + cruzamentos certos) for o forte do seu time e 3+ jogadores brigarem por cima.",
+    fam:["aerial","accCross","goal"], minPlayers:3,
     metric:p=>p.aerial+p.accCross, partMin:2},
   contra:{name:"Contra-Ataque",
-    desc:"Transição rápida. Ativa se conduzir e infiltrar (dribles + passes na área) for o forte do seu time e 2+ jogadores conduzirem.",
-    fam:["dribbles","goal","pib"], minPlayers:2,
+    desc:"Transição rápida. Ativa se conduzir e infiltrar (dribles + passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
+    fam:["dribbles","goal","pib"], minPlayers:3,
     metric:p=>p.dribbles+p.pib, partMin:2},
 };
 // famílias de referência pra calcular a DOMINÂNCIA (proporção interna do time).
@@ -82,7 +82,7 @@ const TACTICS = {
 // cruzamentos). Por isso normalizamos cada família por um divisor de referência,
 // para que "dominante" signifique "o time se destacou NAQUILO relativo ao normal
 // daquela ação", e não simplesmente a ação de maior volume bruto (passe sempre venceria).
-const TACT_NORM={ muralha:15, pressaototal:19, cerebro:154, tridente:3, aereo:5, contra:11 };
+const TACT_NORM={ muralha:45, pressaototal:70, cerebro:113, tridente:13, aereo:26, contra:28 };
 const TACT_FAMILIES={
   muralha:p=>p.tklint+p.clearance+p.block,
   pressaototal:p=>p.recovery+p.tklint,
