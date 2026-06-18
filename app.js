@@ -6,10 +6,13 @@ const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANC
 const MODE_META={
   select:{label:"SELECIONE",icon:"🎯",color:"#5CA8FF",desc:"Escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia."},
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
-  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos e gaste tokens de impulso (+10% por token) nas partidas que você mais confia. Trava no 1º jogo."},
+  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos e gaste fichas de impulso (+15% por ficha, até 2 por partida) nas partidas que você mais confia. Trava no 1º jogo."},
 };
 const modeOf=r=>(r&&r.mode)||"select";
 const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
+// IMPULSO: cada ficha vale +BOOST_PCT% nos pontos da partida; teto de BOOST_MAX_PER_GAME fichas por jogo.
+const BOOST_PCT=15;            // % por ficha
+const BOOST_MAX_PER_GAME=2;    // máximo de fichas empilháveis numa mesma partida
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB",
   CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF",ECU:"#FFD23F",CUW:"#3D54FF",CIV:"#FF7A1A",SWE:"#4D7BFF",TUN:"#E63946",BEL:"#E63946",IRN:"#54E0A8",NZL:"#EEF2FB",EGY:"#E63946",SAU:"#1FA85A",URU:"#62C9F5",CPV:"#3DA35D"};
@@ -509,7 +512,7 @@ function roundUserTeamsHTML(username){
     achou=true;
     const nome=g.prepool.home.name+" × "+g.prepool.away.name;
     const tacName=e.tactic&&window.ENGINE_TACTICS[e.tactic]?window.ENGINE_TACTICS[e.tactic].name:"sem tática";
-    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span>${sc.boost>0?` <span class="statuspill" style="background:color-mix(in srgb,#FFC247 22%,transparent);color:#FFC247">⚡ +${sc.boost*10}%</span>`:""}</div>`;
+    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span>${sc.boost>0?` <span class="statuspill" style="background:color-mix(in srgb,#FFC247 22%,transparent);color:#FFC247">⚡ +${sc.boost*BOOST_PCT}%</span>`:""}</div>`;
     html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)} · toque num jogador p/ detalhe</div>`;
     const renderLine=(v,isBench)=>{
       const meta=ctx.byId[v.pid];if(!meta)return"";
@@ -553,7 +556,7 @@ function peekLineupHTML(entry,roomId){
   const tacName=entry.tactic&&window.ENGINE_TACTICS[entry.tactic]?window.ENGINE_TACTICS[entry.tactic].name:"sem tática";
   const tk=parseInt(entry.boost,10)||0;
   let html=`<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;margin:2px 0 8px 6px;border-left:2px solid var(--line)">`;
-  html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tk>0?` · <span style="color:#FFC247">⚡ +${tk*10}%</span>`:""}</div>`;
+  html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tk>0?` · <span style="color:#FFC247">⚡ +${tk*BOOST_PCT}%</span>`:""}</div>`;
   // catálogo de jogadores do jogo (pid → nome/pos)
   const cat={};
   if(g&&g.prepool&&g.prepool.players)for(const p of g.prepool.players)cat[p.id]={name:p.name,pos:p.pos,team:p.team};
@@ -662,7 +665,8 @@ async function changeBoost(roomId,delta){
   const cur=parseInt(e.boost,10)||0;
   let next=cur+delta;
   if(next<0)next=0;
-  if(delta>0&&boostLeft()<=0){toast("Você já gastou todos os seus tokens de impulso.");return;}
+  if(delta>0&&boostLeft()<=0){toast("Você já gastou todas as suas fichas de impulso.");return;}
+  if(delta>0&&next>BOOST_MAX_PER_GAME){toast("Máximo de "+BOOST_MAX_PER_GAME+" fichas por partida.");return;}
   try{
     await sbUpdate("entries",{boost:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
     await loadRound(APP.roundId);
@@ -1243,7 +1247,7 @@ function roundRankingHTML(){
       }else if(mode==="boost"){
         const tk=parseInt(e.boost,10)||0;
         const showTokens=me||bLockedNow;
-        const tkTag=(showTokens&&tk>0)?` · <span style="color:#FFC247">⚡ +${tk*10}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
+        const tkTag=(showTokens&&tk>0)?` · <span style="color:#FFC247">⚡ +${tk*BOOST_PCT}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
         status=montou
           ? `<span style="color:var(--green);font-size:10px">✓ escalado${tkTag}</span>`
           : `<span style="color:var(--dim);font-size:10px">sem time</span>`;
@@ -1503,12 +1507,12 @@ function roundHTML(){
     if(isBoost&&!finished){
       const bn=boostOn(rid);
       if(bLocked){
-        boostCtrl=bn>0?`<span class="statuspill" style="background:color-mix(in srgb,${mm.color} 20%,transparent);color:${mm.color}">⚡ +${bn*10}%</span>`:"";
+        boostCtrl=bn>0?`<span class="statuspill" style="background:color-mix(in srgb,${mm.color} 20%,transparent);color:${mm.color}">⚡ +${bn*BOOST_PCT}%</span>`:"";
       }else if(team){
         boostCtrl=`<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Tirar 1 token" onclick="event.stopPropagation();changeBoost('${rid}',-1)">−</button>
-          <span style="min-width:46px;text-align:center;font-weight:800;color:${mm.color};font-size:13px">⚡${bn>0?` +${bn*10}%`:" 0"}</span>
-          <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Pôr 1 token (+10%)" onclick="event.stopPropagation();changeBoost('${rid}',1)">+</button>
+          <span style="min-width:46px;text-align:center;font-weight:800;color:${mm.color};font-size:13px">⚡${bn>0?` +${bn*BOOST_PCT}%`:" 0"}</span>
+          <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Pôr 1 ficha (+${BOOST_PCT}%)" onclick="event.stopPropagation();changeBoost('${rid}',1)">+</button>
         </div>`;
       }else{
         boostCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ impulsionar</span>`;
@@ -1541,7 +1545,7 @@ function roundHTML(){
     const cap=r.boost_tokens||0;
     const bConf=boostConfirmed();
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos. Você tem <b>${cap}</b> token(s) de impulso — cada um dá <b>+10%</b> nos pontos da partida onde for usado (pode empilhar vários no mesmo jogo). ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Restam <b>${boostLeft()}/${cap}</b>. Travam quando o 1º jogo começar.`}</div>
+      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos. Você tem <b>${cap}</b> ficha(s) de impulso — cada uma dá <b>+${BOOST_PCT}%</b> nos pontos da partida onde for usada (até <b>${BOOST_MAX_PER_GAME} por partida</b>). ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Restam <b>${boostLeft()}/${cap}</b>. Travam quando o 1º jogo começar.`}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
@@ -1738,7 +1742,7 @@ function confirmModalHTML(){
       <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
       <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
       ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
-      ${selMode==="boost"?`<input id="rndTokens" class="input" type="number" inputmode="numeric" min="1" placeholder="Quantos tokens de impulso (ex: 2)" value="2" /><p class="p" style="font-size:11px;margin-bottom:8px">Cada token = +10% nos pontos da partida escolhida. Empilhável.</p>`:""}
+      ${selMode==="boost"?`<input id="rndTokens" class="input" type="number" inputmode="numeric" min="1" placeholder="Quantas fichas de impulso (ex: 2)" value="2" /><p class="p" style="font-size:11px;margin-bottom:8px">Cada ficha = +${BOOST_PCT}% nos pontos da partida escolhida. Até ${BOOST_MAX_PER_GAME} por partida.</p>`:""}
       ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
@@ -1751,7 +1755,7 @@ function confirmModalHTML(){
     if(isRound&&c.roundMode==="select"){
       extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Quantos jogos cada um escolhe:</p><input id="renamePick" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} value="${c.pickLimit||3}" />`;
     }else if(isRound&&c.roundMode==="boost"){
-      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Tokens de impulso por jogador (+10% cada):</p><input id="renameTokens" class="input" type="number" inputmode="numeric" min="1" value="${c.boostTokens||2}" />`;
+      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Fichas de impulso por jogador (+${BOOST_PCT}% cada):</p><input id="renameTokens" class="input" type="number" inputmode="numeric" min="1" value="${c.boostTokens||2}" />`;
     }
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Editar mini rodada"}</div>
@@ -2208,10 +2212,10 @@ function scoreEntryFor(entry,eng,ctx){
     if(sl!=="BENCH")sum+=pts;
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
   }
-  // IMPULSO (modo boost): +10% por token usado nesta partida, aplicado por ÚLTIMO,
-  // sobre o total já fechado (tática, capitão, reserva, tudo). entry.boost = nº de tokens.
+  // IMPULSO (modo boost): +BOOST_PCT% por ficha usada nesta partida, aplicado por ÚLTIMO,
+  // sobre o total já fechado (tática, capitão, reserva, tudo). entry.boost = nº de fichas.
   const boostTokens=Math.max(0,parseInt(entry.boost,10)||0);
-  const boostMult=1+0.10*boostTokens;
+  const boostMult=1+(BOOST_PCT/100)*boostTokens;
   const finalTotal=Math.round(sum*boostMult*10)/10;
   return {username:entry.username,total:finalTotal,boost:boostTokens,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
@@ -2449,7 +2453,7 @@ function histGameHTML(h,hi,prefix){
       const sc=v.entry;
       const tacName=window.ENGINE_TACTICS[sc.tactic]?.name||sc.tactic||"—";
       const descarte=(v.mode==="select"&&!v.counts)?` <span style="font-size:9px;color:var(--dim)">(não travado · não contou)</span>`:"";
-      const boostTag=(v.mode==="boost"&&sc.boost>0)?` <span style="color:${col}">⚡ +${sc.boost*10}%</span>`:"";
+      const boostTag=(v.mode==="boost"&&sc.boost>0)?` <span style="color:${col}">⚡ +${sc.boost*BOOST_PCT}%</span>`:"";
       html+=`<div style="border-left:3px solid ${col};padding:6px 0 6px 10px;margin:8px 0">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-family:'Saira Condensed';font-weight:800;font-size:12px;letter-spacing:.05em;color:${col}">${MODELABEL[v.mode]}${v.roundName?` · ${esc(v.roundName)}`:""}${descarte}</span>
