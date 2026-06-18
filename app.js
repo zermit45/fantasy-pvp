@@ -2,6 +2,14 @@
 // FANTASY PvP — APP (navegação, Supabase, telas)
 // ============================================================
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
+// modos de mini rodada (agrupamento + cores na home). Rodadas antigas (sem mode) = 'select'.
+const MODE_META={
+  select:{label:"SELECIONE",icon:"🎯",color:"#5CA8FF",desc:"Escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia."},
+  full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
+  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos e gaste tokens de impulso (+10% por token) nas partidas que você mais confia. Trava no 1º jogo."},
+};
+const modeOf=r=>(r&&r.mode)||"select";
+const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB",
   CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF",ECU:"#FFD23F",CUW:"#3D54FF",CIV:"#FF7A1A",SWE:"#4D7BFF",TUN:"#E63946",BEL:"#E63946",IRN:"#54E0A8",NZL:"#EEF2FB",EGY:"#E63946",SAU:"#1FA85A",URU:"#62C9F5",CPV:"#3DA35D"};
@@ -419,10 +427,10 @@ async function loadRound(roundId){
     APP.roundRooms=await sb("round_rooms?round_id=eq."+roundId+"&select=*");
     // minhas entries nesta rodada (seleção + time + confirmação)
     if(APP.user){
-      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,confirmed");
+      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,boost,confirmed");
     }
     // entries de TODOS os membros nesta rodada (escalação completa pra ranking clicável)
-    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,confirmed&limit=2000");
+    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,boost,confirmed&limit=2000");
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
@@ -465,7 +473,7 @@ function roundUserTeamsHTML(username){
     achou=true;
     const nome=g.prepool.home.name+" × "+g.prepool.away.name;
     const tacName=e.tactic&&window.ENGINE_TACTICS[e.tactic]?window.ENGINE_TACTICS[e.tactic].name:"sem tática";
-    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span></div>`;
+    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span>${sc.boost>0?` <span class="statuspill" style="background:color-mix(in srgb,#FFC247 22%,transparent);color:#FFC247">⚡ +${sc.boost*10}%</span>`:""}</div>`;
     html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}</div>`;
     sc.view.forEach(v=>{
       if(!v||v.slot==="BENCH")return;
@@ -512,6 +520,49 @@ function roomAdminLocked(roomId){
 // escalação travada para o jogador (qualquer um dos dois)
 function roomLockedInRound(roomId){
   return roomAdminLocked(roomId)||roomTimeLocked(roomId);
+}
+// ── MODO IMPULSO ──
+// 1º kickoff da rodada (ISO mais cedo entre os jogos da rodada). Impulsos travam aqui.
+function roundFirstKickoff(){
+  let min=Infinity;
+  for(const rr of (APP.roundRooms||[])){
+    const j=(APP.jogos||[]).find(x=>x.room_id===rr.room_id);
+    if(j&&j.kickoff){const k=new Date(j.kickoff).getTime();if(!isNaN(k)&&k<min)min=k;}
+  }
+  return min;
+}
+// impulsos travados? (passou o 1º kickoff da rodada — todos travam juntos)
+function boostLocked(){
+  const f=roundFirstKickoff();
+  return isFinite(f)&&Date.now()>=f;
+}
+// nº de tokens que ESTE usuário já gastou na rodada (soma de entry.boost)
+function boostUsed(){
+  return (APP.roundEntries||[]).reduce((s,e)=>s+(parseInt(e.boost,10)||0),0);
+}
+function boostLeft(){
+  const cap=APP.round?(APP.round.boost_tokens||0):0;
+  return Math.max(0,cap-boostUsed());
+}
+// quantos tokens ESTE usuário pôs num jogo específico
+function boostOn(roomId){
+  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
+  return e?(parseInt(e.boost,10)||0):0;
+}
+// ajusta tokens de impulso num jogo (delta +1/−1)
+async function changeBoost(roomId,delta){
+  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
+  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  const cur=parseInt(e.boost,10)||0;
+  let next=cur+delta;
+  if(next<0)next=0;
+  if(delta>0&&boostLeft()<=0){toast("Você já gastou todos os seus tokens de impulso.");return;}
+  try{
+    await sbUpdate("entries",{boost:next,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await loadRound(APP.roundId);
+    render();
+  }catch(e2){toast("Erro: "+e2.message);}
 }
 
 // FASE 1 — selecionar um jogo pra jogar (cria entry vazia, sem time ainda)
@@ -565,8 +616,9 @@ async function setRoundRoomStatus(roomId,status){
   }catch(e){toast("Erro: "+e.message);}
 }
 // admin: criar rodada
-async function createRound(name,limit,phaseId){
-  const rows=await sbInsert("rounds",{group_id:APP.groupId,name,pick_limit:limit,status:"open",phase_id:phaseId||null});
+async function createRound(name,limit,phaseId,mode,boostTokens){
+  const row={group_id:APP.groupId,name,pick_limit:limit,status:"open",phase_id:phaseId||null,mode:mode||"select",boost_tokens:boostTokens||0};
+  const rows=await sbInsert("rounds",row);
   await loadRounds();
   toast("Mini rodada criada!");
   if(rows&&rows[0]){enterRound(rows[0].id);}else render();
@@ -599,31 +651,47 @@ async function setRoundStatus(status){
 function enterRound(roundId){go("round",null,roundId);}
 function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();window.scrollTo(0,0);}
 // toque num jogo da rodada → decide o que fazer
-function askEnterRoundGame(roomId){
+async function askEnterRoundGame(roomId){
   const g=window.GAMES.data[roomId];
   if(g&&g.match&&g.match.status==="finished"){go("result",roomId);return;} // acabou → resultado
-  if(!pickedRoom(roomId)){toast("Selecione este jogo primeiro (botão + Selecionar).");return;}
-  // selecionado → vai montar/ver o time (o build trata se está travado)
+  const mode=modeOf(APP.round);
+  if(!pickedRoom(roomId)){
+    // modos full/boost: escala todos, então cria a entry vazia automaticamente (sem ficha)
+    if(mode!=="select"){
+      try{
+        await sbInsert("entries",{room_id:roomId,group_id:APP.groupId,round_id:APP.roundId,username:APP.user.username,slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},captain:null,tactic:null,boost:0,confirmed:false,updated_at:new Date().toISOString()});
+        await loadRound(APP.roundId);
+      }catch(e){toast("Erro: "+e.message);return;}
+    }else{
+      toast("Selecione este jogo primeiro (botão + Selecionar).");return;
+    }
+  }
   go("build",roomId);
 }
 // admin: excluir rodada
 // ----- RENOMEAR liga / rodada(phase) / mini rodada(round) -----
 function askRenameLeague(id){const l=(APP.leagues||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"league",id,cur:l?l.name:"",label:"Renomear liga"};render();}
 function askRenamePhase(id){const p=(APP.phases||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"phase",id,cur:p?p.name:"",label:"Renomear rodada"};render();}
-function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",label:"Renomear mini rodada"};render();}
+function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",roundMode:r?modeOf(r):"select",pickLimit:r?r.pick_limit:3,boostTokens:r?(r.boost_tokens||0):0,label:"Editar mini rodada"};render();}
 async function submitRename(){
   const c=APP.confirm;if(!c||!isAdmin())return;
   const f=$("renameInput");const novo=f?f.value.trim():"";
   if(!novo){toast("Digite um nome.");return;}
   const tbl=c.kind==="league"?"leagues":c.kind==="phase"?"phases":"rounds";
+  const patch={name:novo};
+  // mini rodada: permite editar limite de jogos (select) ou tokens (boost)
+  if(c.kind==="round"){
+    if(c.roundMode==="select"){const li=$("renamePick");if(li){let v=parseInt(li.value,10);if(v&&v>=1)patch.pick_limit=v;}}
+    if(c.roundMode==="boost"){const ti=$("renameTokens");if(ti){let v=parseInt(ti.value,10);if(v&&v>=1)patch.boost_tokens=v;}}
+  }
   APP.confirm=null;
   try{
-    await sbUpdate(tbl,{name:novo},`id=eq.${c.id}`);
+    await sbUpdate(tbl,patch,`id=eq.${c.id}`);
     await loadLeagues();await loadPhases();await loadRounds();
-    // recarrega a tela aberta se for o caso
     if(c.kind==="league"&&APP.leagueId===c.id)await loadLeague(c.id);
     if(c.kind==="phase"&&APP.phaseId===c.id)await loadPhase(c.id);
-    toast("Nome alterado!");render();
+    if(c.kind==="round"&&APP.roundId===c.id)await loadRound(c.id);
+    toast("Salvo!");render();
   }catch(e){toast("Erro: "+e.message);}
 }
 function askDeleteRound(roundId){
@@ -1020,25 +1088,44 @@ function roundRankingHTML(){
 
 
 // ----- MINI RODADAS: card na home (só as avulsas, sem phase) -----
-function roundsCardHTML(){
-  const avulsas=APP.rounds.filter(r=>!r.phase_id);
-  const rows=avulsas.map(r=>{
-    const pill=r.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>';
-    return `<div class="roomrow" onclick="enterRound('${r.id}')">
-      <div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div>
-      ${pill}
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameRound('${r.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
-    </div>`;
-  }).join("");
-  if(!avulsas.length&&!isAdmin())return"";
-  return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--mid)">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS${helpBtn("minirodada")}</div>
-    <p class="p" style="margin-bottom:10px">Mini rodada solta (fora de liga): escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia.</p>
-    ${rows||'<p class="p">Nenhuma mini rodada avulsa.</p>'}
-    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
+function roundRowHTML(r){
+  const mm=modeMeta(r);
+  const pill=r.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>';
+  let metaTxt;
+  if(modeOf(r)==="full")metaTxt="joga todos os jogos";
+  else if(modeOf(r)==="boost")metaTxt=`todos os jogos · ${r.boost_tokens||0} token(s) de impulso`;
+  else metaTxt=`escolha ${r.pick_limit} jogos`;
+  return `<div class="roomrow" style="border-left:3px solid ${mm.color}" onclick="enterRound('${r.id}')">
+    <div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">${metaTxt}</div></div>
+    ${pill}
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameRound('${r.id}')" title="Editar">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
   </div>`;
 }
-function askCreateRound(){APP.confirm={mode:"createRound",label:"Criar mini rodada"};render();}
+function roundsCardHTML(){
+  const avulsas=APP.rounds.filter(r=>!r.phase_id);
+  if(!avulsas.length&&!isAdmin())return"";
+  // agrupar por modo, na ordem select → full → boost
+  const order=["select","full","boost"];
+  let groupsHTML="";
+  for(const mk of order){
+    const list=avulsas.filter(r=>modeOf(r)===mk);
+    if(!list.length)continue;
+    const mm=MODE_META[mk];
+    groupsHTML+=`<div style="margin:14px 0 6px;display:flex;align-items:center;gap:8px">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-family:'Saira Condensed';font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:4px 12px">${mm.icon} ${mm.label}</span>
+      <span style="flex:1;height:1px;background:color-mix(in srgb,${mm.color} 30%,transparent)"></span>
+    </div>
+    <p class="p" style="font-size:11px;margin-bottom:8px;color:color-mix(in srgb,${mm.color} 70%,var(--dim))">${mm.desc}</p>
+    ${list.map(roundRowHTML).join("")}`;
+  }
+  return `<div class="card">
+    <div class="tag" style="margin-bottom:6px">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS${helpBtn("minirodada")}</div>
+    ${groupsHTML||'<p class="p">Nenhuma mini rodada avulsa.</p>'}
+    ${isAdmin()?`<button class="btn" style="margin-top:14px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
+  </div>`;
+}
+function askCreateRound(){APP.confirm={mode:"createRound",newMode:"select",label:"Criar mini rodada"};render();}
+function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm.draftName=n.value;APP.confirm.newMode=mk;render();}}
 
 // ----- RODADAS (phases) avulsas: card na home -----
 function phasesCardHTML(){
@@ -1174,7 +1261,7 @@ function standingCardHTML(st,tab,tabFn,nivel){
 function setLeagueTab(t){APP.leagueTab=t;render();}
 function setPhaseTab(t){APP.phaseTab=t;render();}
 function askCreatePhase(leagueId){APP.confirm={mode:"createPhase",leagueId,label:"Criar rodada"};render();}
-function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",phaseId,label:"Criar mini rodada"};render();}
+function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",newMode:"select",phaseId,label:"Criar mini rodada"};render();}
 async function addPhaseToLeague(phaseId){
   if(!isAdmin())return;
   try{await sbUpdate("phases",{league_id:APP.leagueId},`id=eq.${phaseId}`);await loadPhases();await loadLeague(APP.leagueId);toast("Rodada adicionada à liga.");render();}
@@ -1190,21 +1277,27 @@ async function addRoundToPhase(roundId){
 function roundHTML(){
   const r=APP.round;
   if(!r)return `<div class="card"><p class="p">Rodada não encontrada.</p><button class="btn ghost" onclick="leaveRound()">← Voltar</button></div>`;
+  const mode=modeOf(r);
+  const mm=modeMeta(r);
+  const isSelect=mode==="select";
+  const isBoost=mode==="boost";
   const left=picksLeft(), used=picksUsed();
   const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
+  const bLocked=boostLocked();
   const jogos=APP.roundRooms.map(rr=>APP.jogos.find(j=>j.room_id===rr.room_id)).filter(Boolean);
   const rows=jogos.map(j=>{
     const rid=j.room_id;
     const g=window.GAMES.data[rid];
     const finished=g&&g.match&&g.match.status==="finished";
-    const picked=pickedRoom(rid);
+    // nos modos full/boost todos os jogos contam como "escolhidos" (sem fichas)
+    const picked=isSelect?pickedRoom(rid):true;
     const team=hasTeam(rid);
     const timeLocked=roomTimeLocked(rid);
     const adminLocked=roomAdminLocked(rid);
     const locked=timeLocked||adminLocked;
     let tag,meta,clickable=true;
     if(finished){tag='<span class="statuspill st-finished">VER RESULTADO</span>';meta="jogo encerrado · toque p/ ver";}
-    else if(!picked){
+    else if(isSelect&&!picked){
       if(selLocked){tag='<span class="statuspill st-closed">NÃO ESCOLHIDO</span>';meta="você não selecionou este jogo";clickable=false;}
       else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já usou suas "+r.pick_limit+" fichas";clickable=false;}
       else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque no + verde p/ gastar 1 ficha aqui";clickable=false;}
@@ -1212,19 +1305,34 @@ function roundHTML(){
     else if(timeLocked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada · toque p/ ver";}
     else if(adminLocked){tag='<span class="statuspill st-closed">🔒 TRAVADO</span>';meta="escalação travada pelo admin · toque p/ ver";}
     else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="vaga garantida · toque p/ ajustar (livre até o jogo começar)";}
-    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="ficha gasta ✓ · toque p/ escalar";}
-    // ação principal (jogador): selecionar ou desfazer — UM botão só
+    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta=isSelect?"ficha gasta ✓ · toque p/ escalar":"toque p/ escalar este jogo";}
+    // ação principal (jogador): selecionar ou desfazer ficha — SÓ no modo select
     let playerBtn="";
-    if(!finished&&!picked&&!selLocked&&left>0){
+    if(isSelect&&!finished&&!picked&&!selLocked&&left>0){
       playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--green);border-color:var(--green);font-size:18px" title="Gastar 1 ficha neste jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
-    }else if(!finished&&picked&&!locked&&!selLocked){
+    }else if(isSelect&&!finished&&picked&&!locked&&!selLocked){
       playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--red);border-color:var(--red)" title="Desfazer (devolve a ficha)" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
+    }
+    // controle de IMPULSO (modo boost): +/− tokens, enquanto não travou e o time foi montado
+    let boostCtrl="";
+    if(isBoost&&!finished){
+      const bn=boostOn(rid);
+      if(bLocked){
+        boostCtrl=bn>0?`<span class="statuspill" style="background:color-mix(in srgb,${mm.color} 20%,transparent);color:${mm.color}">⚡ +${bn*10}%</span>`:"";
+      }else if(team){
+        boostCtrl=`<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Tirar 1 token" onclick="event.stopPropagation();changeBoost('${rid}',-1)">−</button>
+          <span style="min-width:46px;text-align:center;font-weight:800;color:${mm.color};font-size:13px">⚡${bn>0?` +${bn*10}%`:" 0"}</span>
+          <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Pôr 1 token (+10%)" onclick="event.stopPropagation();changeBoost('${rid}',1)">+</button>
+        </div>`;
+      }else{
+        boostCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ impulsionar</span>`;
+      }
     }
     // bloco de admin (separado, com divisória sutil)
     let devBlock="";
     if(isAdmin()){
-      const devLocked=adminLocked; // trava MANUAL do admin (independente do horário)
-      // se o jogo já começou/acabou, não dá pra mexer na trava (o tempo já travou pra todos)
+      const devLocked=adminLocked;
       const lockBtn=timeLocked
         ? `<span style="font-size:19px;padding:4px;opacity:.3" title="O jogo já começou — escalação travada pelo horário">🔒</span>`
         : `<span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>`;
@@ -1233,32 +1341,44 @@ function roundHTML(){
         <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
-    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="${clickable||finished?"":"cursor:default"}">
+    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"}">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">${tag}${playerBtn||""}${devBlock}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${boostCtrl}${devBlock}</div>
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
   const foraRows=fora.map(j=>`<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
     <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para adicionar à mini rodada</div></div>
     <span class="statuspill st-closed">+ ADD</span></div>`).join("");
+  // banner explicativo por modo
+  let banner;
+  if(isBoost){
+    const cap=r.boost_tokens||0;
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
+      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos. Você tem <b>${cap}</b> token(s) de impulso — cada um dá <b>+10%</b> nos pontos da partida onde for usado (pode empilhar vários no mesmo jogo). ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Restam <b>${boostLeft()}/${cap}</b>. Travam quando o 1º jogo começar.`}</div>`;
+  }else if(mode==="full"){
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
+  }else{
+    banner=selLocked
+      ? `<div class="prebox" style="border-color:#3a2e10">🔒 <b>Seleção fechada.</b> Agora é a <b>Fase 2:</b> monte a escalação de cada jogo que você escolheu. Pode mudar o time até a partida começar — aí trava.</div>`
+      : `<div class="prebox">⏳ <b>Fase 1 — escolha seus jogos:</b> você tem <b>${r.pick_limit}</b> fichas. Toque no <b>+</b> verde pra gastar 1 ficha e garantir sua vaga num jogo. Troca livre enquanto a seleção estiver aberta; quando o 1º jogo começar, trava. <b style="color:var(--amber)">${used}/${r.pick_limit}</b> usadas.</div>`;
+  }
   return `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <div class="h1 disp" style="color:var(--amber)">${esc(r.name)}</div>
+      <div class="h1 disp" style="color:${mm.color}">${esc(r.name)}</div>
       <div class="userchip" onclick="leaveRound()" style="cursor:pointer">← voltar</div>
     </div>
-    ${selLocked
-      ? `<div class="prebox" style="border-color:#3a2e10">🔒 <b>Seleção fechada.</b> Agora é a <b>Fase 2:</b> monte a escalação de cada jogo que você escolheu. Pode mudar o time quantas vezes quiser até a partida começar na vida real — aí ela trava. Confirme quando estiver satisfeito.</div>`
-      : `<div class="prebox">⏳ <b>Fase 1 — escolha seus jogos:</b> você tem <b>${r.pick_limit}</b> fichas de entrada. Toque no <b>+</b> verde pra gastar 1 ficha e garantir sua vaga num jogo. Dá pra trocar livremente enquanto a seleção estiver aberta; quando o 1º jogo começar, trava. <b style="color:var(--amber)">${used}/${r.pick_limit}</b> usadas.<br><br>Depois você monta o time de cada jogo escolhido — a escalação muda à vontade até a partida começar (não precisa confirmar).</div>`}
+    <div style="margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:5px;font-family:'Saira Condensed';font-weight:800;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:3px 10px">${mm.icon} ${mm.label}</span></div>
+    ${banner}
     ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
   </div>
   ${roundRankingHTML()}
   ${isAdmin()?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
-    <p class="p" style="margin-bottom:8px">1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).</p>
-    ${selLocked
+    <p class="p" style="margin-bottom:8px">${isSelect?"1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).":"Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha). "+(isBoost?"Os impulsos travam sozinhos no 1º jogo.":"")}</p>
+    ${isSelect?(selLocked
       ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
-      : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`}
+      : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`):""}
     ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${foraRows}`:""}
   </div>`:""}`;
 }
@@ -1394,21 +1514,39 @@ function confirmModalHTML(){
   if(c.mode==="createRound"){
     const poolMax=(APP.jogos||[]).length;
     const defLimit=Math.min(3,poolMax||3);
+    const selMode=c.newMode||"select";
+    const modeBtns=["select","full","boost"].map(mk=>{
+      const mm=MODE_META[mk],on=selMode===mk;
+      return `<div onclick="setCreateMode('${mk}')" style="flex:1;cursor:pointer;text-align:center;padding:9px 4px;border-radius:9px;border:1px solid ${on?mm.color:"var(--line)"};background:${on?`color-mix(in srgb,${mm.color} 18%,transparent)`:"var(--panel2)"};color:${on?mm.color:"var(--dim)"};font-size:11px;font-weight:700">${mm.icon} ${mm.label}</div>`;
+    }).join("");
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:var(--amber)">Criar mini rodada</div>
-      <p class="p" style="margin:10px 0">Dê um nome e quantos jogos cada um pode escolher.${poolMax?` Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).`:""}</p>
-      <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" />
-      <input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />
+      <p class="p" style="margin:8px 0">Escolha o modo:</p>
+      <div style="display:flex;gap:6px;margin-bottom:8px">${modeBtns}</div>
+      <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
+      <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
+      ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
+      ${selMode==="boost"?`<input id="rndTokens" class="input" type="number" inputmode="numeric" min="1" placeholder="Quantos tokens de impulso (ex: 2)" value="2" /><p class="p" style="font-size:11px;margin-bottom:8px">Cada token = +10% nos pontos da partida escolhida. Empilhável.</p>`:""}
+      ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
   if(c.mode==="rename"){
+    const isRound=c.kind==="round";
+    const poolMax=(APP.jogos||[]).length;
+    let extra="";
+    if(isRound&&c.roundMode==="select"){
+      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Quantos jogos cada um escolhe:</p><input id="renamePick" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} value="${c.pickLimit||3}" />`;
+    }else if(isRound&&c.roundMode==="boost"){
+      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Tokens de impulso por jogador (+10% cada):</p><input id="renameTokens" class="input" type="number" inputmode="numeric" min="1" value="${c.boostTokens||2}" />`;
+    }
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Renomear mini rodada"}</div>
-      <p class="p" style="margin:10px 0">Escolha o novo nome. Os times, pontos e vínculos continuam intactos.</p>
+      <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Editar mini rodada"}</div>
+      <p class="p" style="margin:10px 0">${isRound?"Edite o nome e os ajustes. Os times, pontos e vínculos continuam intactos.":"Escolha o novo nome. Os times, pontos e vínculos continuam intactos."}</p>
       <input id="renameInput" class="input" value="${esc(c.cur||"")}" autocorrect="off" />
-      <button class="btn" style="margin-top:4px" onclick="submitRename()">Salvar nome</button>
+      ${extra}
+      <button class="btn" style="margin-top:4px" onclick="submitRename()">Salvar</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
@@ -1481,15 +1619,26 @@ function submitHideHistory(){
   hideMyProfileHistory(senha).catch(e=>toast("Erro: "+e.message));
 }
 function submitCreateRound(){
-  const n=$("rndName"),l=$("rndLimit");
-  const name=n?n.value.trim():"";
-  let limit=l?parseInt(l.value,10):3;
+  const c=APP.confirm||{};
+  const mk=c.newMode||"select";
+  const n=$("rndName");
+  const name=(n?n.value:(c.draftName||"")).trim();
   const poolMax=(APP.jogos||[]).length;
   if(!name){toast("Dê um nome à mini rodada.");return;}
-  if(!limit||limit<1)limit=1;
-  if(poolMax>0&&limit>poolMax){toast("Só há "+poolMax+" jogo(s) no catálogo. Escolha no máximo "+poolMax+".");return;}
-  const phaseId=APP.confirm&&APP.confirm.phaseId?APP.confirm.phaseId:null;
-  APP.confirm=null;createRound(name,limit,phaseId).catch(e=>toast("Erro: "+e.message));
+  let limit=poolMax||999, tokens=0;
+  if(mk==="select"){
+    const l=$("rndLimit");limit=l?parseInt(l.value,10):3;
+    if(!limit||limit<1)limit=1;
+    if(poolMax>0&&limit>poolMax){toast("Só há "+poolMax+" jogo(s) no catálogo. Escolha no máximo "+poolMax+".");return;}
+  }else if(mk==="full"){
+    limit=poolMax||999; // completo = todos
+  }else if(mk==="boost"){
+    limit=poolMax||999; // impulso = escala todos
+    const t=$("rndTokens");tokens=t?parseInt(t.value,10):2;
+    if(!tokens||tokens<1)tokens=1;
+  }
+  const phaseId=c.phaseId||null;
+  APP.confirm=null;createRound(name,limit,phaseId,mk,tokens).catch(e=>toast("Erro: "+e.message));
 }
 function submitCreatePhase(){
   const n=$("phName");
@@ -1796,7 +1945,12 @@ function scoreEntryFor(entry,eng,ctx){
     if(sl!=="BENCH")sum+=pts;
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
   }
-  return {username:entry.username,total:Math.round(sum*10)/10,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
+  // IMPULSO (modo boost): +10% por token usado nesta partida, aplicado por ÚLTIMO,
+  // sobre o total já fechado (tática, capitão, reserva, tudo). entry.boost = nº de tokens.
+  const boostTokens=Math.max(0,parseInt(entry.boost,10)||0);
+  const boostMult=1+0.10*boostTokens;
+  const finalTotal=Math.round(sum*boostMult*10)/10;
+  return {username:entry.username,total:finalTotal,boost:boostTokens,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
 // constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
 const _ctxCache={};
