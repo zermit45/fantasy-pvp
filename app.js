@@ -1207,14 +1207,14 @@ function roundHTML(){
     if(isAdmin()){
       const rr=APP.roundRooms.find(x=>x.room_id===rid);
       const devLocked=rr&&rr.status&&rr.status!=="open";
-      devBlock=`<div style="display:flex;gap:18px;align-items:center;margin-left:14px;padding-left:14px;border-left:1px solid var(--line)">
-        <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:20px;padding:6px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>
-        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:18px;padding:6px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
+      devBlock=`<div style="display:flex;gap:14px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line);flex-shrink:0">
+        <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>
+        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
     return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="${clickable||finished?"":"cursor:default"}">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-      ${tag}${playerBtn?`<span style="margin-left:8px">${playerBtn}</span>`:""}${devBlock}
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">${tag}${playerBtn||""}${devBlock}</div>
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));

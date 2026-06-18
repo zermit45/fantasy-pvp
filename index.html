@@ -33,9 +33,9 @@ body{background:var(--bg)}
 .btn.sm{padding:9px;font-size:13px;width:auto}
 .input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--chalk);padding:12px;font-size:14px;font-family:Inter;margin-bottom:10px;outline:none}
 .input:focus{border-color:var(--amber)}
-.roomrow{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--panel2);cursor:pointer;transition:border-color .15s}
+.roomrow{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--panel2);cursor:pointer;transition:border-color .15s;overflow:hidden;flex-wrap:wrap}
 .roomrow:hover{border-color:var(--amber)}
-.roomrow .info{flex:1}
+.roomrow .info{flex:1;min-width:0}
 .roomrow .nm{font-size:16px;font-weight:700}
 .roomrow .meta{font-size:11px;color:var(--dim);margin-top:2px}
 .statuspill{font-size:10px;font-weight:700;border-radius:99px;padding:4px 10px;letter-spacing:.06em}
