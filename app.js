@@ -1949,6 +1949,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   if(dm==="0")APP.devMode=false; else APP.devMode=true;
   // go central: carrega o que cada view precisa
   window.go=async function(view,roomId,roundId,extra,leagueId,phaseId){
+   try{
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
     if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();}
@@ -1967,6 +1968,11 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
       const h=await loadMemberHistory(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberHistory=h;
     }
     render();window.scrollTo(0,0);
+   }catch(err){
+    // nunca trava a navegação: mostra o erro e ainda renderiza a tela
+    try{toast("Erro ao abrir: "+(err&&err.message?err.message:err));}catch(e){}
+    try{render();}catch(e){}
+   }
   };
   // tela inicial: grupos (se logado). carrega a lista antes.
   if(APP.user){await loadGroups();APP.view="groups";}
