@@ -27,7 +27,7 @@ let APP={
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
-  captain:null, tactic:null, tab:"ALL", warn:"", showRules:false, confirm:null,
+  captain:null, tactic:null, tabTeam:"ALL", tabPos:"ALL", warn:"", showRules:false, confirm:null,
   entries:[],           // entries da sala (pro ranking)
 };
 
@@ -886,7 +886,10 @@ function buildHTML(){
   const TAC=window.ENGINE_TACTICS;
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   const gameLocked=inRound&&roomLockedInRound(APP.roomId);
-  const filt=pp.players.filter(p=>APP.tab==="ALL"||([pp.home.code,pp.away.code].includes(APP.tab)?p.team===APP.tab:p.pos===APP.tab)).sort((a,b)=>b.price-a.price);
+  const filt=pp.players.filter(p=>
+    (APP.tabTeam==="ALL"||p.team===APP.tabTeam) &&
+    (APP.tabPos==="ALL"||p.pos===APP.tabPos)
+  ).sort((a,b)=>b.price-a.price);
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
@@ -909,16 +912,22 @@ function buildHTML(){
     return `<div class="teff"><div class="up">▲ ${ups.join(", ")}</div><div class="down">▼ ${downs.join(", ")}</div></div>`;
   }
   const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`).join("");
-  const tabs=["ALL",pp.home.code,pp.away.code,"GK","DEF","MID","ATT"];
-  const tabsHTML=tabs.map(t=>{
-    const isTeam=t===pp.home.code||t===pp.away.code;
-    const isPos=["GK","DEF","MID","ATT"].includes(t);
-    const on=APP.tab===t;
+  // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
+  const teamTabs=["ALL",pp.home.code,pp.away.code];
+  const teamTabsHTML=teamTabs.map(t=>{
+    const on=APP.tabTeam===t;const isTeam=t!=="ALL";
     let style="";
     if(on&&isTeam)style=`style="--tc:${teamColor(t)};border-color:${teamColor(t)};color:${teamColor(t)};background:color-mix(in srgb,${teamColor(t)} 14%,transparent)"`;
-    else if(on&&isPos)style=`style="border-color:var(--pos-${t});color:var(--pos-${t});background:color-mix(in srgb,var(--pos-${t}) 14%,transparent)"`;
-    return `<div class="ptab${on?" on":""}" ${style} onclick="setTab('${t}')">${t==="ALL"?"TODOS":isTeam?t:SLOT_LABEL[t]}</div>`;
+    return `<div class="ptab${on?" on":""}" ${style} onclick="setTabTeam('${t}')">${t==="ALL"?"TODOS":t}</div>`;
   }).join("");
+  const posTabs=["ALL","GK","DEF","MID","ATT"];
+  const posTabsHTML=posTabs.map(t=>{
+    const on=APP.tabPos===t;const isPos=t!=="ALL";
+    let style="";
+    if(on&&isPos)style=`style="border-color:var(--pos-${t});color:var(--pos-${t});background:color-mix(in srgb,var(--pos-${t}) 14%,transparent)"`;
+    return `<div class="ptab${on?" on":""}" ${style} onclick="setTabPos('${t}')">${t==="ALL"?"TODAS":SLOT_LABEL[t]}</div>`;
+  }).join("");
+  const tabsHTML=`<div class="postabs">${teamTabsHTML}</div><div class="postabs">${posTabsHTML}</div>`;
   const poolHTML=filt.map(p=>{const sel=used.includes(p.id);const dis=!sel&&left-p.price<0;return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}</div><div class="pr mono">${p.price}</div></div>`;}).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){
@@ -951,7 +960,7 @@ function buildHTML(){
   </div>
   <div class="card">
     <div class="h2 disp">Pool <span class="tag">· ${pp.players.length} JOGADORES</span></div>
-    <div class="postabs">${tabsHTML}</div>
+    ${tabsHTML}
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
     ${gameLocked
@@ -981,7 +990,8 @@ function place(pid){
 function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;render();}
 function toggleCap(sl){APP.captain=APP.captain===sl?null:sl;render();}
 function setTactic(k){APP.tactic=k;render();}
-function setTab(t){APP.tab=t;render();}
+function setTabTeam(t){APP.tabTeam=t;render();}
+function setTabPos(t){APP.tabPos=t;render();}
 
 async function saveEntry(){
   if(!SUPA.ready()){toast("Supabase não configurado.");return;}
