@@ -267,16 +267,41 @@ async function loadMemberHistory(username){
   const out=[];
   if(!SUPA.ready()||!APP.groupId)return out;
   const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
+  // mapa round_id → modo (pra rotular cada entry)
+  const roundById={};
+  for(const r of (APP.rounds||[]))roundById[r.id]=r;
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
     let entries;
     try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
     catch(e){continue;}
     if(!entries||!entries.length)continue;
-    const scored=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
-    const idx=scored.findIndex(s=>s.username===username);
-    if(idx<0)continue;
-    out.push({room_id:j.room_id,match_name:j.match_name,comp:j.comp,pos:idx+1,of:scored.length,entry:scored[idx],ctx});
+    // ranking geral do jogo (todas as entries, pra calcular posição) — usa a melhor de cada user
+    const scoredAll=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx));
+    // MINHAS entries neste jogo (pode ter várias: avulsa + rodadas), com modo+pontuação
+    const mine=entries.filter(e=>e.username===username&&e.slots&&Object.values(e.slots).some(Boolean));
+    if(!mine.length)continue;
+    const variants=mine.map(e=>{
+      const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
+      const rd=e.round_id?roundById[e.round_id]:null;
+      const mode=e.round_id?(rd?modeOf(rd):"select"):"avulsa";
+      const roundName=rd?rd.name:null;
+      // no SELECIONE, só conta se travou (confirmed); marca pra exibir
+      const counts=mode!=="select"||e.confirmed===true;
+      return {entry:sc,mode,roundName,roundId:e.round_id||null,counts};
+    });
+    // ordena: avulsa primeiro, depois por pontuação
+    variants.sort((a,b)=>{if(a.mode==="avulsa"&&b.mode!=="avulsa")return -1;if(b.mode==="avulsa"&&a.mode!=="avulsa")return 1;return b.entry.total-a.entry.total;});
+    // a nota PRINCIPAL: a avulsa; se não houver, a melhor de outro modo (sinalizada)
+    const avulsa=variants.find(v=>v.mode==="avulsa");
+    const principal=avulsa||variants[0];
+    const isAvulsa=!!avulsa;
+    // posição do usuário no ranking geral do jogo (pela melhor entry dele)
+    const bestMine=Math.max(...variants.map(v=>v.entry.total));
+    const sortedTotals=scoredAll.map(s=>s.total).sort((a,b)=>b-a);
+    const pos=sortedTotals.findIndex(t=>Math.abs(t-bestMine)<0.05)+1;
+    out.push({room_id:j.room_id,match_name:j.match_name,comp:j.comp,pos:pos||1,of:scoredAll.length,
+      entry:principal.entry, principalMode:principal.mode, isAvulsa, variants, ctx});
   }
   return out;
 }
@@ -2398,36 +2423,56 @@ function memberHTML(){
 // renderiza uma partida do histórico com jogadores CLICÁVEIS (detalhe + arquétipo)
 // prefix distingue contexto ("m"=membro, "p"=perfil próprio) pra estados de toggle separados
 function histGameHTML(h,hi,prefix){
-  const e=h.entry;
   const open=_openHistGame[prefix+hi];
+  const MODECOLOR={avulsa:"var(--mid)",select:MODE_META.select.color,full:MODE_META.full.color,boost:MODE_META.boost.color};
+  const MODELABEL={avulsa:"AVULSA",select:"🎯 SELECIONE",full:"🏆 COMPLETO",boost:"⚡ IMPULSO"};
+  const e=h.entry;
+  // cor da nota principal: normal se for avulsa; cor do modo + aviso se não tem avulsa
+  const headColor=h.isAvulsa?(e.total<0?"var(--red)":"var(--amber)"):MODECOLOR[h.principalMode];
+  const noAvulsaTag=h.isAvulsa?"":` <span style="font-size:9px;color:${MODECOLOR[h.principalMode]};border:1px solid ${MODECOLOR[h.principalMode]};border-radius:6px;padding:1px 5px">sem avulsa · ${MODELABEL[h.principalMode]}</span>`;
   let html=`<div class="receipt"><div class="rhead" onclick="toggleHistGame('${prefix}',${hi})">
     <div class="sl mono" style="width:auto;color:var(--amber)">${h.pos}º/${h.of}</div>
-    <div class="nm">${esc(h.match_name)}<small>${esc(h.comp||"")} · cap ${SLOT_LABEL[e.captain]} · ${window.ENGINE_TACTICS[e.tactic]?.name||e.tactic||"—"}</small></div>
-    <div class="tot mono${e.total<0?" neg":""}">${e.total.toFixed(1)}</div></div>`;
+    <div class="nm">${esc(h.match_name)}${noAvulsaTag}<small>${esc(h.comp||"")} · ${h.variants.length} modo${h.variants.length>1?"s":""} jogado${h.variants.length>1?"s":""} · toque p/ ver</small></div>
+    <div class="tot mono" style="color:${headColor}">${e.total.toFixed(1)}</div></div>`;
   if(open){
     html+=`<div class="rbody">`;
-    e.view.filter(Boolean).forEach((v,vi)=>{
-      const pl=h.ctx.byId[v.pid];
-      const r=v.r;
-      const pkey=prefix+hi+"_"+vi;
-      const pOpen=_openHistPlayer[pkey];
-      const capTag=v.cap?` <span class="badgeC">C</span>`:"";
-      const subTag=v.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
-      const benchTag=v.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
-      const archTag=r&&r.meta&&r.meta.arch&&r.meta.arch!=="—"?` <span style="font-size:9px;color:var(--amber)">⭑ ${esc(r.meta.arch)}</span>`:"";
-      html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleHistPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}${archTag}</span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
-      // detalhe do jogador (statLines + modificadores + arquétipo/traits/raridade)
-      if(pOpen&&r){
-        html+=`<div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;margin:0 0 6px">`;
-        html+=`<div style="font-size:10px;color:var(--dim);margin-bottom:4px">📋 ${r.minutes}' em campo</div>`;
-        if(!r.statLines.length)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`;
-        r.statLines.forEach(([l,c,u,pts])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${l} <b style="color:var(--mid)">${c}×</b> <i style="color:var(--dim);font-size:10px">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`;});
-        if(r.lines.length){html+=`<div style="font-size:10px;color:var(--dim);margin:6px 0 2px">⚙️ Modificadores</div>`;
-          r.lines.forEach(([k,val])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`;});}
-        if(v.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão</span><span class="v mono plus">×1.20</span></div>`;
-        html+=`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>`;
-        html+=`</div>`;
-      }
+    // uma seção por modo (variante)
+    h.variants.forEach((v,mi)=>{
+      const col=MODECOLOR[v.mode]||"var(--mid)";
+      const sc=v.entry;
+      const tacName=window.ENGINE_TACTICS[sc.tactic]?.name||sc.tactic||"—";
+      const descarte=(v.mode==="select"&&!v.counts)?` <span style="font-size:9px;color:var(--dim)">(não travado · não contou)</span>`:"";
+      const boostTag=(v.mode==="boost"&&sc.boost>0)?` <span style="color:${col}">⚡ +${sc.boost*10}%</span>`:"";
+      html+=`<div style="border-left:3px solid ${col};padding:6px 0 6px 10px;margin:8px 0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:'Saira Condensed';font-weight:800;font-size:12px;letter-spacing:.05em;color:${col}">${MODELABEL[v.mode]}${v.roundName?` · ${esc(v.roundName)}`:""}${descarte}</span>
+          <span class="mono" style="color:${col};font-weight:700">${sc.total.toFixed(1)}</span>
+        </div>
+        <div style="font-size:10px;color:var(--dim);margin:2px 0 4px">cap ${SLOT_LABEL[sc.captain]||"?"} · ${esc(tacName)}${boostTag}</div>`;
+      // jogadores clicáveis desta variante
+      sc.view.filter(Boolean).forEach((vw,vi)=>{
+        const pl=h.ctx.byId[vw.pid];
+        const r=vw.r;
+        const pkey=prefix+hi+"_"+mi+"_"+vi;
+        const pOpen=_openHistPlayer[pkey];
+        const capTag=vw.cap?` <span class="badgeC">C</span>`:"";
+        const subTag=vw.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
+        const benchTag=vw.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
+        const archTag=r&&r.meta&&r.meta.arch&&r.meta.arch!=="—"?` <span style="font-size:9px;color:var(--amber)">⭑ ${esc(r.meta.arch)}</span>`:"";
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleHistPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[vw.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}${archTag}</span><span class="v mono ${vw.pts>0?"plus":vw.pts<0?"minus":""}">${vw.slot==="BENCH"?"—":(vw.pts>0?"+":"")+vw.pts.toFixed(1)}</span></div>`;
+        if(pOpen&&r){
+          html+=`<div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;margin:0 0 6px">`;
+          html+=`<div style="font-size:10px;color:var(--dim);margin-bottom:4px">📋 ${r.minutes}' em campo</div>`;
+          if(!r.statLines.length)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`;
+          r.statLines.forEach(([l,c,u,pts])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${l} <b style="color:var(--mid)">${c}×</b> <i style="color:var(--dim);font-size:10px">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`;});
+          if(r.lines.length){html+=`<div style="font-size:10px;color:var(--dim);margin:6px 0 2px">⚙️ Modificadores</div>`;
+            r.lines.forEach(([k,val])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`;});}
+          if(vw.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão</span><span class="v mono plus">×1.20</span></div>`;
+          html+=`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>`;
+          html+=`</div>`;
+        }
+      });
+      html+=`</div>`;
     });
     html+=`</div>`;
   }
