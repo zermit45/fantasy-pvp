@@ -564,7 +564,9 @@ function roundFirstKickoff(){
   return min;
 }
 // impulsos travados? (passou o 1º kickoff da rodada — todos travam juntos)
+// EXCEÇÃO admin: se o dev reabriu manualmente (boost_reopened), destrava mesmo após o kickoff.
 function boostLocked(){
+  if(APP.round&&APP.round.boost_reopened===true)return false; // admin reabriu
   const f=roundFirstKickoff();
   return isFinite(f)&&Date.now()>=f;
 }
@@ -714,6 +716,17 @@ async function setRoundStatus(status){
     await sbUpdate("rounds",{status},"id=eq."+APP.roundId);
     await loadRound(APP.roundId);
     toast(status==="locked_picks"?"Seleção de jogos fechada.":"Seleção de jogos reaberta.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+// ADMIN: reabrir/refechar a distribuição de impulsos mesmo após o 1º jogo (override da trava temporal)
+async function toggleBoostReopen(){
+  if(!isAdmin()||!APP.roundId)return;
+  const willReopen=!(APP.round&&APP.round.boost_reopened===true);
+  try{
+    await sbUpdate("rounds",{boost_reopened:willReopen},"id=eq."+APP.roundId);
+    await loadRound(APP.roundId);
+    toast(willReopen?"Impulsos REABERTOS pelo admin — todos podem reeditar.":"Impulsos travados novamente.");
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
@@ -1479,6 +1492,13 @@ function roundHTML(){
     ${isSelect?(selLocked
       ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
       : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`):""}
+    ${isBoost?`<div style="margin-top:10px">
+      ${APP.round.boost_reopened===true
+        ? `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="toggleBoostReopen()">🔒 Fechar impulsos novamente</button>
+           <p class="p" style="font-size:11px;color:var(--amber);margin-top:6px">⚠️ Impulsos reabertos — todos conseguem reeditar mesmo com jogo em andamento.</p>`
+        : `<button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="toggleBoostReopen()">⚡ Reabrir distribuição de impulsos</button>
+           <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">⚠️ Cuidado: reabrir após um jogo começar permite remanejar tokens vendo como a partida está indo. Use só se combinado com o grupo.</p>`}
+    </div>`:""}
     ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${foraRows}`:""}
   </div>`:""}`;
 }
