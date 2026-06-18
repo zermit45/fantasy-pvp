@@ -381,8 +381,8 @@ async function loadRound(roundId){
     if(APP.user){
       APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,confirmed");
     }
-    // entries de TODOS os membros nesta rodada (pra mostrar quem escolheu o quê / quem montou)
-    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,confirmed");
+    // entries de TODOS os membros nesta rodada (escalação completa pra ranking clicável)
+    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,confirmed&limit=2000");
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
@@ -408,6 +408,43 @@ async function computeRoundRanking(roundId){
     }
     return Object.values(byUser).map(u=>({...u,total:Math.round(u.total*10)/10})).sort((a,b)=>b.total-a.total);
   }catch(e){return [];}
+}
+// mostra a escalação de um usuário em cada jogo FINALIZADO da rodada, com pontos por jogador
+function roundUserTeamsHTML(username){
+  const all=APP.roundAllEntries||[];
+  const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"CURINGA",BENCH:"BANCO"};
+  let html=`<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;margin:2px 0 8px">`;
+  let achou=false;
+  APP.roundRooms.forEach(rr=>{
+    const g=window.GAMES.data[rr.room_id];
+    if(!g||!g.match||g.match.status!=="finished")return; // só jogos apurados
+    const e=all.find(x=>x.username===username&&x.room_id===rr.room_id);
+    if(!e||!e.slots||!Object.values(e.slots).some(Boolean))return; // não montou esse jogo
+    const ctx=buildCtxFor(rr.room_id);if(!ctx)return;
+    const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
+    achou=true;
+    const nome=g.prepool.home.name+" × "+g.prepool.away.name;
+    const tacName=e.tactic&&window.ENGINE_TACTICS[e.tactic]?window.ENGINE_TACTICS[e.tactic].name:"sem tática";
+    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span></div>`;
+    html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}</div>`;
+    sc.view.forEach(v=>{
+      if(!v||v.slot==="BENCH")return;
+      const meta=ctx.byId[v.pid];if(!meta)return;
+      html+=`<div class="line" style="padding:3px 0"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[v.slot]}</span> ${esc(meta.name)}${v.cap?' <span style="color:var(--amber)">©</span>':""}${v.subIn?' <span style="color:var(--blue);font-size:10px">entrou</span>':""}</span><span class="mono" style="color:${v.pts>=0?"var(--green)":"var(--red)"}">${v.pts.toFixed(1)}</span></div>`;
+    });
+    // reserva
+    const b=sc.view.find(v=>v&&v.slot==="BENCH");
+    if(b&&b.pid){const meta=ctx.byId[b.pid];if(meta)html+=`<div class="line" style="padding:3px 0;opacity:.55"><span><span style="color:var(--dim);font-size:10px">BANCO</span> ${esc(meta.name)}</span><span class="mono">${b.pts.toFixed(1)}</span></div>`;}
+    html+=`</div>`;
+  });
+  if(!achou)html+=`<p class="p" style="margin:0">Sem time apurado nos jogos já encerrados.</p>`;
+  html+=`</div>`;
+  return html;
+}
+function toggleRoundUser(u){
+  const name=decodeURIComponent(u);
+  APP._openRoundUser=APP._openRoundUser===name?null:name;
+  render();
 }
 // ----- helpers do novo fluxo -----
 function roundEntryOf(roomId){return APP.roundEntries.find(e=>e.room_id===roomId);}
@@ -660,9 +697,13 @@ function homeHTML(){
     return cat?{...cat,status:gr.status}:null;
   }).filter(Boolean).filter(j=>!isArchived(j.room_id));
   const rows=abertos.map(j=>{
-    const st=j.status;
+    const g=window.GAMES.data[j.room_id];
+    const isFinished=g&&g.match&&g.match.status==="finished";
+    const st=isFinished?"finished":j.status;
     const pill=st==="open"?'<span class="statuspill st-open">ABERTA</span>':st==="finished"?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-closed">FECHADA</span>';
-    return `<div class="roomrow" onclick="go('room','${j.room_id}')">
+    // jogo finalizado → vai direto pro resultado; senão entra na sala
+    const onclick=isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
+    return `<div class="roomrow" onclick="${onclick}">
       <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
       ${pill}
       ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar (mover p/ Resultados)">🗄</button>`:""}
@@ -730,13 +771,24 @@ function roundRankingHTML(){
   // ── CLASSIFICAÇÃO ──
   html+=`<div class="card"><div class="h2 disp">🏆 Classificação da mini rodada</div>`;
   if(rk.length){
-    html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta mini rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}.</p>`;
+    html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta mini rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}. Toque num nome pra ver a escalação.</p>`;
     rk.forEach((u,i)=>{
       const me=u.username===APP.user?.username;
-      html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+      const open=APP._openRoundUser===u.username;
+      html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+      if(open)html+=roundUserTeamsHTML(u.username);
     });
   }else{
     html+=`<p class="p">⏳ Aguardando os jogos escolhidos terminarem. A classificação aparece aqui conforme as partidas forem sendo apuradas.</p>`;
+  }
+  // aviso se há gente disputando que ainda não pontuou (jogos não terminados)
+  if(rk.length){
+    const participantes=new Set((all||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean)).map(e=>e.username));
+    const naClassif=new Set(rk.map(u=>u.username));
+    const faltam=[...participantes].filter(u=>!naClassif.has(u));
+    if(faltam.length||finishedCount<APP.roundRooms.length){
+      html+=`<p class="p" style="margin-top:8px;font-size:12px;color:var(--dim)">Só entram na conta os jogos já encerrados. Quem escalou jogos que ainda não terminaram aparece em "Quem está disputando" e entra na classificação assim que a partida for apurada.</p>`;
+    }
   }
   html+=`</div>`;
   // ── PARTICIPANTES: quem escolheu cada jogo / quem já montou ──
