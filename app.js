@@ -562,10 +562,14 @@ async function addRoomToRound(roomId){
   await sbInsert("round_rooms",{round_id:APP.roundId,room_id:roomId,status:"open"},true,"round_id,room_id");
   await loadRound(APP.roundId);render();
 }
-async function delRoomFromRound(roomId){
+function delRoomFromRound(roomId){
   if(!isAdmin())return;
-  await sbDelete("round_rooms",`round_id=eq.${APP.roundId}&room_id=eq.${roomId}`);
-  await loadRound(APP.roundId);render();
+  const j=(APP.jogos||[]).find(x=>x.room_id===roomId);
+  askConfirm("REMOVER",`Tirar "${j?j.match_name:"este jogo"}" da mini rodada`,async()=>{
+    await sbDelete("round_rooms",`round_id=eq.${APP.roundId}&room_id=eq.${roomId}`);
+    await loadRound(APP.roundId);render();
+    toast("Jogo removido da mini rodada.");
+  },"Isto só tira o jogo desta mini rodada (as escalações que as pessoas fizeram nele aqui são apagadas). O jogo em si e a partida avulsa continuam existindo.");
 }
 // admin FASE 1: trava/destrava a seleção de jogos da rodada
 async function setRoundStatus(status){
@@ -1203,9 +1207,9 @@ function roundHTML(){
     if(isAdmin()){
       const rr=APP.roundRooms.find(x=>x.room_id===rid);
       const devLocked=rr&&rr.status&&rr.status!=="open";
-      devBlock=`<div style="display:flex;gap:10px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line)">
-        <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:17px;opacity:${devLocked?"1":".55"}" title="${devLocked?"Liberar escalação (todos)":"Travar escalação (todos)"}">${devLocked?"🔓":"🔒"}</span>
-        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:16px;opacity:.5" title="Remover jogo da mini rodada">🗑</span>
+      devBlock=`<div style="display:flex;gap:18px;align-items:center;margin-left:14px;padding-left:14px;border-left:1px solid var(--line)">
+        <span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:20px;padding:6px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (p/ todos)"}">${devLocked?"🔓":"🔒"}</span>
+        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:18px;padding:6px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
     return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="${clickable||finished?"":"cursor:default"}">
