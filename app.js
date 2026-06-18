@@ -742,6 +742,7 @@ function roomHTML(){
       ${!open&&!finished&&hasEntry()?`<button class="btn" onclick="go('build')">👀 Ver meu time escalado</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
+    ${!open&&!finished?peekTeamsHTML():""}
     ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
       <div class="tag" style="margin-bottom:6px">ADMIN</div>
       ${open
@@ -761,6 +762,39 @@ async function setPoolStatus(status){
     toast(status==="closed"?"Pool fechada. Ninguém mais edita.":"Pool reaberta.");
     render();
   }catch(e){toast("Erro ao mudar status: "+e.message);}
+}
+// ── ESPIAR TIMES DOS MEMBROS (só com pool fechada e jogo não finalizado) ──
+let _openPeek={};
+function togglePeek(i){_openPeek[i]=!_openPeek[i];render();}
+function peekTeamsHTML(){
+  const ents=(APP.entries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
+  const byId=APP._byId;
+  const TAC=window.ENGINE_TACTICS;
+  let html=`<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
+    <div class="h2 disp">👀 Times dos membros</div>
+    <p class="p" style="margin:6px 0 10px">A pool fechou — agora dá pra ver o que cada um escalou. As pontuações aparecem quando o jogo acabar.</p>`;
+  if(!ents.length){html+=`<p class="p">Ninguém montou time neste jogo.</p></div>`;return html;}
+  ents.forEach((e,i)=>{
+    const open=_openPeek[i];
+    const isMe=e.username===APP.user?.username;
+    html+=`<div class="receipt"><div class="rhead" onclick="togglePeek(${i})">
+      <div class="nm">${esc(e.username)}${isMe?" <small>(você)</small>":""}<small>cap ${SLOT_LABEL[e.captain]||"?"} · ${TAC[e.tactic]?.name||e.tactic||"—"}</small></div>
+      <div class="tot mono" style="color:var(--dim);font-size:14px">${open?"▲":"▼"}</div></div>`;
+    if(open){
+      html+=`<div class="rbody">`;
+      ["GK","DEF","MID","ATT","FLEX","BENCH"].forEach(sl=>{
+        const pid=e.slots[sl];const pl=pid?byId[pid]:null;
+        if(!pl){html+=`<div class="line" style="padding:5px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> <span style="color:#46537a">—</span></span></div>`;return;}
+        const isCap=e.captain===sl;
+        const posKey=sl==="BENCH"?pl.pos:sl;
+        html+=`<div class="line" style="padding:5px 0"><span><b class="pc-${posKey}" style="font-size:9px">${SLOT_LABEL[sl]}</b> ${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</span></div>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  return html;
 }
 
 // ---------- MANUTENÇÃO / RESET (admin) ----------
@@ -1501,6 +1535,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="round"){await loadRound(roundId);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
+    if(view==="room"){APP.entries=await loadEntries();_openPeek={};}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};}
     if(view==="profile"){APP.profile=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;}
     if(view==="members"){APP.members=null;render();const ms=await loadGroupMembers();if(APP.view==="members")APP.members=ms;}
