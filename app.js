@@ -896,7 +896,18 @@ function buildHTML(){
       ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
-  const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div></div>`).join("");
+  // rótulos legíveis pras ações de buff/nerf das táticas
+  const TACT_LABEL={goal:"gols",sotPts:"chutes no gol",assist:"assistências",sca:"criação de chance",gca:"jogada do gol",
+    dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
+    tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
+    accCross:"cruzamentos certos",fouls:"faltas cometidas"};
+  function tactEffectHTML(t){
+    const ups=Object.keys(t.buffs||{}).map(k=>TACT_LABEL[k]||k);
+    // nerf de fouls é "mais faltas" (ruim); os outros são reduções
+    const downs=Object.entries(t.nerfs||{}).map(([k,v])=>v>1?("mais "+(TACT_LABEL[k]||k)):(TACT_LABEL[k]||k));
+    return `<div class="teff"><div class="up">▲ ${ups.join(", ")}</div><div class="down">▼ ${downs.join(", ")}</div></div>`;
+  }
+  const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`).join("");
   const tabs=["ALL",pp.home.code,pp.away.code,"GK","DEF","MID","ATT"];
   const tabsHTML=tabs.map(t=>{
     const isTeam=t===pp.home.code||t===pp.away.code;
@@ -911,7 +922,8 @@ function buildHTML(){
   return `<div class="card">
     <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
-    <div class="tag" style="margin-bottom:6px">TÁTICA (ativa conforme as stats dos seus jogadores em campo · buff + nerf)</div>
+    <div class="tag" style="margin-bottom:4px">ESCOLHA 1 TÁTICA</div>
+    <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
   <div class="card">
