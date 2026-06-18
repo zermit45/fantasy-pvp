@@ -19,19 +19,77 @@ const tierSV = v => v<0.1?{b:0,t:1} : v<=0.3?{b:1.2,t:2} : v<=0.6?{b:2.6,t:3} : 
 // a partida em campo (titular não-substituído OU reserva que entrou e terminou).
 // Se ativar: buff ×1.18 nas ações premiadas, nerf ×0.90 nas penalizadas.
 // buffs/nerfs aplicam a CADA jogador do seu time individualmente.
+// ─────────────────────────────────────────────────────────────
+// TÁTICAS v3 — SKILL, não sorte.
+// A condição olha a COMPOSIÇÃO do time que você montou (posições + preços
+// dos titulares que terminaram em campo), não o que aconteceu na partida.
+// Você controla 100% se a tática ativa, montando o time do jeito certo.
+// Efeito liga/desliga: se a composição bate, todos ganham o buff (×1.18).
+// SEM nerfs — errar a tática só significa não ganhar o bônus, sem punição.
+// `comp` traz: nGK,nDEF,nMID,nATT (titulares por posição, FLEX conta na sua),
+//   spend (soma de preço dos titulares), priceOf{pos:[precos]}, maxPrice, avgPrice.
+// ─────────────────────────────────────────────────────────────
+// TÁTICAS v4 — ativação pelas AÇÕES dos seus jogadores na partida.
+// Cada tática tem uma FAMÍLIA de ações (a "cara" daquela tática).
+// Dois testes:
+//   1) ESTILO DOMINANTE: a família da tática é a maior fatia das ações
+//      ofensivas/defensivas do seu time (proporção interna — não compara com
+//      o adversário nem com a média do jogo).
+//   2) PARTICIPAÇÃO: pelo menos `minPlayers` dos seus jogadores que entraram
+//      contribuíram de verdade naquela família.
+// Passou nos 2 → COMPLETA → +12% nas ações da família.
+// Falhou em 1 → INCOMPLETA → −5% nas ações da família (ônus < bônus).
+// `fam` = chaves de comp (pontuação) que recebem o efeito.
+// `metric(p)` = quanto ESTE jogador produziu na família (pra dominância e participação).
+// `partMin` = mínimo de produção individual pra contar como "participou".
+// Alvos de PONTOS no time todo (normalização): toda tática vale o mesmo, independente
+// da família. Completa soma ~+2.5 pts distribuídos entre os jogadores; incompleta tira
+// ~−1.0 pt (ônus sempre menor que o bônus). A distribuição é proporcional ao quanto
+// cada jogador produziu na família, então quem "fez a tática acontecer" leva mais.
+const TACT_BONUS_PTS = 2.5;
+const TACT_ONUS_PTS  = -1.0;
+// soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
+// como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
+const TACT_PTSREF = { muralha:7.3, pressaototal:9.8, cerebro:20.3, tridente:2.3, aereo:2.7, contra:6.3 };
 const TACTICS = {
-  muralha:{name:"Estacionar o Ônibus",desc:"Seu time fica entre os melhores do jogo em desarmes + interceptações + cortes",
-    cond:(sq,base)=>(sq.tklint+sq.clearance)>=(base?base.tklintClr:20), buffs:{tklint:1.18,clearance:1.18,block:1.18}, nerfs:{prgp:0.90,dribbles:0.90}},
-  pressaototal:{name:"Gegenpress",desc:"Seu time fica entre os melhores do jogo em recuperações de bola",
-    cond:(sq,base)=>sq.recovery>=(base?base.recovery:20), buffs:{recovery:1.18,tklint:1.18}, nerfs:{fouls:1.15,aerial:0.90}},
-  cerebro:{name:"Tiki-Taka",desc:"Seu time fica entre os melhores do jogo em passes progressivos",
-    cond:(sq,base)=>sq.prgp>=(base?base.prgp:60), buffs:{assist:1.18,sca:1.18,gca:1.18}, nerfs:{aerial:0.90,clearance:0.90}},
-  tridente:{name:"Ataque Total",desc:"Seu time fica entre os melhores do jogo em volume ofensivo (chutes no gol + gols valendo dobro)",
-    cond:(sq,base)=>(sq.sot+sq.goals*2)>=(base?base.sotGoals:6), buffs:{goal:1.18,sotPts:1.18}, nerfs:{recovery:0.90,tklint:0.90}},
-  aereo:{name:"Chuveiro na Área",desc:"Seu time fica entre os melhores do jogo em duelos aéreos vencidos",
-    cond:(sq,base)=>sq.aerial>=(base?base.aerial:6), buffs:{aerial:1.18,accCross:1.18}, nerfs:{dribbles:0.90,prgp:0.90}},
-  contra:{name:"Contra-Ataque",desc:"Seu time fica entre os melhores do jogo em dribles + passes na área (transição rápida)",
-    cond:(sq,base)=>(sq.dribbles+sq.pib*0.5)>=(base?base.dribPib:5), buffs:{dribbles:1.18,goal:1.18,pib:1.18}, nerfs:{tklint:0.90,recovery:0.90}},
+  muralha:{name:"Estacionar o Ônibus",
+    desc:"Defesa em bloco. Ativa se a marcação (desarmes, cortes, bloqueios) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
+    fam:["tklint","clearance","block"], minPlayers:3,
+    metric:p=>p.tklint+p.clearance+p.block, partMin:3},
+  pressaototal:{name:"Gegenpress",
+    desc:"Pressão alta. Ativa se recuperar a bola (recuperações + desarmes) for o ponto forte do seu time e 3+ jogadores pressionarem.",
+    fam:["recovery","tklint"], minPlayers:3,
+    metric:p=>p.recovery+p.tklint, partMin:4},
+  cerebro:{name:"Tiki-Taka",
+    desc:"Posse e troca de passes. Ativa se a construção (passes progressivos + criação de chances) for o forte do seu time e 3+ jogadores criarem.",
+    fam:["prgp","sca","gca","assist"], minPlayers:3,
+    metric:p=>p.prgp+p.sca+p.gca*2, partMin:4},
+  tridente:{name:"Ataque Total",
+    desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 2+ jogadores finalizarem.",
+    fam:["goal","sotPts"], minPlayers:2,
+    metric:p=>p.sots.length+p.goals.length*2, partMin:1},
+  aereo:{name:"Chuveiro na Área",
+    desc:"Jogo aéreo e cruzamentos. Ativa se o jogo pelo alto (duelos aéreos + cruzamentos certos) for o forte do seu time e 2+ jogadores brigarem por cima.",
+    fam:["aerial","accCross","goal"], minPlayers:2,
+    metric:p=>p.aerial+p.accCross, partMin:2},
+  contra:{name:"Contra-Ataque",
+    desc:"Transição rápida. Ativa se conduzir e infiltrar (dribles + passes na área) for o forte do seu time e 2+ jogadores conduzirem.",
+    fam:["dribbles","goal","pib"], minPlayers:2,
+    metric:p=>p.dribbles+p.pib, partMin:2},
+};
+// famílias de referência pra calcular a DOMINÂNCIA (proporção interna do time).
+// IMPORTANTE: cada ação tem volume natural muito diferente (passes >> dribles >>
+// cruzamentos). Por isso normalizamos cada família por um divisor de referência,
+// para que "dominante" signifique "o time se destacou NAQUILO relativo ao normal
+// daquela ação", e não simplesmente a ação de maior volume bruto (passe sempre venceria).
+const TACT_NORM={ muralha:15, pressaototal:19, cerebro:154, tridente:3, aereo:5, contra:11 };
+const TACT_FAMILIES={
+  muralha:p=>p.tklint+p.clearance+p.block,
+  pressaototal:p=>p.recovery+p.tklint,
+  cerebro:p=>p.prgp+p.sca+p.gca*2,
+  tridente:p=>(p.sots?p.sots.length:0)+(p.goals?p.goals.length:0)*2,
+  aereo:p=>p.aerial+p.accCross,
+  contra:p=>p.dribbles+p.pib,
 };
 
 // normaliza um player do match.json pra um objeto completo de stats
@@ -193,24 +251,31 @@ function makeEngine(match){
     else if(G>=1&&A>=1) arch="Decisivo";                                   // gol + assist
     else if(A>=3) arch="Rei das Assistências";                             // 3+ assists
     else if(A>=2) arch="Garçom";
-    else if((p.sca+p.gca*2)>=8&&p.pib>=4) arch="Cérebro do Time";          // criação altíssima
-    else if((p.sca+p.gca*2)>=6&&p.pib>=3) arch="Maestro Criador";
-    else if(p.pos==="ATT"&&p.dribbles>=5) arch="Driblador";                // muito drible
-    else if(p.pos==="ATT"&&p.sots.length>=3) arch="Lobo Solitário";        // muito chute
-    else if(p.pos==="ATT"&&p.aerial>=4) arch="Pivô de Área";
-    else if(p.pos==="ATT") arch="Homem de Frente";                         // atacante padrão
-    else if(p.pos==="DEF"&&(p.tklint+p.clearance+p.block)>=14) arch="Xerife";  // defensor dominante
-    else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=10) arch="Muralha Aérea";
-    else if(p.pos==="DEF"&&p.prgp>=3&&ix.sec>=70) arch="Zagueiro Construtor";
-    else if(p.pos==="DEF"&&p.dribbles>=3&&ix.iui>=60) arch="Ala Moderno";   // lateral ofensivo
-    else if(p.pos==="DEF"&&ix.iui>=60) arch="Lateral de Corredor";
-    else if(p.pos==="MID"&&ix.iui>=70&&ix.tw>=70) arch="Box-to-Box";        // completo de verdade
-    else if(p.pos==="MID"&&(p.sca+p.gca*2)>=4) arch="Camisa 10";
-    else if(p.pos==="MID"&&p.dribbles>=4) arch="Condutor";                  // conduz a bola
-    else if((p.tklint+p.recovery)>=8&&ix.tw>=65) arch="Volante";
-    else if(ix.tw>=65&&p.recovery>=6) arch="Motor";
-    else if(ix.tw>=60&&ix.sec>=70&&p.pos!=="ATT") arch="Cão de Guarda";
-    else if(ix.iui>=65&&ix.sec<45) arch="Ponta Caótico";
+    // ---- criação (específicos primeiro, limiares altos) ----
+    else if((p.sca+p.gca*2)>=9&&p.pib>=5) arch="Cérebro do Time";          // criação excepcional
+    else if((p.sca+p.gca*2)>=7&&p.pib>=3) arch="Maestro Criador";
+    // ---- ataque ----
+    else if(p.pos==="ATT"&&p.dribbles>=6) arch="Driblador";                // drible em série
+    else if(p.pos==="ATT"&&p.sots.length>=4) arch="Lobo Solitário";        // muito chute
+    else if(p.pos==="ATT"&&p.aerial>=5) arch="Pivô de Área";
+    else if(p.pos==="ATT"&&(p.sca+p.gca*2)>=5) arch="Camisa 10";           // atacante criador
+    else if(p.pos==="ATT") arch="Homem de Frente";                         // atacante padrão (fallback)
+    // ---- defesa (específicos primeiro) ----
+    else if(p.pos==="DEF"&&(p.tklint+p.clearance+p.block)>=16) arch="Xerife";  // defensor dominante
+    else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=12) arch="Muralha Aérea";
+    else if(p.pos==="DEF"&&p.dribbles>=4&&ix.iui>=72) arch="Ala Moderno";   // lateral ofensivo
+    else if(p.pos==="DEF"&&p.prgp>=9&&p.pib>=2&&ix.sec>=72) arch="Zagueiro Construtor"; // muita saída de bola
+    else if(p.pos==="DEF"&&ix.iui>=78&&p.prgp>=4) arch="Lateral de Corredor";
+    // ---- meio-campo (Box-to-Box agora exige contribuição REAL nas duas fases) ----
+    else if(p.pos==="MID"&&(p.tklint+p.recovery)>=7&&(p.sca+p.gca*2+p.dribbles+p.prgp*0.3)>=6&&ix.tw>=78) arch="Box-to-Box"; // defende E cria
+    else if(p.pos==="MID"&&(p.sca+p.gca*2)>=5) arch="Camisa 10";
+    else if(p.pos==="MID"&&p.dribbles>=5) arch="Condutor";                  // conduz a bola
+    else if((p.tklint+p.recovery)>=10&&ix.tw>=70) arch="Volante";
+    else if(ix.tw>=72&&p.recovery>=8) arch="Motor";
+    else if((p.tklint+p.recovery+p.clearance)>=12&&ix.sec>=74&&p.pos!=="ATT") arch="Cão de Guarda";  // muito trabalho defensivo
+    else if(ix.iui>=72&&ix.sec<42) arch="Ponta Caótico";
+    else if(p.pos==="MID"&&p.prgp>=8&&ix.iui>=55) arch="Articulador";       // distribui jogo (acessível)
+    else if(p.pos==="MID"&&(p.tklint+p.recovery)>=6) arch="Engrenagem";     // meio-campo trabalhador comum
 
     // ---------- TRAITS (selos de momento — até 3) ----------
     if(G>=3) traits.push("Hat-trick");
@@ -310,17 +375,19 @@ function makeEngine(match){
     const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
     if(dvg>0.05)push(`DvG underdog ×${dm.toFixed(3)}`,r1(dvg));
     let tact=0;const T=TACTICS[tacticKey];
-    if(T&&squadSum&&T.cond(squadSum,MATCH_BASE)){
-      for(const[k,m]of Object.entries(T.buffs)){
-        const base=k==="cleanSheet"?cs:(comp[k]??0);
-        tact+=base*(m-1);
-      }
-      for(const[k,m]of Object.entries(T.nerfs)){
-        const b=k==="fouls"?p.fouls*BASE.foul:k==="dribbledPast"?p.dribbledPast*BASE.dribbledPast:(comp[k]??0);
-        tact+=b*(m-1);
-      }
+    // squadSum.status[tacticKey] diz se a tática ficou completa ('full') ou não ('fail').
+    // O efeito é NORMALIZADO: cada tática rende o mesmo em pontos no time todo,
+    // independente de quantas/quais ações a família tem. TACT_PTSREF = soma de pontos
+    // TÍPICA daquela família num time (medida nos jogos reais). O bônus-alvo é dividido
+    // entre os jogadores conforme a fatia de cada um na família.
+    if(T&&squadSum&&squadSum.status){
+      const st=squadSum.status[tacticKey];
+      const alvo=st==="full"?TACT_BONUS_PTS:TACT_ONUS_PTS; // +2.5 completa / -1.0 incompleta (no time todo)
+      let famPts=0; for(const k of T.fam){famPts+=(comp[k]??0);}
+      const ref=TACT_PTSREF[tacticKey]||10;
+      tact=alvo*(famPts/ref); // a fatia deste jogador no bônus do time
       tact=Math.max(-CAPS.TACT,Math.min(CAPS.TACT,tact));
-      if(Math.abs(tact)>=0.05)push(`Tática ${T.name} ativada (cap ±${CAPS.TACT})`,r1(tact));
+      if(Math.abs(tact)>=0.05)push(`Tática ${T.name} ${st==="full"?"completa":"incompleta"}`,r1(tact));
     }
     const ix=indices(p);const avg=ix.iui*.3+ix.eff*.3+ix.sec*.2+ix.tw*.2;const perf=r1(Math.max(-3,Math.min(4,-3+avg/100*7)));
     push("Performance (índices C+)",perf);
@@ -333,21 +400,35 @@ function makeEngine(match){
     return{total,minutes:p.min,statLines:sl,lines:lines.map(([k,v])=>[k,r1(v)]),evNote:ev,labels,meta};
   }
 
-  // Soma as stats dos jogadores que TERMINARAM a partida em campo.
-  // 'finishers' = array de objetos player (já com stats do match). Quem foi
-  // substituído (subbedOff:true) ou não jogou (min=0) NÃO entra.
-  function squadSum(finishers){
-    const s={goals:0,assists:0,sot:0,prgp:0,pib:0,tklint:0,recovery:0,aerial:0,clearance:0,block:0,dribbles:0,setPieceSot:0,setPieceGoals:0,longSot:0,longGoals:0};
-    for(const raw of finishers){
-      const p=normP(raw);
-      if(p.min===0||p.subbedOff) continue; // não terminou em campo
-      s.goals+=p.goals.length; s.assists+=p.assists.length; s.sot+=p.sots.length;
-      s.prgp+=p.prgp; s.pib+=p.pib; s.tklint+=p.tklint; s.recovery+=p.recovery;
-      s.aerial+=p.aerial; s.clearance+=p.clearance; s.block+=p.block; s.dribbles+=p.dribbles;
-      s.setPieceSot+=p.setPieceSot||0; s.setPieceGoals+=p.setPieceGoals||0;
-      s.longSot+=p.longSot||0; s.longGoals+=p.longGoals||0;
+  // Avalia a TÁTICA pelas ações dos jogadores que ENTRARAM (min>0), incluindo
+  // os que foram substituídos. Retorna, para cada tática, o status:
+  //   'full'  → estilo dominante E participação atingida  → bônus
+  //   'fail'  → faltou um dos dois                          → ônus
+  // (a tática escolhida pelo usuário é lida deste mapa no scorePlayer)
+  function squadSum(players){
+    const ps=[];
+    for(const raw of players){const p=normP(raw);if(p.min>0)ps.push(p);}
+    // soma de cada família no time, NORMALIZADA (proporção interna / dominância justa)
+    const famRaw={},famNorm={};
+    for(const k of Object.keys(TACT_FAMILIES)){famRaw[k]=0;}
+    for(const p of ps){for(const k of Object.keys(TACT_FAMILIES))famRaw[k]+=TACT_FAMILIES[k](p);}
+    for(const k of Object.keys(TACT_FAMILIES)){famNorm[k]=famRaw[k]/(TACT_NORM[k]||1);}
+    const maxFam=Math.max(...Object.values(famNorm),0);
+    // status por tática
+    // ranking das famílias por valor normalizado (top 2 contam como "estilo do time")
+    const ranked=Object.entries(famNorm).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+    const top2=new Set(ranked.slice(0,2));
+    const status={};
+    for(const[key,T]of Object.entries(TACTICS)){
+      const mine=famNorm[key]||0;
+      // teste 1: estilo do time = a família da tática está entre as 2 mais fortes do seu time
+      const dominant = mine>0 && top2.has(key);
+      // teste 2: participação (quantos jogadores produziram >= partMin na métrica)
+      let part=0; for(const p of ps){ if(T.metric(p)>=T.partMin) part++; }
+      const enough = part>=T.minPlayers;
+      status[key] = (dominant&&enough) ? "full" : "fail";
     }
-    return s;
+    return {status, famSum:famRaw, famNorm, n:ps.length};
   }
 
   return { scorePlayer, squadSum, TACTICS, matchBase:MATCH_BASE };
