@@ -11,6 +11,8 @@
   --amber:#FFC247;--green:#54E0A8;--red:#FF6B6B;--blue:#5CA8FF;--purple:#B98BFF;--pink:#FF7EC4;
   /* cores por posição (frio→quente: defesa→ataque) */
   --pos-gk:#FFC247;--pos-def:#5CA8FF;--pos-mid:#54E0A8;--pos-att:#FF6B6B;--pos-flex:#B98BFF;
+  /* cores por tática (família de ações) */
+  --tac-muralha:#5CA8FF;--tac-pressaototal:#FF8A4C;--tac-cerebro:#54E0A8;--tac-tridente:#FF6B6B;--tac-aereo:#B98BFF;--tac-contra:#FFC247;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg)}
@@ -72,13 +74,18 @@ body{background:var(--bg)}
 .prow.dis{opacity:.35;cursor:not-allowed}
 .flag{font-size:9px;border-radius:3px;padding:1px 4px;margin-left:6px}
 .tacts{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px}
-.tact{min-width:150px;border:1px solid var(--line);border-radius:11px;padding:10px;cursor:pointer;background:var(--panel2)}
-.tact.on{border-color:var(--amber);background:#23315a}
-.tact .tn{font-size:13px;font-weight:700}
+.tact{min-width:150px;border:1px solid var(--line);border-radius:11px;padding:10px;cursor:pointer;background:var(--panel2);position:relative;overflow:hidden}
+/* faixa de cor no topo do card da tática (cor-tema injetada via --tac inline) */
+.tact .ttop{position:absolute;top:0;left:0;right:0;height:3px;background:var(--tac,var(--amber));opacity:.55}
+.tact.on{border-color:var(--tac,var(--amber));background:color-mix(in srgb,var(--tac,var(--amber)) 14%,var(--panel2))}
+.tact.on .ttop{opacity:1}
+.tact .tn{font-size:13px;font-weight:700;color:var(--tac,var(--chalk))}
 .tact .td{font-size:10px;color:var(--dim);margin-top:4px;line-height:1.4}
-.tact .teff{margin-top:7px;padding-top:6px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.tact .teff{margin-top:7px;padding-top:6px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
 .tact .teff .up{font-size:9.5px;color:var(--green);line-height:1.35}
 .tact .teff .down{font-size:9.5px;color:var(--red);line-height:1.35}
+.tact .teff .foco{font-size:9.5px;color:var(--dim);line-height:1.35}
+.tact .teff .foco b{color:var(--tac,var(--chalk));font-weight:700}
 .warn{font-size:11px;color:var(--red);margin:8px 0}
 .ok{font-size:11px;color:var(--green);margin:8px 0}
 .receipt{border:1px solid var(--line);border-radius:13px;background:var(--panel2);margin-bottom:10px;overflow:hidden}

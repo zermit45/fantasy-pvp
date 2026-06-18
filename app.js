@@ -1596,12 +1596,14 @@ function buildHTML(){
     dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
     tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
     accCross:"cruzamentos",fouls:"faltas"};
+  // cor-tema por tática (casa com as variáveis --tac-* do CSS)
+  const TACT_COLOR={muralha:"var(--tac-muralha)",pressaototal:"var(--tac-pressaototal)",cerebro:"var(--tac-cerebro)",tridente:"var(--tac-tridente)",aereo:"var(--tac-aereo)",contra:"var(--tac-contra)"};
   function tactEffectHTML(t){
     const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
     const uniq=[...new Set(fam)];
-    return `<div class="teff"><div class="up">▲ completa = bônus · ▼ incompleta = ônus menor · foco em ${uniq.join(", ")}</div></div>`;
+    return `<div class="teff"><div class="up">▲ completa = bônus</div><div class="down">▼ incompleta = ônus menor</div><div class="foco">foco em <b>${uniq.join(", ")}</b></div></div>`;
   }
-  const tactsHTML=Object.entries(TAC).map(([k,t])=>`<div class="tact${APP.tactic===k?" on":""}" onclick="setTactic('${k}')"><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`).join("");
+  const tactsHTML=Object.entries(TAC).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`;}).join("");
   // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
   const teamTabs=["ALL",pp.home.code,pp.away.code];
   const teamTabsHTML=teamTabs.map(t=>{
@@ -1636,7 +1638,7 @@ function buildHTML(){
       <div class="h2 disp" style="margin-top:6px">Seu time escalado</div>
       <div class="pool" style="max-height:none;margin-top:8px">${["GK","DEF","MID","ATT","FLEX","BENCH"].map(lineRow).join("")}</div>
       <div class="bsub">⚔️ Sua tática</div>
-      ${tac?`<div class="tact on" style="min-width:0">${`<div class="tn">${tac.name}</div><div class="td">${tac.desc}</div>${tactEffectHTML(tac)}`}</div>`:`<p class="p">—</p>`}
+      ${tac?`<div class="tact on" style="min-width:0;--tac:${TACT_COLOR[APP.tactic]||"var(--amber)"}"><div class="ttop"></div>${`<div class="tn">${tac.name}</div><div class="td">${tac.desc}</div>${tactEffectHTML(tac)}`}</div>`:`<p class="p">—</p>`}
       <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)${helpBtn("capitao")}</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
       <button class="btn ghost" style="margin-top:12px" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
     </div>`;
