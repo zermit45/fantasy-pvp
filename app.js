@@ -29,7 +29,7 @@ let APP={
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
-  captain:null, tactic:null, tabTeam:"ALL", tabPos:"ALL", warn:"", showRules:false, confirm:null,
+  captain:null, tactic:null, tabTeam:"ALL", tabPos:"ALL", warn:"", showRules:false, help:null, confirm:null,
   entries:[],           // entries da sala (pro ranking)
   avulsaLineup:null, members:null, memberView:null, memberProfile:null, memberHistory:null,
 };
@@ -498,10 +498,12 @@ function picksLocked(){return APP.round&&APP.round.status&&APP.round.status!=="o
 // jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
 function roomLockedInRound(roomId){
   const rr=APP.roundRooms.find(x=>x.room_id===roomId);
-  if(rr&&rr.status&&rr.status!=="open")return true;        // dev travou
-  if(isConfirmed(roomId))return true;                       // usuário confirmou
+  if(rr&&rr.status&&rr.status!=="open")return true;        // admin travou a mini rodada
   const g=window.GAMES.data[roomId];
   if(g&&g.match&&g.match.status==="finished")return true;   // jogo acabou
+  // jogo já começou? (kickoff passou) → trava a escalação
+  const idx=(APP.jogos||[]).find(j=>j.room_id===roomId);
+  if(idx&&idx.kickoff){const k=new Date(idx.kickoff);if(!isNaN(k)&&Date.now()>=k.getTime())return true;}
   return false;
 }
 
@@ -950,7 +952,7 @@ function roundRankingHTML(){
   const finishedCount=APP.roundRooms.filter(rr=>{const g=window.GAMES.data[rr.room_id];return g&&g.match&&g.match.status==="finished";}).length;
   let html="";
   // ── CLASSIFICAÇÃO ──
-  html+=`<div class="card"><div class="h2 disp">🏆 Classificação da mini rodada</div>`;
+  html+=`<div class="card"><div class="h2 disp">🏆 Classificação da mini rodada${helpBtn("minirodada")}</div>`;
   if(rk.length){
     html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta mini rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}. Toque num nome pra ver a escalação.</p>`;
     rk.forEach((u,i)=>{
@@ -988,7 +990,7 @@ function roundRankingHTML(){
     here.forEach(e=>{
       const me=e.username===APP.user?.username;
       const montou=e.slots&&Object.values(e.slots).some(Boolean);
-      const status=e.confirmed?`<span style="color:var(--green);font-size:10px">✓ confirmado</span>`:montou?`<span style="color:var(--amber);font-size:10px">escalado</span>`:`<span style="color:var(--dim);font-size:10px">só escolheu</span>`;
+      const status=montou?`<span style="color:var(--green);font-size:10px">✓ escalado</span>`:`<span style="color:var(--dim);font-size:10px">ficha gasta, sem time</span>`;
       html+=`<div class="line" style="padding:4px 0"><span style="${me?"color:var(--amber);font-weight:700":""}">${esc(e.username)}${me?" (você)":""}</span>${status}</div>`;
     });
     html+=`</div>`;
@@ -1011,7 +1013,7 @@ function roundsCardHTML(){
   }).join("");
   if(!avulsas.length&&!isAdmin())return"";
   return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--mid)">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS</div>
+    <div class="tag" style="margin-bottom:6px;color:var(--mid)">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS${helpBtn("minirodada")}</div>
     <p class="p" style="margin-bottom:10px">Mini rodada solta (fora de liga): escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia.</p>
     ${rows||'<p class="p">Nenhuma mini rodada avulsa.</p>'}
     ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
@@ -1029,7 +1031,7 @@ function phasesCardHTML(){
     ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenamePhase('${p.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeletePhase('${p.id}')">🗑</button>`:""}
   </div>`).join("");
   return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--mid)">RODADAS AVULSAS</div>
+    <div class="tag" style="margin-bottom:6px;color:var(--mid)">RODADAS AVULSAS${helpBtn("rodada")}</div>
     <p class="p" style="margin-bottom:10px">Uma rodada (ex: "Fase de Grupos") agrupa várias mini rodadas. Fora de liga.</p>
     ${rows||'<p class="p">Nenhuma rodada avulsa.</p>'}
     ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreatePhase(null)">+ Criar rodada avulsa</button>`:""}
@@ -1049,7 +1051,7 @@ function leaguesCardHTML(){
   }).join("");
   if(!(APP.leagues||[]).length&&!isAdmin())return"";
   return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA</div>
+    <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA${helpBtn("liga")}</div>
     <p class="p" style="margin-bottom:10px">Uma liga junta várias rodadas numa classificação geral. Dois rankings: pontos de tabela (10/7/5/3/1 por colocação) e pontuação clássica acumulada.</p>
     ${rows||'<p class="p">Nenhuma liga ainda.</p>'}
     ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
@@ -1178,24 +1180,23 @@ function roundHTML(){
     const finished=g&&g.match&&g.match.status==="finished";
     const picked=pickedRoom(rid);
     const team=hasTeam(rid);
-    const confirmed=isConfirmed(rid);
-    const locked=roomLockedInRound(rid);
+    const locked=roomLockedInRound(rid); // jogo começou ou admin travou
     let tag,meta,clickable=true;
     if(finished){tag='<span class="statuspill st-finished">VER RESULTADO</span>';meta="jogo encerrado · toque p/ ver";}
     else if(!picked){
       if(selLocked){tag='<span class="statuspill st-closed">NÃO ESCOLHIDO</span>';meta="você não selecionou este jogo";clickable=false;}
-      else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já selecionou seus "+r.pick_limit+" jogos";clickable=false;}
-      else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque no + verde p/ gastar 1 token aqui";clickable=false;}
+      else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já usou suas "+r.pick_limit+" fichas";clickable=false;}
+      else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque no + verde p/ gastar 1 ficha aqui";clickable=false;}
     }
-    else if(confirmed||locked){tag='<span class="statuspill st-closed">🔒 CONFIRMADO</span>';meta="time travado · toque p/ ver";}
-    else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="toque p/ ajustar (livre até o jogo começar) ou confirmar";}
-    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="token gasto ✓ · toque p/ escalar";}
+    else if(locked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada · toque p/ ver";}
+    else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="vaga garantida · toque p/ ajustar (livre até o jogo começar)";}
+    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="ficha gasta ✓ · toque p/ escalar";}
     // ação principal (jogador): selecionar ou desfazer — UM botão só
     let playerBtn="";
     if(!finished&&!picked&&!selLocked&&left>0){
-      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--green);border-color:var(--green);font-size:18px" title="Selecionar este jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
-    }else if(!finished&&picked&&!confirmed&&!locked&&!selLocked){
-      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--red);border-color:var(--red)" title="Desfazer seleção" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
+      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--green);border-color:var(--green);font-size:18px" title="Gastar 1 ficha neste jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
+    }else if(!finished&&picked&&!locked&&!selLocked){
+      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--red);border-color:var(--red)" title="Desfazer (devolve a ficha)" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
     }
     // bloco de admin (separado, com divisória sutil)
     let devBlock="";
@@ -1223,7 +1224,7 @@ function roundHTML(){
     </div>
     ${selLocked
       ? `<div class="prebox" style="border-color:#3a2e10">🔒 <b>Seleção fechada.</b> Agora é a <b>Fase 2:</b> monte a escalação de cada jogo que você escolheu. Pode mudar o time quantas vezes quiser até a partida começar na vida real — aí ela trava. Confirme quando estiver satisfeito.</div>`
-      : `<div class="prebox">⏳ <b>Fase 1 — gaste seus tokens:</b> escolha <b>${r.pick_limit}</b> jogos pra disputar (toque no <b>+</b> verde). Isso vale enquanto a seleção estiver aberta; quando o 1º jogo começar, trava. Dá pra trocar livremente até lá. <b style="color:var(--amber)">${used}/${r.pick_limit}</b> escolhidos.<br><br>Depois você monta o time de cada jogo (a escalação você muda à vontade até a partida começar).</div>`}
+      : `<div class="prebox">⏳ <b>Fase 1 — escolha seus jogos:</b> você tem <b>${r.pick_limit}</b> fichas de entrada. Toque no <b>+</b> verde pra gastar 1 ficha e garantir sua vaga num jogo. Dá pra trocar livremente enquanto a seleção estiver aberta; quando o 1º jogo começar, trava. <b style="color:var(--amber)">${used}/${r.pick_limit}</b> usadas.<br><br>Depois você monta o time de cada jogo escolhido — a escalação muda à vontade até a partida começar (não precisa confirmar).</div>`}
     ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
   </div>
   ${roundRankingHTML()}
@@ -1612,29 +1613,29 @@ function buildHTML(){
       <div class="pool" style="max-height:none;margin-top:8px">${["GK","DEF","MID","ATT","FLEX","BENCH"].map(lineRow).join("")}</div>
       <div class="bsub">⚔️ Sua tática</div>
       ${tac?`<div class="tact on" style="min-width:0">${`<div class="tn">${tac.name}</div><div class="td">${tac.desc}</div>${tactEffectHTML(tac)}`}</div>`:`<p class="p">—</p>`}
-      <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
+      <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)${helpBtn("capitao")}</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
       <button class="btn ghost" style="margin-top:12px" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
     </div>`;
   }
   return `<div class="card">
     <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
-    <div class="tag" style="margin-bottom:4px">ESCOLHA 1 TÁTICA</div>
+    <div class="tag" style="margin-bottom:4px">ESCOLHA 1 TÁTICA${helpBtn("tatica")}</div>
     <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
   <div class="card">
-    <div class="h2 disp">Pool <span class="tag">· ${pp.players.length} JOGADORES</span></div>
+    <div class="h2 disp">Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</div>
     ${tabsHTML}
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
     ${!gameLocked&&inRound&&APP.avulsaLineup?`<button class="btn ghost" style="margin-top:12px;border-color:var(--blue);color:var(--blue)" onclick="copyLineupFromOther()">📋 Copiar escalação da partida solta</button>`:""}
     ${gameLocked
-      ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 Esta escalação está travada (confirmada ou jogo começou). Não dá mais pra editar.</div>
+      ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 O jogo já começou — escalação travada. Não dá mais pra editar.</div>
          <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
       : inRound
-        ? `<button class="btn ghost" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar (ainda dá pra ajustar)":"Complete 6 slots, capitão e tática"}</button>
-           <button class="btn" style="margin-top:8px" ${ready?"":"disabled"} onclick="askConfirmTeam()">✓ Confirmar equipe (trava)</button>`
+        ? `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar escalação":"Complete 6 slots, capitão e tática"}</button>
+           <p class="p" style="margin-top:8px;font-size:12px;color:var(--dim)">Pode ajustar quantas vezes quiser até o jogo começar. O que está garantido é a <b>vaga neste jogo</b> (ficha gasta) — a escalação trava sozinha no apito inicial.</p>`
         : `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
     <button class="btn ghost" style="margin-top:8px" onclick="${APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId)?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
   </div>`;
@@ -1882,7 +1883,7 @@ function profileHTML(){
   html+=`</div>`;
   // coleção de arquétipos
   if(topArch.length){
-    html+=`<div class="card"><div class="h2 disp">Seus arquétipos mais frequentes</div><div style="margin-top:10px">`;
+    html+=`<div class="card"><div class="h2 disp">Seus arquétipos mais frequentes${helpBtn("arquetipo")}</div><div style="margin-top:10px">`;
     topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
     html+=`</div></div>`;
   }
@@ -2184,9 +2185,33 @@ function topbarHTML(){
       ${isDev()?`<div class="userchip" onclick="toggleDevMode()" style="cursor:pointer;border-color:${APP.devMode?"var(--amber)":"var(--line)"};color:${APP.devMode?"var(--amber)":"var(--dim)"}" title="Alternar modo DEV / jogador">${APP.devMode?"🛠 DEV":"🎮 jogador"}</div>`:""}
       ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
-  </div>${APP.showRules?rulesModalHTML():""}`;
+  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}`;
 }
 function toggleRules(){APP.showRules=!APP.showRules;render();}
+// ---- mini-ajudas contextuais (botão ? pequeno em vários lugares) ----
+const HELP={
+  minirodada:["Mini rodada","Você recebe um número de fichas (tokens) de entrada. Cada jogo que você escolher gasta 1 ficha e garante sua vaga naquele jogo. Você não precisa usar todas. Escolher os jogos certos (onde você acha que vai pontuar mais) é a estratégia. A escalação de cada jogo é montada depois e pode ser ajustada até a partida começar."],
+  token:["Fichas de entrada","Cada mini rodada te dá um número fixo de fichas (ex: 2). Tocar no + verde de um jogo gasta 1 ficha e sela sua participação NAQUELE jogo. Enquanto a seleção estiver aberta, dá pra trocar à vontade. Quando o 1º jogo começa, suas escolhas travam."],
+  escalacao:["Escalação","Montar o time é separado de escolher o jogo. A escalação fica salva e você pode mudá-la quantas vezes quiser até a partida começar — ela trava sozinha no apito inicial. Não existe 'confirmar equipe' aqui: o que está garantido é a vaga no jogo (a ficha)."],
+  liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
+  rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
+  capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
+  banco:["Banco (reserva)","Se um titular de linha for mal, o reserva pode entrar no lugar — mas rende só 80% da nota (pedágio). Ele só substitui se, já com o desconto, superar o titular. O goleiro reserva só conta se o titular não jogar nenhum minuto."],
+  tatica:["Tática","Depende de como você montou o time: olha as estatísticas somadas dos seus jogadores que terminaram em campo. Se a condição bater, dá bônus em certas ações e desconto em outras. Escolher a tática que combina com seu time é parte da estratégia."],
+  pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
+  arquetipo:["Arquétipos","Depois do jogo, cada jogador ganha um 'tipo' conforme a atuação (ex: Artilheiro, Muralha, Box-to-Box). É só cosmético/colecionável — não muda os pontos. Você coleciona os que escalou no seu perfil."],
+};
+function helpBtn(key){return `<span class="helpq" onclick="event.stopPropagation();showHelp('${key}')" title="O que é isso?">?</span>`;}
+function showHelp(key){APP.help=key;render();}
+function closeHelp(){APP.help=null;render();}
+function helpModalHTML(){
+  const h=HELP[APP.help];if(!h)return"";
+  return `<div class="modal" onclick="closeHelp()"><div class="box" onclick="event.stopPropagation()">
+    <div class="h2 disp" style="color:var(--amber)">${esc(h[0])}</div>
+    <p class="p" style="margin:12px 0">${esc(h[1])}</p>
+    <button class="btn" onclick="closeHelp()">Entendi</button>
+  </div></div>`;
+}
 function rulesModalHTML(){
   return `<div class="modal" onclick="toggleRules()"><div class="box" onclick="event.stopPropagation()" style="max-height:80vh;overflow:auto">
     <div class="h2 disp" style="color:var(--amber)">Como funciona o Fantasy PvP</div>
