@@ -1517,11 +1517,11 @@ function confirmModalHTML(){
   // modo: criar rodada (admin)
   if(c.mode==="replicate"){
     const pp=APP.prepool;
-    const nome=pp?`${esc(pp.home.name)} × ${esc(pp.away.name)}`:"estes times";
+    const nome=pp?`${esc(pp.home.name)} × ${esc(pp.away.name)}`:"este jogo";
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:var(--green)">Repor escalação</div>
-      <p class="p" style="margin:10px 0">Tem certeza que quer <b style="color:var(--chalk)">repor TODAS as ${c.count} escalação(ões) disponíveis</b> de <b style="color:var(--chalk)">${nome}</b> com a escalação que você montou agora?</p>
-      <p class="p" style="margin-bottom:12px;font-size:11px">Isso <b>sobrescreve</b> o que você já tinha montado nessas outras partidas (mesmos times, qualquer modo). As que já travaram não são afetadas.</p>
+      <p class="p" style="margin:10px 0">Tem certeza que quer <b style="color:var(--chalk)">repor as ${c.count} outra(s) aparição(ões)</b> de <b style="color:var(--chalk)">${nome}</b> com a escalação que você montou agora?</p>
+      <p class="p" style="margin-bottom:12px;font-size:11px">Isso <b>sobrescreve</b> o time que você tinha montado pra este mesmo jogo nos outros modos/rodadas. As que já travaram não são afetadas.</p>
       <button class="btn" style="margin-top:4px;background:var(--green);color:#06231a" onclick="applyLineupEverywhere()">Sim, repor as ${c.count}</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
@@ -1747,8 +1747,7 @@ function buildHTML(){
   ).sort((a,b)=>b.price-a.price);
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
   const hasSomeFilled=Object.values(s).some(Boolean);
-  const sameMatches=sameMatchupRooms(APP.roomId).filter(rid=>{const gg=window.GAMES.data[rid];return !(gg&&gg.match&&gg.match.status==="finished");});
-  const canReplicate=hasSomeFilled&&!gameLocked&&sameMatches.length>0;
+  const canReplicate=hasSomeFilled&&!gameLocked;
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
@@ -1823,8 +1822,8 @@ function buildHTML(){
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
     ${!gameLocked&&inRound&&APP.avulsaLineup?`<button class="btn ghost" style="margin-top:12px;border-color:var(--blue);color:var(--blue)" onclick="copyLineupFromOther()">📋 Copiar escalação da partida solta</button>`:""}
-    ${canReplicate?`<button class="btn ghost" style="margin-top:12px;border-color:var(--green);color:var(--green)" onclick="askReplicate()">📑 Repor esta escalação nas ${sameMatches.length} outra(s) partida(s) dos mesmos times</button>
-       <p class="p" style="margin-top:6px;font-size:11px">Cola exatamente este time (jogadores + capitão + tática) em toda partida ${esc(pp.home.name)} × ${esc(pp.away.name)} disponível, em qualquer modo. Salve este jogo também.</p>`:""}
+    ${canReplicate?`<button class="btn ghost" style="margin-top:12px;border-color:var(--green);color:var(--green)" onclick="askReplicate()">📑 Repor esta escalação nos outros modos com este jogo</button>
+       <p class="p" style="margin-top:6px;font-size:11px">Cola este time (jogadores + capitão + tática) em toda aparição de ${esc(pp.home.name)} × ${esc(pp.away.name)} nos outros modos/rodadas. Salve este jogo também.</p>`:""}
     ${gameLocked
       ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 O jogo já começou — escalação travada. Não dá mais pra editar.</div>
          <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
@@ -1848,73 +1847,51 @@ async function copyLineupFromOther(){
   toast("Escalação copiada da partida solta! Revise e salve.");
   render();
 }
-// ── REPOR ESCALAÇÃO: aplica a escalação atual em TODAS as outras partidas dos MESMOS times ──
-// Casa jogadores por NOME (IDs são locais por jogo). Salva tanto a versão avulsa quanto
-// as entries nas rodadas (qualquer modo) onde aquele jogo aparece e ainda não travou.
-function sameMatchupRooms(roomId){
-  const g=window.GAMES.data[roomId];if(!g)return[];
-  const a=g.prepool.home.code,b=g.prepool.away.code;
-  const key=[a,b].sort().join("|");
-  return Object.keys(window.GAMES.data).filter(rid=>{
-    if(rid===roomId)return false;
-    const gg=window.GAMES.data[rid];if(!gg)return false;
-    const k=[gg.prepool.home.code,gg.prepool.away.code].sort().join("|");
-    return k===key;
-  });
+// ── REPOR ESCALAÇÃO: copia a escalação ATUAL (deste jogo) pra todas as OUTRAS
+// aparições do MESMO jogo (mesmo room_id) nos outros modos/rodadas + versão avulsa.
+// Como é o mesmo jogo, os IDs dos jogadores são idênticos: copia os slots direto.
+// Pula a entry atual (onde estou) e qualquer entry travada (admin ou jogo começou).
+async function replicateTargets(){
+  // devolve lista de {round_id|null, label, locked} — onde dá pra colar a escalação deste room_id
+  const out=[];
+  const inRoundNow=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  // 1) versão avulsa (round_id null) — alvo se eu NÃO estou nela agora
+  if(inRoundNow) out.push({round_id:null,label:"partida solta",locked:false});
+  // 2) todas as rodadas onde este jogo aparece
+  try{
+    const rrs=await sb("round_rooms?room_id=eq."+APP.roomId+"&select=round_id,status");
+    for(const rr of (rrs||[])){
+      if(inRoundNow&&rr.round_id===APP.roundId) continue; // pula a rodada atual (é onde estou)
+      const locked=(rr.status&&rr.status!=="open");
+      out.push({round_id:rr.round_id,label:"rodada",locked});
+    }
+  }catch(e){}
+  return out.filter(t=>!t.locked);
 }
-function askReplicate(){
-  const n=sameMatchupRooms(APP.roomId).filter(rid=>{const gg=window.GAMES.data[rid];return !(gg&&gg.match&&gg.match.status==="finished");}).length;
-  if(!n){toast("Não há outra partida com os mesmos times.");return;}
-  APP.confirm={mode:"replicate",count:n,label:"Repor escalação"};render();
+async function askReplicate(){
+  const targets=await replicateTargets();
+  if(!targets.length){toast("Este jogo não aparece em outro modo/rodada pra copiar.");return;}
+  APP.confirm={mode:"replicate",count:targets.length,_targets:targets,label:"Repor escalação"};render();
 }
 async function applyLineupEverywhere(){
   if(!APP.user){toast("Faça login.");return;}
-  // monta o mapa nome→jogador do jogo ATUAL pros slots escalados
-  const srcById=APP._byId;
-  const srcSlots=APP.slots;
-  const filledNames={}; // slot → nome do jogador escalado
-  for(const sl of ["GK","DEF","MID","ATT","FLEX","BENCH"]){
-    const pid=srcSlots[sl];if(!pid)continue;
-    const meta=srcById[pid];if(meta)filledNames[sl]={name:meta.name,team:meta.team};
-  }
-  if(!Object.values(filledNames).length){toast("Monte o time primeiro.");return;}
-  const targets=sameMatchupRooms(APP.roomId);
-  if(!targets.length){toast("Não há outra partida com os mesmos times.");return;}
+  const slots=APP.slots;
+  if(!Object.values(slots).some(Boolean)){toast("Monte o time primeiro.");return;}
+  const targets=(APP.confirm&&APP.confirm._targets)||await replicateTargets();
+  if(!targets.length){toast("Nada para aplicar.");APP.confirm=null;render();return;}
+  const cap=(APP.captain&&slots[APP.captain])?APP.captain:null;
+  const payload={slots:JSON.parse(JSON.stringify(slots)),captain:cap,tactic:APP.tactic,updated_at:new Date().toISOString()};
   let applied=0;
-  for(const rid of targets){
-    const g=window.GAMES.data[rid];
-    if(g.match&&g.match.status==="finished")continue; // não mexe em jogo encerrado
-    // monta nome→id local do jogo destino
-    const nameToId={};
-    for(const p of g.prepool.players)nameToId[p.name+"|"+p.team]=p.id;
-    const newSlots={GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null};
-    for(const sl in filledNames){
-      const k=filledNames[sl].name+"|"+filledNames[sl].team;
-      if(nameToId[k]!=null)newSlots[sl]=nameToId[k];
-    }
-    // capitão só vale se o slot foi preenchido no destino
-    const cap=(APP.captain&&newSlots[APP.captain])?APP.captain:null;
-    // 1) salva versão avulsa (round_id null) deste jogo
+  for(const t of targets){
     try{
-      const exA=await sb("entries?room_id=eq."+rid+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&round_id=is.null&select=id");
-      const baseA={slots:newSlots,captain:cap,tactic:APP.tactic,updated_at:new Date().toISOString()};
-      if(exA&&exA.length)await sbUpdate("entries",baseA,"id=eq."+exA[0].id);
-      else await sbInsert("entries",Object.assign({room_id:rid,group_id:APP.groupId,round_id:null,username:APP.user.username},baseA));
-      applied++;
-    }catch(e){}
-    // 2) salva nas rodadas (qualquer modo) onde este jogo aparece e não travou
-    try{
-      const rrs=await sb("round_rooms?room_id=eq."+rid+"&select=round_id,status");
-      for(const rr of (rrs||[])){
-        if(rr.status&&rr.status!=="open")continue; // travado pelo admin
-        const exR=await sb("entries?room_id=eq."+rid+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&round_id=eq."+rr.round_id+"&select=id");
-        const baseR={slots:newSlots,captain:cap,tactic:APP.tactic,updated_at:new Date().toISOString()};
-        if(exR&&exR.length)await sbUpdate("entries",baseR,"id=eq."+exR[0].id);
-      }
+      const filtro=t.round_id?("&round_id=eq."+t.round_id):"&round_id=is.null";
+      const ex=await sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+filtro+"&select=id");
+      if(ex&&ex.length){await sbUpdate("entries",payload,"id=eq."+ex[0].id);applied++;}
+      else{await sbInsert("entries",Object.assign({room_id:APP.roomId,group_id:APP.groupId,round_id:t.round_id,username:APP.user.username},payload));applied++;}
     }catch(e){}
   }
   APP.confirm=null;
-  toast(applied?`Escalação aplicada em ${applied} partida(s) dos mesmos times!`:"Nada para aplicar.");
+  toast(applied?`Escalação copiada para ${applied} outra(s) aparição(ões) deste jogo!`:"Nada para aplicar.");
   render();
 }
 function place(pid){
