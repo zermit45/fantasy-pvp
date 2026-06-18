@@ -1328,7 +1328,12 @@ function phasesCardHTML(){
     ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreatePhase(null)">+ Criar rodada avulsa</button>`:""}
   </div>`;
 }
-function askDeletePhase(id){APP.confirm={mode:"deletePhase",phaseId:id,label:"Excluir rodada"};render();}
+function askDeletePhase(id){
+  if(!isAdmin())return;
+  const p=(APP.phases||[]).find(x=>x.id===id);
+  askConfirm("EXCLUIR",`Excluir a rodada "${p?p.name:""}"`,()=>{deletePhase(id);},
+    "Esta ação apaga a rodada, TODAS as mini rodadas dela e as escalações (times) dessas mini rodadas. Não pode ser desfeita.");
+}
 
 // ----- LIGAS: card na home -----
 function leaguesCardHTML(){
@@ -1370,16 +1375,16 @@ function leagueHTML(){
   html+=`<div class="card"><div class="h2 disp">Rodadas desta liga</div>`;
   if(!phases.length)html+=`<p class="p" style="margin-top:6px">Nenhuma rodada vinculada ainda.</p>`;
   else phases.forEach(p=>{
-    const nMini=(APP.phases===phases?0:0); // placeholder
-    html+=`<div class="roomrow" onclick="enterPhase('${p.id}')"><div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">toque pra ver as mini rodadas</div></div><span class="statuspill st-finished">VER</span></div>`;
+    const unlinkBtn=isAdmin()?`<span onclick="event.stopPropagation();unlinkPhaseFromLeague('${p.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.55" title="Desvincular da liga (vira avulsa)">🔗</span>`:"";
+    html+=`<div class="roomrow" onclick="enterPhase('${p.id}')"><div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">toque pra ver as mini rodadas</div></div><div style="display:flex;align-items:center;gap:6px">${unlinkBtn}<span class="statuspill st-finished">VER</span></div></div>`;
   });
   html+=`</div>`;
   if(isAdmin()){
     html+=`<div class="card"><div class="tag" style="margin-bottom:6px">ADMIN · RODADAS</div>
       <button class="btn" style="margin-bottom:10px" onclick="askCreatePhase('${l.id}')">+ Criar rodada nesta liga</button>`;
     if(fora.length){
-      html+=`<p class="p" style="margin-bottom:8px">Rodadas avulsas (sem liga) — toque pra adicionar:</p>`;
-      fora.forEach(p=>{html+=`<div class="roomrow" onclick="addPhaseToLeague('${p.id}')"><div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">adicionar a esta liga</div></div><span class="statuspill st-closed">+ ADD</span></div>`;});
+      html+=`<p class="p" style="margin-bottom:8px">Rodadas avulsas (sem liga) — toque pra adicionar, ou exclua de vez:</p>`;
+      fora.forEach(p=>{html+=`<div class="roomrow"><div class="info" onclick="addPhaseToLeague('${p.id}')" style="cursor:pointer"><div class="nm">${esc(p.name)}</div><div class="meta">adicionar a esta liga</div></div><div style="display:flex;align-items:center;gap:6px"><span onclick="event.stopPropagation();addPhaseToLeague('${p.id}')" class="statuspill st-closed" style="cursor:pointer">+ ADD</span><span onclick="event.stopPropagation();askDeletePhase('${p.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.5" title="Excluir rodada de vez">🗑</span></div></div>`;});
     }
     html+=`</div>`;
   }
@@ -1406,15 +1411,16 @@ function phaseHTML(){
   html+=`<div class="card"><div class="h2 disp">Mini rodadas</div>`;
   if(!minis.length)html+=`<p class="p" style="margin-top:6px">Nenhuma mini rodada ainda.</p>`;
   else minis.forEach(r=>{
-    html+=`<div class="roomrow" onclick="enterRound('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div><span class="statuspill ${r.status==="open"?"st-open":"st-closed"}">${r.status==="open"?"ABERTA":"FECHADA"}</span></div>`;
+    const unlinkBtn=isAdmin()?`<span onclick="event.stopPropagation();unlinkRoundFromPhase('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.55" title="Desvincular da rodada (vira avulsa)">🔗</span>`:"";
+    html+=`<div class="roomrow" onclick="enterRound('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div><div style="display:flex;align-items:center;gap:6px">${unlinkBtn}<span class="statuspill ${r.status==="open"?"st-open":"st-closed"}">${r.status==="open"?"ABERTA":"FECHADA"}</span></div></div>`;
   });
   html+=`</div>`;
   if(isAdmin()){
     html+=`<div class="card"><div class="tag" style="margin-bottom:6px">ADMIN · MINI RODADAS</div>
       <button class="btn" style="margin-bottom:10px" onclick="askCreateRoundInPhase('${ph.id}')">+ Criar mini rodada aqui</button>`;
     if(fora.length){
-      html+=`<p class="p" style="margin-bottom:8px">Mini rodadas avulsas — toque pra adicionar:</p>`;
-      fora.forEach(r=>{html+=`<div class="roomrow" onclick="addRoundToPhase('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">adicionar a esta rodada</div></div><span class="statuspill st-closed">+ ADD</span></div>`;});
+      html+=`<p class="p" style="margin-bottom:8px">Mini rodadas avulsas — toque pra adicionar, ou exclua de vez:</p>`;
+      fora.forEach(r=>{html+=`<div class="roomrow"><div class="info" onclick="addRoundToPhase('${r.id}')" style="cursor:pointer"><div class="nm">${esc(r.name)}</div><div class="meta">adicionar a esta rodada</div></div><div style="display:flex;align-items:center;gap:6px"><span onclick="event.stopPropagation();addRoundToPhase('${r.id}')" class="statuspill st-closed" style="cursor:pointer">+ ADD</span><span onclick="event.stopPropagation();askDeleteRound('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.5" title="Excluir mini rodada de vez">🗑</span></div></div>`;});
     }
     html+=`</div>`;
   }
@@ -1456,6 +1462,23 @@ async function addRoundToPhase(roundId){
   if(!isAdmin())return;
   try{await sbUpdate("rounds",{phase_id:APP.phaseId},`id=eq.${roundId}`);await loadRounds();await loadPhase(APP.phaseId);toast("Mini rodada adicionada à rodada.");render();}
   catch(e){toast("Erro: "+e.message);}
+}
+// DESVINCULAR: tira o vínculo (NÃO apaga). O item volta pra lista de avulsos da sua aba.
+async function unlinkPhaseFromLeague(phaseId){
+  if(!isAdmin())return;
+  try{
+    await sbUpdate("phases",{league_id:null},`id=eq.${phaseId}`);
+    await loadPhases();if(APP.leagueId)await loadLeague(APP.leagueId);
+    toast("Rodada desvinculada — voltou a ser avulsa.");render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+async function unlinkRoundFromPhase(roundId){
+  if(!isAdmin())return;
+  try{
+    await sbUpdate("rounds",{phase_id:null},`id=eq.${roundId}`);
+    await loadRounds();if(APP.phaseId)await loadPhase(APP.phaseId);
+    toast("Mini rodada desvinculada — voltou a ser avulsa.");render();
+  }catch(e){toast("Erro: "+e.message);}
 }
 
 // ----- RODADAS: tela de uma rodada -----
@@ -1896,11 +1919,17 @@ async function deleteLeague(id){
 async function deletePhase(id){
   if(!isAdmin())return;
   try{
-    await sbUpdate("rounds",{phase_id:null},`phase_id=eq.${id}`);
+    // apaga em cascata: as mini rodadas desta rodada, com suas entries e round_rooms
+    const minis=await sb("rounds?phase_id=eq."+id+"&group_id=eq."+APP.groupId+"&select=id");
+    for(const m of (minis||[])){
+      await sbDelete("entries",`round_id=eq.${m.id}`);
+      await sbDelete("round_rooms",`round_id=eq.${m.id}`);
+      await sbDelete("rounds",`id=eq.${m.id}`);
+    }
     await sbDelete("phases",`id=eq.${id}`);
     await loadRounds();await loadPhases();
     APP.phaseId=null;APP.phase=null;APP.view="home";
-    toast("Rodada excluída. As mini rodadas voltaram a ser avulsas.");
+    toast("Rodada e suas mini rodadas excluídas.");
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
