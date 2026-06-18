@@ -739,6 +739,7 @@ function roomHTML(){
     ${!open&&!finished?`<div class="prebox">🔒 Pool fechada, aguardando o jogo terminar.</div>`:""}
     <div style="display:flex;gap:8px;margin-top:8px">
       ${open?`<button class="btn" onclick="go('build')">${hasEntry()?"Editar meu time":"Montar meu time"}</button>`:""}
+      ${!open&&!finished&&hasEntry()?`<button class="btn" onclick="go('build')">👀 Ver meu time escalado</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
     ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
@@ -917,7 +918,8 @@ function buildHTML(){
   const left=100-spent;
   const TAC=window.ENGINE_TACTICS;
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
-  const gameLocked=inRound&&roomLockedInRound(APP.roomId);
+  const poolClosedOutOfRound = !inRound && APP.roomMeta && APP.roomMeta.status!=="open" && !(APP.match&&APP.match.status==="finished");
+  const gameLocked=(inRound&&roomLockedInRound(APP.roomId)) || poolClosedOutOfRound;
   const filt=pp.players.filter(p=>
     (APP.tabTeam==="ALL"||p.team===APP.tabTeam) &&
     (APP.tabPos==="ALL"||p.pos===APP.tabPos)
