@@ -920,6 +920,28 @@ function buildHTML(){
     return `<div class="ptab${on?" on":""}" ${style} onclick="setTab('${t}')">${t==="ALL"?"TODOS":isTeam?t:SLOT_LABEL[t]}</div>`;
   }).join("");
   const poolHTML=filt.map(p=>{const sel=used.includes(p.id);const dis=!sel&&left-p.price<0;return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}</div><div class="pr mono">${p.price}</div></div>`;}).join("");
+  // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
+  if(gameLocked){
+    const tac=TAC[APP.tactic];
+    const lineRow=(sl)=>{
+      const pid=s[sl],pl=pid?byId[pid]:null;
+      if(!pl)return"";
+      const isCap=APP.captain===sl;
+      const posKey=sl==="BENCH"&&pl?pl.pos:sl;
+      return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div><div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div><div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div><div class="pr mono" style="color:var(--dim)">${pl.price}</div></div>`;
+    };
+    return `<div class="scorebar"><div class="tag">${esc(pp.comp)} · ⚽ EM ANDAMENTO</div>
+      <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">×</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>
+    <div class="card">
+      <div class="prebox" style="border-color:#143a2a;background:#0c1f17;color:var(--green)">🔒 Time confirmado e travado. Boa sorte — agora é torcer! Você verá a pontuação quando a partida acabar.</div>
+      <div class="h2 disp" style="margin-top:6px">Seu time escalado</div>
+      <div class="pool" style="max-height:none;margin-top:8px">${["GK","DEF","MID","ATT","FLEX","BENCH"].map(lineRow).join("")}</div>
+      <div class="bsub">⚔️ Sua tática</div>
+      ${tac?`<div class="tact on" style="min-width:0">${`<div class="tn">${tac.name}</div><div class="td">${tac.desc}</div>${tactEffectHTML(tac)}`}</div>`:`<p class="p">—</p>`}
+      <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
+      <button class="btn ghost" style="margin-top:12px" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
+    </div>`;
+  }
   return `<div class="card">
     <div class="budget"><div class="h2 disp">Seu time</div><div><span class="tag">RESTANTE </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
