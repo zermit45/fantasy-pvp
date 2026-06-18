@@ -441,6 +441,7 @@ async function computeRoundRanking(roundId){
   try{
     const all=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=*");
     if(!all||!all.length)return [];
+    const isSelect=modeOf(APP.round)==="select";
     const byUser={};
     for(const rr of APP.roundRooms){
       const g=window.GAMES.data[rr.room_id];
@@ -449,6 +450,7 @@ async function computeRoundRanking(roundId){
       const here=all.filter(e=>e.room_id===rr.room_id);
       for(const e of here){
         if(!e.slots||!Object.values(e.slots).some(Boolean))continue; // sem time montado
+        if(isSelect&&e.confirmed!==true)continue; // SELECIONE: só pontua jogo travado
         const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
         if(!byUser[e.username])byUser[e.username]={username:e.username,total:0,games:0};
         byUser[e.username].total+=sc.total;
@@ -475,21 +477,38 @@ function roundUserTeamsHTML(username){
     const nome=g.prepool.home.name+" × "+g.prepool.away.name;
     const tacName=e.tactic&&window.ENGINE_TACTICS[e.tactic]?window.ENGINE_TACTICS[e.tactic].name:"sem tática";
     html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span>${sc.boost>0?` <span class="statuspill" style="background:color-mix(in srgb,#FFC247 22%,transparent);color:#FFC247">⚡ +${sc.boost*10}%</span>`:""}</div>`;
-    html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}</div>`;
-    sc.view.forEach(v=>{
-      if(!v||v.slot==="BENCH")return;
-      const meta=ctx.byId[v.pid];if(!meta)return;
-      html+=`<div class="line" style="padding:3px 0"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[v.slot]}</span> ${esc(meta.name)}${v.cap?' <span style="color:var(--amber)">©</span>':""}${v.subIn?' <span style="color:var(--blue);font-size:10px">entrou</span>':""}</span><span class="mono" style="color:${v.pts>=0?"var(--green)":"var(--red)"}">${v.pts.toFixed(1)}</span></div>`;
-    });
-    // reserva
+    html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)} · toque num jogador p/ detalhe</div>`;
+    const renderLine=(v,isBench)=>{
+      const meta=ctx.byId[v.pid];if(!meta)return"";
+      const pkey="t_"+username+"_"+rr.room_id+"_"+v.slot;
+      const open=_openTeamPlayer[pkey];
+      const r=v.r;
+      const capTag=v.cap?' <span style="color:var(--amber)">©</span>':"";
+      const subTag=v.subIn?' <span style="color:var(--blue);font-size:10px">entrou</span>':"";
+      const benchTag=isBench?' <span style="font-size:9px;color:var(--dim)">banco</span>':"";
+      let body="";
+      if(open&&r){
+        body=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
+          <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo</div>
+          ${(r.statLines||[]).map(([l,c,u,pts])=>`<div class="line stat" style="padding:2px 0"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
+          ${(r.lines||[]).length?`<div class="bsub" style="margin:6px 0 2px">⚙️ Modificadores</div>`:""}
+          ${(r.lines||[]).map(([k,val])=>`<div class="line" style="padding:2px 0"><span>${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+          ${r.meta?`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
+        </div>`;
+      }
+      return `<div class="line" style="padding:3px 0;cursor:pointer" onclick="toggleTeamPlayer('${pkey}')"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[v.slot]}</span> ${esc(meta.name)}${capTag}${subTag}${benchTag} <span style="color:var(--blue);font-size:10px">${open?"▲":"▼"}</span></span><span class="mono" style="color:${isBench?"var(--dim)":(v.pts>=0?"var(--green)":"var(--red)")}">${v.pts.toFixed(1)}</span></div>${body}`;
+    };
+    sc.view.forEach(v=>{if(!v||v.slot==="BENCH")return;html+=renderLine(v,false);});
     const b=sc.view.find(v=>v&&v.slot==="BENCH");
-    if(b&&b.pid){const meta=ctx.byId[b.pid];if(meta)html+=`<div class="line" style="padding:3px 0;opacity:.55"><span><span style="color:var(--dim);font-size:10px">BANCO</span> ${esc(meta.name)}</span><span class="mono">${b.pts.toFixed(1)}</span></div>`;}
+    if(b&&b.pid)html+=renderLine(b,true);
     html+=`</div>`;
   });
   if(!achou)html+=`<p class="p" style="margin:0">Sem time apurado nos jogos já encerrados.</p>`;
   html+=`</div>`;
   return html;
 }
+let _openTeamPlayer={};
+function toggleTeamPlayer(k){_openTeamPlayer[k]=!_openTeamPlayer[k];render();}
 function toggleRoundUser(u){
   const name=decodeURIComponent(u);
   APP._openRoundUser=APP._openRoundUser===name?null:name;
@@ -497,10 +516,11 @@ function toggleRoundUser(u){
 }
 // ----- helpers do novo fluxo -----
 function roundEntryOf(roomId){return APP.roundEntries.find(e=>e.room_id===roomId);}
-function pickedRoom(roomId){return !!roundEntryOf(roomId);}                 // selecionei este jogo (Fase 1)
+function pickedRoom(roomId){return !!roundEntryOf(roomId);}                 // tem entry deste jogo
 function hasTeam(roomId){const e=roundEntryOf(roomId);return e&&e.slots&&Object.values(e.slots).some(Boolean);} // tem escalação
-function isConfirmed(roomId){const e=roundEntryOf(roomId);return e&&e.confirmed===true;}                  // usuário travou
-function picksUsed(){return APP.roundEntries.length;}
+function isConfirmed(roomId){const e=roundEntryOf(roomId);return e&&e.confirmed===true;}                  // jogo TRAVADO (vale)
+// no modo select, "usado" = quantos jogos o usuário travou (confirmed) — não quantas entries existem
+function picksUsed(){return (APP.roundEntries||[]).filter(e=>e.confirmed===true).length;}
 function picksLeft(){return APP.round?Math.max(0,APP.round.pick_limit-picksUsed()):0;}
 // FASE 1 travada? (dev fechou a seleção de jogos) — não troca mais QUAIS jogos
 function picksLocked(){return APP.round&&APP.round.status&&APP.round.status!=="open";}
@@ -589,6 +609,27 @@ async function unselectRoundGame(roomId){
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
+// MODO SELECIONE — travar/destravar um jogo (marca quais VALEM). Travado = confirmed=true.
+// Destravar é livre enquanto a seleção estiver aberta e o jogo não tiver começado.
+async function toggleSelectLock(roomId){
+  const e=roundEntryOf(roomId);
+  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  const willLock=!(e.confirmed===true);
+  if(willLock){
+    if(!hasTeam(roomId)){toast("Monte o time antes de travar este jogo.");return;}
+    if(picksLeft()<=0){toast("Você já travou seus "+APP.round.pick_limit+" jogos. Destrave um pra trocar.");return;}
+  }else{
+    // destravar: só se a seleção ainda está aberta e o jogo não começou
+    if(picksLocked()){toast("A seleção já foi fechada — não dá pra destravar.");return;}
+    if(roomTimeLocked(roomId)){toast("O jogo já começou — trava definitiva.");return;}
+  }
+  try{
+    await sbUpdate("entries",{confirmed:willLock,updated_at:new Date().toISOString()},`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await loadRound(APP.roundId);
+    toast(willLock?"Jogo travado — esse vale! (escalação ainda editável)":"Jogo destravado.");
+    render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
 // FASE 2 — usuário confirma a equipe de um jogo (salva slots atuais + trava)
 async function confirmTeam(roomId){
   try{
@@ -655,17 +696,12 @@ function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();w
 async function askEnterRoundGame(roomId){
   const g=window.GAMES.data[roomId];
   if(g&&g.match&&g.match.status==="finished"){go("result",roomId);return;} // acabou → resultado
-  const mode=modeOf(APP.round);
   if(!pickedRoom(roomId)){
-    // modos full/boost: escala todos, então cria a entry vazia automaticamente (sem ficha)
-    if(mode!=="select"){
-      try{
-        await sbInsert("entries",{room_id:roomId,group_id:APP.groupId,round_id:APP.roundId,username:APP.user.username,slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},captain:null,tactic:null,boost:0,confirmed:false,updated_at:new Date().toISOString()});
-        await loadRound(APP.roundId);
-      }catch(e){toast("Erro: "+e.message);return;}
-    }else{
-      toast("Selecione este jogo primeiro (botão + Selecionar).");return;
-    }
+    // todos os modos: escala todos os jogos livremente; cria a entry vazia automaticamente
+    try{
+      await sbInsert("entries",{room_id:roomId,group_id:APP.groupId,round_id:APP.roundId,username:APP.user.username,slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},captain:null,tactic:null,boost:0,confirmed:false,updated_at:new Date().toISOString()});
+      await loadRound(APP.roundId);
+    }catch(e){toast("Erro: "+e.message);return;}
   }
   go("build",roomId);
 }
@@ -1293,29 +1329,33 @@ function roundHTML(){
     const rid=j.room_id;
     const g=window.GAMES.data[rid];
     const finished=g&&g.match&&g.match.status==="finished";
-    // nos modos full/boost todos os jogos contam como "escolhidos" (sem fichas)
-    const picked=isSelect?pickedRoom(rid):true;
+    // agora TODOS os modos deixam montar todos os jogos
+    const picked=true;
     const team=hasTeam(rid);
+    const locked2=isConfirmed(rid); // travado (vale) no modo select
     const timeLocked=roomTimeLocked(rid);
     const adminLocked=roomAdminLocked(rid);
     const locked=timeLocked||adminLocked;
     let tag,meta,clickable=true;
     if(finished){tag='<span class="statuspill st-finished">VER RESULTADO</span>';meta="jogo encerrado · toque p/ ver";}
-    else if(isSelect&&!picked){
-      if(selLocked){tag='<span class="statuspill st-closed">NÃO ESCOLHIDO</span>';meta="você não selecionou este jogo";clickable=false;}
-      else if(left<=0){tag='<span class="statuspill st-closed">SEM VAGA</span>';meta="já usou suas "+r.pick_limit+" fichas";clickable=false;}
-      else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque no + verde p/ gastar 1 ficha aqui";clickable=false;}
+    else if(isSelect){
+      if(locked2){tag='<span class="statuspill st-open">🔒 VALE ✓</span>';meta="travado — este jogo conta · toque p/ ajustar o time";}
+      else if(timeLocked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada";}
+      else if(team){tag='<span class="statuspill st-finished">MONTADO</span>';meta="time pronto · trave se quiser que ele conte";}
+      else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque p/ montar o time deste jogo";}
     }
     else if(timeLocked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada · toque p/ ver";}
     else if(adminLocked){tag='<span class="statuspill st-closed">🔒 TRAVADO</span>';meta="escalação travada pelo admin · toque p/ ver";}
     else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="vaga garantida · toque p/ ajustar (livre até o jogo começar)";}
-    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta=isSelect?"ficha gasta ✓ · toque p/ escalar":"toque p/ escalar este jogo";}
-    // ação principal (jogador): selecionar ou desfazer ficha — SÓ no modo select
+    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="toque p/ escalar este jogo";}
+    // ação principal modo select: travar/destravar o jogo (define quais valem)
     let playerBtn="";
-    if(isSelect&&!finished&&!picked&&!selLocked&&left>0){
-      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--green);border-color:var(--green);font-size:18px" title="Gastar 1 ficha neste jogo" onclick="event.stopPropagation();selectRoundGame('${rid}')">+</button>`;
-    }else if(isSelect&&!finished&&picked&&!locked&&!selLocked){
-      playerBtn=`<button class="cbtn" style="position:static;width:34px;height:34px;color:var(--red);border-color:var(--red)" title="Desfazer (devolve a ficha)" onclick="event.stopPropagation();unselectRoundGame('${rid}')">✕</button>`;
+    if(isSelect&&!finished&&!timeLocked&&!selLocked&&team){
+      if(locked2){
+        playerBtn=`<button class="cbtn" style="position:static;width:auto;padding:0 10px;height:34px;color:var(--red);border-color:var(--red);font-size:12px;font-weight:700" title="Destravar (enquanto a seleção está aberta)" onclick="event.stopPropagation();toggleSelectLock('${rid}')">🔓 destravar</button>`;
+      }else if(left>0){
+        playerBtn=`<button class="cbtn" style="position:static;width:auto;padding:0 10px;height:34px;color:var(--green);border-color:var(--green);font-size:12px;font-weight:700" title="Travar — este jogo vai contar" onclick="event.stopPropagation();toggleSelectLock('${rid}')">🔒 travar</button>`;
+      }
     }
     // controle de IMPULSO (modo boost): +/− tokens, enquanto não travou e o time foi montado
     let boostCtrl="";
@@ -1364,8 +1404,14 @@ function roundHTML(){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
   }else{
     banner=selLocked
-      ? `<div class="prebox" style="border-color:#3a2e10">🔒 <b>Seleção fechada.</b> Agora é a <b>Fase 2:</b> monte a escalação de cada jogo que você escolheu. Pode mudar o time até a partida começar — aí trava.</div>`
-      : `<div class="prebox">⏳ <b>Fase 1 — escolha seus jogos:</b> você tem <b>${r.pick_limit}</b> fichas. Toque no <b>+</b> verde pra gastar 1 ficha e garantir sua vaga num jogo. Troca livre enquanto a seleção estiver aberta; quando o 1º jogo começar, trava. <b style="color:var(--amber)">${used}/${r.pick_limit}</b> usadas.</div>`;
+      ? `<div class="prebox" style="border-color:#3a2e10">🔒 <b>Seleção fechada.</b> Os jogos que você travou estão valendo. A escalação de cada um ainda pode mudar até a partida começar.</div>`
+      : `<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Selecione.</b> Monte o time de quantos jogos quiser, mas só <b>${r.pick_limit}</b> vão contar: <b>trave (🔒)</b> os que você quer que valham. Dá pra destravar e trocar enquanto a seleção estiver aberta. <b>${used}/${r.pick_limit}</b> travados. A escalação dos travados ainda muda até o jogo começar.</div>`;
+  }
+  // alerta vermelho: modo select, seleção aberta, e o usuário travou MENOS que o limite
+  let selWarn="";
+  if(isSelect&&!selLocked&&used<r.pick_limit){
+    const faltam=r.pick_limit-used;
+    selWarn=`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 12%,transparent);color:var(--red);margin-top:-2px">⚠️ <b>Atenção:</b> você travou <b>${used}</b> de <b>${r.pick_limit}</b> jogos. ${faltam===1?"Falta travar <b>1</b> jogo":`Faltam travar <b>${faltam}</b> jogos`} pra usar todos os seus tokens. Jogos <b>não travados não pontuam</b> — trave (🔒) antes da seleção fechar!</div>`;
   }
   return `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -1374,6 +1420,7 @@ function roundHTML(){
     </div>
     <div style="margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:5px;font-family:'Saira Condensed';font-weight:800;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:3px 10px">${mm.icon} ${mm.label}</span></div>
     ${banner}
+    ${selWarn}
     ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
   </div>
   ${roundRankingHTML()}
@@ -2290,12 +2337,25 @@ function resultHTML(){
     html+=`<div class="rank${isMe?" me":""}" style="cursor:pointer" onclick="toggleRank(${i})"><div class="po mono">${i+1}º</div><div class="nm">${esc(s.username)}<small>cap: ${esc(SLOT_LABEL[s.captain])} · ${TAC[s.tactic]?.name||s.tactic} · toque p/ ver time</small></div><div class="pt mono">${s.total.toFixed(1)}</div></div>`;
     if(op){
       html+=`<div style="border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;margin:-8px 0 10px;padding:6px 12px 10px;background:var(--panel2)">`;
+      html+=`<p class="p" style="font-size:10px;margin:0 0 4px">toque num jogador p/ ver o cálculo</p>`;
       s.view.filter(Boolean).forEach(v=>{
         const pl=APP._byId[v.pid];
         const capTag=v.cap?` <span class="badgeC">C</span>`:"";
         const subTag=v.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
         const benchTag=v.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
-        html+=`<div class="line" style="padding:6px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}</span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+        const pkey="rk_"+i+"_"+v.slot;
+        const pOpen=_openRankPlayer[pkey];
+        const r=v.r;
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleRankPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag} <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+        if(pOpen&&r){
+          html+=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
+            <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo${helpBtn("apuracao")}</div>
+            ${(r.statLines||[]).map(([l,c,u,pts])=>`<div class="line stat" style="padding:2px 0"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
+            ${(r.lines||[]).length?`<div class="bsub" style="margin:6px 0 2px">⚙️ Modificadores</div>`:""}
+            ${(r.lines||[]).map(([k,val])=>`<div class="line" style="padding:2px 0"><span>${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+            ${r.meta?`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
+          </div>`;
+        }
       });
       html+=`</div>`;
     }
@@ -2346,7 +2406,7 @@ function baseAllHTML(eng){
         ${r.statLines.length===0?`<div class="line"><span>Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`:""}
         ${r.statLines.map(([l,c,u,pts])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
         ${r.lines.length?`<div class="bsub">⚙️ Modificadores${helpBtn("dvg")}</div>`:""}
-        ${r.lines.map(([k,val])=>`<div class="line"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+        ${r.lines.map(([k,val])=>`<div class="line"><span>${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
         <div class="line total"><span>NOTA BASE</span><span class="v mono">${r.total.toFixed(1)}</span></div>
         ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
         <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${helpBtn("arquetipo")}${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span>${helpBtn("raridade")}</div>
@@ -2363,6 +2423,8 @@ function toggleBase(i){_openBase[i]=!_openBase[i];render();}
 let _openRec={};
 let _openRank={};
 function toggleRank(i){_openRank[i]=!_openRank[i];render();}
+let _openRankPlayer={};
+function toggleRankPlayer(k){_openRankPlayer[k]=!_openRankPlayer[k];render();}
 function receiptHTML(v,idx){
   const byId=APP._byId,p=byId[v.pid],r=v.r,open=_openRec[idx];
   let body="";
@@ -2452,12 +2514,27 @@ const HELP={
   banco:["Banco (reserva)","Se um titular de linha for mal, o reserva pode entrar no lugar — mas rende só 80% da nota (pedágio por começar fora). Ele só substitui se, já com o desconto, superar o titular. O goleiro reserva só conta se o titular não jogar nenhum minuto."],
   ranking:["Classificação","Quando o jogo acaba, todos os times da sala são pontuados e ordenados. Toque num nome pra ver a escalação e a apuração de cada jogador. Em mini rodadas/ligas, os pontos vão somando."],
   apuracao:["Apuração do jogador","Mostra de onde veio cada ponto: estatísticas (gols, defesas, desarmes...), modificadores (dificuldade, contexto de placar, clutch, tática), o bônus de capitão e o arquétipo. É a 'conta' completa da nota."],
-  dvg:["Bônus de zebra (DvG)","Jogadores do time mais fraco (underdog) ganham um acréscimo, calculado pela diferença de força entre os times (ELO + forma recente). Apostar no azarão certo rende mais — quanto maior a diferença, maior o bônus."],
+  dvg:["Bônus de zebra (DvG)","Jogadores do time mais fraco (underdog) ganham um acréscimo. NÃO é fixo: quanto maior a diferença de força entre os times, maior o bônus — até um teto de +10%. A 'força' combina ELO + forma recente + mando de campo, então um time em boa fase 'sobe de força' e dá menos bônus de zebra. Se seu jogador é do favorito, não há bônus (×1.00). Apostar no azarão certo rende mais."],
+  performance:["Performance (índices C+)","É a NOTA GERAL da atuação do jogador, de −3 a +4 pontos, separada dos eventos pontuais (gols, assists já contam antes). Combina 4 índices: (1) Envolvimento ofensivo — chutes, criação, passes progressivos, dribles; (2) Eficiência — quão difíceis eram os gols/assists/defesas pelo xG; (3) Segurança — desconta erros, faltas, cartões e ser driblado; (4) Volume defensivo — desarmes, recuperações, bloqueios, duelos aéreos. A média ponderada (ataque 30% + eficiência 30% + segurança 20% + defesa 20%) vira a nota. Jogou bem no geral = perto de +4; jogou mal/indisciplinado = negativo."],
+  placar:["Placar (contexto do jogo)","Ajusta os pontos conforme o jogo estava: ações num jogo apertado (diferença de 1 gol ou empate) valem um pouco mais, porque pesam mais no resultado. 'Jogo vivo o tempo todo' = a partida ficou equilibrada do início ao fim."],
   clutch:["Clutch","Ações decisivas nos minutos finais (85'+) com o jogo apertado valem pontos extras. Um gol que decide no fim vale mais que um gol em jogo já ganho."],
   raridade:["Raridade","Selo de quão especial foi a atuação (Comum → Lendário), baseado na pontuação e no impacto do jogador naquele jogo. Quanto melhor jogou, mais rara a 'carta'."],
   arquetipo:["Arquétipos","Depois do jogo, cada jogador ganha um 'tipo' conforme a atuação (ex: Artilheiro, Muralha, Box-to-Box). É só cosmético/colecionável — não muda os pontos. Você coleciona os que escalou no seu perfil."],
 };
 function helpBtn(key){return `<span class="helpq" onclick="event.stopPropagation();showHelp('${key}')" title="O que é isso?">?</span>`;}
+// dado o nome de um modificador (linha de r.lines), devolve a chave de HELP correspondente (ou null)
+function modHelpKey(label){
+  const l=(label||"").toLowerCase();
+  if(l.includes("performance")||l.includes("índices")||l.includes("indices"))return "performance";
+  if(l.includes("dvg")||l.includes("zebra")||l.includes("underdog"))return "dvg";
+  if(l.includes("placar"))return "placar";
+  if(l.includes("clutch"))return "clutch";
+  if(l.includes("tática")||l.includes("tatica"))return "tatica";
+  if(l.includes("dificuldade")||l.includes("xg")||l.includes("psxg"))return "apuracao";
+  return null;
+}
+// renderiza um '?' ao lado do modificador se houver help
+function modHelpBtn(label){const k=modHelpKey(label);return k?helpBtn(k):"";}
 function showHelp(key){APP.help=key;render();}
 function closeHelp(){APP.help=null;render();}
 function helpModalHTML(){
