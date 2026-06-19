@@ -65,12 +65,12 @@ const TACTICS = {
     fam:["prgp","sca","gca","assist"], minPlayers:3,
     metric:p=>p.prgp+p.sca+p.gca*2, partMin:2},
   tridente:{name:"Ataque Total",
-    desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 3+ jogadores finalizarem.",
-    fam:["goal","sotPts"], minPlayers:3,
-    metric:p=>p.sots.length+p.goals.length*2, partMin:2},
+    desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 2+ jogadores finalizarem.",
+    fam:["goal","sotPts"], minPlayers:2,
+    metric:p=>p.sots.length+p.goals.length*2, partMin:1},
   aereo:{name:"Chuveiro na Área",
-    desc:"Jogo aéreo e cruzamentos. Ativa se o jogo pelo alto (duelos aéreos + cruzamentos certos) for o forte do seu time e 3+ jogadores brigarem por cima.",
-    fam:["aerial","accCross","goal"], minPlayers:3,
+    desc:"Jogo aéreo e cruzamentos. Ativa se o jogo pelo alto (duelos aéreos + cruzamentos certos) for o forte do seu time e 2+ jogadores brigarem por cima.",
+    fam:["aerial","accCross","goal"], minPlayers:2,
     metric:p=>p.aerial+p.accCross, partMin:2},
   contra:{name:"Contra-Ataque",
     desc:"Transição rápida. Ativa se conduzir e infiltrar (dribles + passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
@@ -82,7 +82,21 @@ const TACTICS = {
 // cruzamentos). Por isso normalizamos cada família por um divisor de referência,
 // para que "dominante" signifique "o time se destacou NAQUILO relativo ao normal
 // daquela ação", e não simplesmente a ação de maior volume bruto (passe sempre venceria).
-const TACT_NORM={ muralha:45, pressaototal:70, cerebro:113, tridente:11, aereo:26, contra:28 };
+const TACT_NORM={ muralha:65, pressaototal:87, cerebro:226, tridente:9, aereo:17, contra:39 };
+// MINI REBOOT do balanceamento de táticas (z-score):
+// cada família tem distribuição muito diferente (passe >> finalização). Em vez de
+// comparar famílias entre si (o que sempre favorecia as de ação comum), medimos quão
+// ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
+// tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
+// Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
+const TACT_MEAN={ muralha:16.1, pressaototal:20, cerebro:57.1, tridente:2.3, aereo:4.8, contra:9.4 };
+const TACT_SD={ muralha:7.7, pressaototal:7.7, cerebro:29.4, tridente:2.7, aereo:2.6, contra:5.6 };
+const TACT_ZTHRESH=0.5; // z-score mínimo pra a família contar como "estilo do time"
+// REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
+// pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
+// v1 = top-3 famílias dominantes + NORM antigo + participação antiga (tridente/aereo pediam 3 jogadores).
+const TACT_NORM_V1={ muralha:45, pressaototal:70, cerebro:113, tridente:11, aereo:26, contra:28 };
+const TACT_PART_V1={ tridente:{minPlayers:3,partMin:2}, aereo:{minPlayers:3,partMin:2} }; // antes do afrouxamento
 const TACT_FAMILIES={
   muralha:p=>p.tklint+p.clearance+p.block,
   pressaototal:p=>p.recovery+p.tklint,
@@ -423,27 +437,38 @@ function makeEngine(match){
   function squadSum(players){
     const ps=[];
     for(const raw of players){const p=normP(raw);if(p.min>0)ps.push(p);}
-    // soma de cada família no time, NORMALIZADA (proporção interna / dominância justa)
-    const famRaw={},famNorm={};
+    const useV1 = match.tacticRules==="v1"; // jogos já apurados antes do reboot
+    // soma bruta de cada família no time
+    const famRaw={},famNorm={},famZ={};
     for(const k of Object.keys(TACT_FAMILIES)){famRaw[k]=0;}
     for(const p of ps){for(const k of Object.keys(TACT_FAMILIES))famRaw[k]+=TACT_FAMILIES[k](p);}
-    for(const k of Object.keys(TACT_FAMILIES)){famNorm[k]=famRaw[k]/(TACT_NORM[k]||1);}
-    const maxFam=Math.max(...Object.values(famNorm),0);
-    // status por tática
-    // ranking das famílias por valor normalizado (top 3 contam como "estilo do time")
-    const ranked=Object.entries(famNorm).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
-    const top2=new Set(ranked.slice(0,3));
+    const NORMSET = useV1?TACT_NORM_V1:TACT_NORM;
+    for(const k of Object.keys(TACT_FAMILIES)){
+      famNorm[k]=famRaw[k]/(NORMSET[k]||1);
+      famZ[k]=(famRaw[k]-(TACT_MEAN[k]||0))/(TACT_SD[k]||1);
+    }
+    // v1: dominante = estar entre as 3 famílias mais fortes (normalizadas)
+    let topSet=null;
+    if(useV1){
+      const ranked=Object.entries(famNorm).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+      topSet=new Set(ranked.slice(0,3));
+    }
     const status={};
     for(const[key,T]of Object.entries(TACTICS)){
-      const mine=famNorm[key]||0;
-      // teste 1: estilo do time = a família da tática está entre as 2 mais fortes do seu time
-      const dominant = mine>0 && top2.has(key);
-      // teste 2: participação (quantos jogadores produziram >= partMin na métrica)
-      let part=0; for(const p of ps){ if(T.metric(p)>=T.partMin) part++; }
-      const enough = part>=T.minPlayers;
+      let dominant, minP=T.minPlayers, partMin=T.partMin;
+      if(useV1){
+        // regra antiga: top-3 + participação antiga (tridente/aereo pediam mais gente)
+        dominant = (famNorm[key]>0) && topSet.has(key);
+        const pv=TACT_PART_V1[key]; if(pv){minP=pv.minPlayers;partMin=pv.partMin;}
+      }else{
+        // regra nova: z-score acima do limiar (régua justa entre todas)
+        dominant = (famZ[key]||0)>=TACT_ZTHRESH;
+      }
+      let part=0; for(const p of ps){ if(T.metric(p)>=partMin) part++; }
+      const enough = part>=minP;
       status[key] = (dominant&&enough) ? "full" : "fail";
     }
-    return {status, famSum:famRaw, famNorm, n:ps.length};
+    return {status, famSum:famRaw, famNorm, famZ, n:ps.length};
   }
 
   return { scorePlayer, squadSum, TACTICS, matchBase:MATCH_BASE };
