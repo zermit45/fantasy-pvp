@@ -657,6 +657,41 @@ async function computeRoundRanking(roundId){
     if(isConf){
       for(const e of all){if(e.conf_rank!=null){confTotalByUser[e.username]=(confTotalByUser[e.username]||0)+1;}}
     }
+    // ── ELIMINAÇÃO (Impulso/Confiança): quem NÃO completou a estratégia zera a rodada toda.
+    // Confiança: tem que ter ordenado TODOS os jogos da rodada.
+    // Impulso: tem que ter gastado TODAS as fichas da pool.
+    const eliminado={};
+    const totalGamesRound=(APP.roundRooms||[]).length;
+    const isBoostMode=mode==="boost";
+    if(isConf||isBoostMode){
+      // usuários que têm pelo menos um time montado na rodada
+      const usuarios=[...new Set(all.filter(e=>e.slots&&Object.values(e.slots).some(Boolean)).map(e=>e.username))];
+      // pool de fichas do impulso (valores)
+      let poolChipsArr=[];
+      if(isBoostMode){
+        const r=APP.round;
+        if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)poolChipsArr=r.boost_chips.map(v=>Number(v)||0);
+        else if(r&&r.boost_tokens){poolChipsArr=Array(r.boost_tokens).fill(BOOST_PCT);}
+      }
+      for(const u of usuarios){
+        const minhas=all.filter(e=>e.username===u&&e.slots&&Object.values(e.slots).some(Boolean));
+        if(isConf){
+          // ordenou todos os jogos da rodada? (conf_rank != null em cada jogo)
+          const ordenados=all.filter(e=>e.username===u&&e.conf_rank!=null).length;
+          if(ordenados<totalGamesRound)eliminado[u]=true;
+        }else if(isBoostMode){
+          // gastou todas as fichas da pool? (soma das fichas atribuídas == pool)
+          const usadas=[];
+          for(const e of all){if(e.username===u&&Array.isArray(e.boost_chips))for(const v of e.boost_chips)usadas.push(Number(v)||0);}
+          // confere que todas as fichas da pool foram usadas (mesma quantidade)
+          if(poolChipsArr.length>0){
+            const restantes=poolChipsArr.slice();
+            for(const v of usadas){const i=restantes.indexOf(v);if(i>=0)restantes.splice(i,1);}
+            if(restantes.length>0)eliminado[u]=true; // sobrou ficha sem gastar
+          }
+        }
+      }
+    }
     for(const rr of APP.roundRooms){
       const g=window.GAMES.data[rr.room_id];
       if(!g||!g.match||g.match.status!=="finished")continue; // só jogos já apurados
@@ -665,6 +700,7 @@ async function computeRoundRanking(roundId){
       for(const e of here){
         if(!e.slots||!Object.values(e.slots).some(Boolean))continue; // sem time montado
         if(isSelect&&e.confirmed!==true)continue; // SELECIONE: só pontua jogo travado
+        if(eliminado[e.username])continue; // ELIMINADO: não completou a estratégia → zera
         const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
         let pts=sc.total;
         // CONFIANÇA: multiplica pelo peso da posição na ordem do usuário
@@ -684,7 +720,18 @@ async function computeRoundRanking(roundId){
         }
       }
     }
-    return Object.values(byUser).map(u=>({...u,total:Math.round(u.total*10)/10})).sort((a,b)=>b.total-a.total);
+    // adiciona os eliminados ao ranking com total 0 e flag (pra mostrar "eliminado")
+    for(const u in eliminado){
+      if(!byUser[u])byUser[u]={username:u,total:0,games:0,predBonus:0};
+      byUser[u].eliminated=true;
+      byUser[u].total=0;
+    }
+    return Object.values(byUser).map(u=>({...u,total:Math.round(u.total*10)/10})).sort((a,b)=>{
+      // eliminados sempre por último
+      if(a.eliminated&&!b.eliminated)return 1;
+      if(b.eliminated&&!a.eliminated)return -1;
+      return b.total-a.total;
+    });
   }catch(e){return [];}
 }
 // % de bônus de previsão: compara o placar cravado com o real do match
@@ -1651,10 +1698,17 @@ function roundRankingHTML(){
   html+=`<div class="card"><div class="h2 disp">🏆 Classificação da mini rodada${helpBtn("minirodada")}</div>`;
   if(rk.length){
     html+=`<p class="p" style="margin-bottom:10px">Soma dos pontos de cada um nos jogos já encerrados desta mini rodada${finishedCount<APP.roundRooms.length?` (${finishedCount}/${APP.roundRooms.length} apurados)`:""}. Toque num nome pra ver a escalação.</p>`;
+    let posN=0;
     rk.forEach((u,i)=>{
       const me=u.username===APP.user?.username;
       const open=APP._openRoundUser===u.username;
-      html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+      if(u.eliminated){
+        const motivo=modeOf(APP.round)==="confianca"?"não ordenou todos os jogos":"não distribuiu todas as fichas";
+        html+=`<div class="rank${me?" me":""}" style="opacity:.7"><div class="po mono" style="color:var(--red)">✗</div><div class="nm">${esc(u.username)}<small style="color:var(--red)">eliminado · ${motivo}</small></div><div class="pt mono" style="color:var(--red)">0.0</div></div>`;
+        return;
+      }
+      posN++;
+      html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${posN}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
       if(open)html+=roundUserTeamsHTML(u.username);
     });
   }else{
@@ -2149,7 +2203,8 @@ function roundHTML(){
     if(boostNoMix())regras.push(`<span style="color:#FF6B6B">não misture</span> positivas e negativas no mesmo jogo`);
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (a 1ª partida foi fechada).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
-      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
+      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}
+      ${(!bLocked&&avail.length>0)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ainda tem <b>${avail.length}</b> ficha(s) sem usar. Se a 1ª partida for fechada antes de você gastar TODAS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Distribua tudo!</div>`:""}`;
   }else if(isConf){
     const bConf=boostConfirmed();
     const ranked=confRankedCount();
@@ -2163,7 +2218,8 @@ function roundHTML(){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e coloque-os em ordem de confiança: do 1º (mais confia) ao último. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
       ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
-      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}`;
+      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}
+      ${(!bLocked&&ranked<totalGames)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ordenou só <b>${ranked}/${totalGames}</b> jogos. Se a 1ª partida for fechada antes de você ordenar TODOS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Ordene todos os jogos!</div>`:""}`;
   }else if(isPred){
     const totalGames=APP.roundRooms.length;
     const feitos=(APP.roundEntries||[]).filter(e=>e.pred_home!=null&&e.pred_away!=null).length;
@@ -3760,8 +3816,8 @@ function superManualHTML(){
     ${sec("4. Mini rodadas e os modos",
       p(`Uma ${b("mini rodada")} junta vários jogos. O modo dela define a estratégia. São 4:`)+
       p(`🏆 ${b("Completo:")} escale todos os jogos. Sua pontuação é a soma de todos. A escalação de cada jogo trava quando aquela partida é fechada.`)+
-      p(`⚡ ${b("Impulso:")} escale todos e distribua as fichas de impulso nas partidas (cada ficha aplica um % nos pontos daquele jogo). O dev define os valores e as regras das fichas (pode ter fichas negativas obrigatórias). A distribuição trava quando a 1ª partida é fechada.`)+
-      p(`📊 ${b("Confiança:")} escale todos e ordene os jogos do que você mais confia (1º) ao que menos confia. O 1º multiplica os pontos pra cima, o último pra baixo. Quanto mais jogos, maior a diferença. A ordem trava quando a 1ª partida é fechada.`)+
+      p(`⚡ ${b("Impulso:")} escale todos e distribua as fichas de impulso nas partidas (cada ficha aplica um % nos pontos daquele jogo). O dev define os valores e as regras das fichas (pode ter fichas negativas obrigatórias). A distribuição trava quando a 1ª partida é fechada. ${b("Atenção:")} se você não gastar TODAS as fichas antes da trava, é eliminado e zera a mini rodada.`)+
+      p(`📊 ${b("Confiança:")} escale todos e ordene os jogos do que você mais confia (1º) ao que menos confia. O 1º multiplica os pontos pra cima, o último pra baixo. Quanto mais jogos, maior a diferença. A ordem trava quando a 1ª partida é fechada. ${b("Atenção:")} se você não ordenar TODOS os jogos antes da trava, é eliminado e zera a mini rodada.`)+
       p(`🔮 ${b("Previsão:")} escale todos e crave o placar de cada jogo. Além dos pontos da escalação, ganha bônus por acertar o resultado e um bônus maior por cravar o placar exato. Aqui o palpite trava POR JOGO, junto com a escalação daquela partida (cada jogo é independente).`))}
 
     ${sec("5. Como as travas funcionam",
