@@ -1412,7 +1412,8 @@ function phaseHTML(){
   if(!minis.length)html+=`<p class="p" style="margin-top:6px">Nenhuma mini rodada ainda.</p>`;
   else minis.forEach(r=>{
     const unlinkBtn=isAdmin()?`<span onclick="event.stopPropagation();unlinkRoundFromPhase('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.55" title="Desvincular da rodada (vira avulsa)">🔗</span>`:"";
-    html+=`<div class="roomrow" onclick="enterRound('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div><div style="display:flex;align-items:center;gap:6px">${unlinkBtn}<span class="statuspill ${r.status==="open"?"st-open":"st-closed"}">${r.status==="open"?"ABERTA":"FECHADA"}</span></div></div>`;
+    const delBtn=isAdmin()?`<span onclick="event.stopPropagation();askDeleteRound('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.5" title="Excluir mini rodada de vez">🗑</span>`:"";
+    html+=`<div class="roomrow" onclick="enterRound('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div><div style="display:flex;align-items:center;gap:6px">${unlinkBtn}${delBtn}<span class="statuspill ${r.status==="open"?"st-open":"st-closed"}">${r.status==="open"?"ABERTA":"FECHADA"}</span></div></div>`;
   });
   html+=`</div>`;
   if(isAdmin()){
