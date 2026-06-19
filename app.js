@@ -7,7 +7,7 @@ const MODE_META={
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
   boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
   confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
-  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação e o palpite de cada jogo travam quando aquele jogo é fechado."},
+  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação de cada jogo trava quando aquele jogo é fechado; os palpites de placar travam todos quando a 1ª partida da rodada for fechada."},
 };
 // modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
 const MODE_LIST=["full","boost","confianca","previsao"];
@@ -832,21 +832,14 @@ function roomLockedInRound(roomId){
 // ── MODO IMPULSO ──
 // 1º kickoff da rodada (ISO mais cedo entre os jogos da rodada). Impulsos travam aqui.
 // 1ª partida da rodada (a primeira que foi adicionada / ordem dos round_rooms)
-function roundFirstRoomId(){
-  const rrs=APP.roundRooms||[];
-  if(!rrs.length)return null;
-  // usa a ordem em que aparecem (primeira da lista) como "1ª partida"
-  return rrs[0].room_id;
-}
 // trava da parte ESTRATÉGICA (ordem de confiança / fichas de impulso / palpites globais):
-// trava quando a 1ª partida da rodada é fechada manualmente (status != open) OU já finalizada.
+// trava assim que QUALQUER partida da rodada for fechada manualmente (pool fechada) ou finalizada.
+// (a 1ª partida a começar já dá vantagem de informação pra quem ajustaria depois.)
 // EXCEÇÃO admin: se reabriu manualmente (boost_reopened), destrava.
 function boostLocked(){
   if(APP.round&&APP.round.boost_reopened===true)return false; // admin reabriu
-  const first=roundFirstRoomId();
-  if(!first)return false;
-  // 1ª partida travada (admin fechou a pool dela) ou já finalizada → trava a estratégia
-  return roomAdminLocked(first) || roomIsFinished(first);
+  const rrs=APP.roundRooms||[];
+  return rrs.some(rr=>roomAdminLocked(rr.room_id)||roomIsFinished(rr.room_id));
 }
 // === IMPULSO v2: fichas com valores específicos ===
 // a pool define APP.round.boost_chips = lista de valores, ex [25,15,15,-20].
@@ -902,7 +895,7 @@ async function confMove(roomId,delta){
 // ===== PREVISÃO =====
 function predOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);if(!e)return null;if(e.pred_home==null&&e.pred_away==null)return null;return {home:e.pred_home,away:e.pred_away};}
 async function predSet(roomId,homeVal,awayVal){
-  if(roomLockedInRound(roomId)){toast("Esta partida já travou — o palpite dela não muda mais.");return;}
+  if(boostLocked()){toast("Os palpites já travaram (uma partida da rodada foi fechada).");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
   const patch={confirmed:false,updated_at:new Date().toISOString()};
@@ -1980,7 +1973,7 @@ function roundHTML(){
     }
     if(isPred&&!finished){
       const pr=predOf(rid); // {home,away} ou null
-      const predLocked=locked; // trava individual do jogo (admin fechou pool OU finalizou)
+      const predLocked=bLocked; // trava global: qualquer jogo fechado trava todos os palpites
       if(predLocked){
         extraCtrl=pr?`<span style="font-size:13px;font-weight:800;color:${mm.color}">🔮 cravou ${pr.home} × ${pr.away}</span>`:`<span style="font-size:11px;color:var(--dim)">sem palpite</span>`;
       }else if(team){
