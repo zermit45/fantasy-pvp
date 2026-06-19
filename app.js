@@ -1791,7 +1791,7 @@ function roundHTML(){
     if(isBoost&&!finished){
       const myChips=chipsOn(rid);                 // fichas neste jogo (valores)
       const sumPct=myChips.reduce((s,v)=>s+v,0);
-      const chipPill=v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:1px 5px;background:color-mix(in srgb,${col} 14%,transparent)">⚡${neg?v:"+"+v}%</span>`;};
+      const chipPill=v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:3px 8px;height:26px;box-sizing:border-box;background:color-mix(in srgb,${col} 16%,transparent)">⚡${neg?v:"+"+v}%</span>`;};
       if(bLocked){
         boostCtrl=myChips.length?`<span style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">${myChips.map(chipPill).join("")}</span>`:"";
       }else if(team){
@@ -1801,7 +1801,8 @@ function roundHTML(){
         // valores distintos disponíveis pra adicionar
         const distinct=[...new Set(avail)].sort((a,b)=>b-a);
         const addBtns=distinct.map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;const n=avail.filter(x=>x===v).length;
-          return `<button class="cbtn" style="position:static;width:auto;padding:0 7px;height:28px;font-size:10px;font-weight:800;color:${col};border-color:${col}" title="Pôr ficha ${neg?v:"+"+v}% (${n} disp.)" onclick="event.stopPropagation();assignChip('${rid}',${v})">+${neg?v:"+"+v}%</button>`;}).join("");
+          const label=neg?`${v}%`:`+${v}%`;
+          return `<button style="display:inline-flex;align-items:center;gap:2px;border-radius:8px;border:1px dashed ${col};background:transparent;color:${col};font-size:10px;font-weight:800;padding:3px 8px;height:26px;cursor:pointer" title="Pôr ficha ${label} (${n} disponível(is))" onclick="event.stopPropagation();assignChip('${rid}',${v})">+ ⚡${label}</button>`;}).join("");
         boostCtrl=`<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;max-width:62%">
           ${here}${here&&addBtns?'<span style="opacity:.3">|</span>':""}${addBtns}
           ${myChips.length?`<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:12px">=${sumPct<0?"":"+"}${sumPct}%</span>`:""}
@@ -1839,7 +1840,7 @@ function roundHTML(){
     const avail=chipsAvailable();
     const mx=boostMaxPerGame(),mg=boostMinGames();
     // mostra as fichas que ainda restam, com cor
-    const availPills=avail.sort((a,b)=>b-a).map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:1px 6px;background:color-mix(in srgb,${col} 14%,transparent)">⚡${neg?v:"+"+v}%</span>`;}).join(" ");
+    const availPills=avail.sort((a,b)=>b-a).map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:3px 8px;background:color-mix(in srgb,${col} 16%,transparent)">⚡${neg?v:"+"+v}%</span>`;}).join(" ");
     const temNeg=pool.some(v=>v<0);
     let regras=[];
     if(mx>0)regras.push(`até ${mx} por partida`);
