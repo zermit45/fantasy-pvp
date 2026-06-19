@@ -758,8 +758,30 @@ function peekLineupHTML(entry,roomId){
   const tacName=entry.tactic&&window.ENGINE_TACTICS[entry.tactic]?window.ENGINE_TACTICS[entry.tactic].name:"sem tática";
   const _chips=Array.isArray(entry.boost_chips)?entry.boost_chips:null;
   const tkPct=_chips&&_chips.length?_chips.reduce((s,v)=>s+(Number(v)||0),0):(parseInt(entry.boost,10)||0)*BOOST_PCT;
+  const mode=modeOf(APP.round);
   let html=`<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;margin:2px 0 8px 6px;border-left:2px solid var(--line)">`;
   html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tkPct?` · <span style="color:${tkPct<0?"#FF6B6B":"#FFC247"}">⚡ ${tkPct<0?"":"+"}${tkPct}%</span>`:""}</div>`;
+  // ── estratégia revelada por modo ──
+  if(mode==="previsao"&&entry.pred_home!=null&&entry.pred_away!=null&&g){
+    html+=`<div style="font-size:12px;font-weight:800;color:#54E0A8;margin-bottom:6px">🔮 Palpite: ${esc(g.prepool.home.code)} ${entry.pred_home} × ${entry.pred_away} ${esc(g.prepool.away.code)}</div>`;
+  }
+  if(mode==="confianca"){
+    // ordem COMPLETA de confiança do amigo (todos os jogos que ele ordenou)
+    const mine=(APP.roundAllEntries||[]).filter(e=>e.username===entry.username&&e.conf_rank!=null).sort((a,b)=>a.conf_rank-b.conf_rank);
+    if(mine.length){
+      const tot=mine.length;
+      const itens=mine.map(e=>{const gg=window.GAMES.data[e.room_id];const nm=gg?gg.prepool.home.code+"×"+gg.prepool.away.code:"?";const aqui=e.room_id===roomId;return `<span style="display:inline-block;font-size:10px;font-weight:800;color:#C77DFF;border:1px solid ${aqui?"#C77DFF":"rgba(199,125,255,.4)"};border-radius:6px;padding:1px 6px;margin:0 3px 3px 0;${aqui?"background:color-mix(in srgb,#C77DFF 18%,transparent)":""}">${e.conf_rank+1}º ${esc(nm)} ${confMultiplier(e.conf_rank,tot).toFixed(2)}x</span>`;}).join("");
+      html+=`<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">📊 Ordem de confiança completa:</div>${itens}</div>`;
+    }
+  }
+  if(mode==="boost"){
+    // onde o amigo gastou os impulsos (todos os jogos da rodada)
+    const mineAll=(APP.roundAllEntries||[]).filter(e=>e.username===entry.username&&Array.isArray(e.boost_chips)&&e.boost_chips.length);
+    if(mineAll.length){
+      const itens=mineAll.map(e=>{const gg=window.GAMES.data[e.room_id];const nm=gg?gg.prepool.home.code+"×"+gg.prepool.away.code:"?";const soma=e.boost_chips.reduce((s,v)=>s+(Number(v)||0),0);const aqui=e.room_id===roomId;return `<span style="display:inline-block;font-size:10px;font-weight:800;color:${soma<0?"#FF6B6B":"#FFC247"};border:1px solid ${aqui?(soma<0?"#FF6B6B":"#FFC247"):"rgba(255,194,71,.4)"};border-radius:6px;padding:1px 6px;margin:0 3px 3px 0;${aqui?"background:color-mix(in srgb,#FFC247 14%,transparent)":""}">${esc(nm)} ${soma<0?"":"+"}${soma}%</span>`;}).join("");
+      html+=`<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">⚡ Onde gastou os impulsos:</div>${itens}</div>`;
+    }
+  }
   // catálogo de jogadores do jogo (pid → nome/pos)
   const cat={};
   if(g&&g.prepool&&g.prepool.players)for(const p of g.prepool.players)cat[p.id]={name:p.name,pos:p.pos,team:p.team};
@@ -1598,8 +1620,8 @@ function roundRankingHTML(){
     const g=window.GAMES.data[rr.room_id];
     const nome=g?g.prepool.home.name+" × "+g.prepool.away.name:rr.room_id;
     const finished=g&&g.match&&g.match.status==="finished";
-    // espiar libera assim que o jogo começa (a escalação já trava sozinha no kickoff) ou finaliza
-    const started=roomTimeLocked(rr.room_id);
+    // espiar libera quando a pool daquele jogo está TRAVADA (admin fechou) ou o jogo finalizou
+    const started=roomLockedInRound(rr.room_id);
     let here=all.filter(e=>e.room_id===rr.room_id);
     // SELECIONE: só mostra quem TRAVOU este jogo (confirmed); não-travados são descartados
     if(mode==="select")here=here.filter(e=>e.confirmed===true);
