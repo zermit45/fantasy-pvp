@@ -2555,8 +2555,21 @@ function togglePreviewRules(){
   clearEntriesCache();
   if(typeof _dreamCache==="object")for(const k in _dreamCache)delete _dreamCache[k];
   APP.profile=null;APP.profileHistory=null;APP.memberProfile=null;APP.memberHistory=null;
-  toast(window.PREVIEW_NEW_RULES?"Prévia LIGADA — vendo como ficaria com as regras novas (nada foi salvo)":"Prévia desligada — voltou ao real");
+  toast(window.PREVIEW_NEW_RULES?"Prévia LIGADA — recalculando… (nada foi salvo)":"Prévia desligada — voltou ao real");
   render();
+  // dispara o recálculo da tela atual (senão fica preso em "Calculando…")
+  setTimeout(async()=>{
+    try{
+      if(APP.view==="profile"){
+        const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;render();
+        const ph=await loadMemberHistory(APP.user.username);if(APP.view==="profile")APP.profileHistory=ph;render();
+      }else if(APP.view==="member"&&APP.memberView){
+        const u=APP.memberView;
+        const ps=await loadProfileStats(u);if(APP.view==="member"&&APP.memberView===u)APP.memberProfile=ps;render();
+        const ph=await loadMemberHistory(u);if(APP.view==="member"&&APP.memberView===u)APP.memberHistory=ph;render();
+      }
+    }catch(e){}
+  },20);
 }
 const _ctxCache={};
 function buildCtxFor(roomId){
