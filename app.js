@@ -15,13 +15,18 @@ const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
 const ARCH_CATALOG=[
   // Goleiros
   {name:"GK Seguro",cat:"Goleiro",rar:"Comum",how:"Goleiro que cumpriu seu papel sem grandes sustos."},
-  {name:"GK Muralha",cat:"Goleiro",rar:"Raro",how:"Goleiro com muitas defesas ou uma defesa difícil."},
+  {name:"GK Muralha",cat:"Goleiro",rar:"Incomum",how:"Goleiro com muitas defesas ou uma defesa difícil."},
   {name:"GK Paredão",cat:"Goleiro",rar:"Épico",how:"Muitas defesas (ou uma defesaça) E sem sofrer gol."},
-  {name:"GK Líbero",cat:"Goleiro",rar:"Raro",how:"Goleiro que saiu jogando: cortes fora da área e cruzamentos, jogando muito tempo."},
+  {name:"GK Líbero",cat:"Goleiro",rar:"Incomum",how:"Goleiro que saiu jogando: cortes fora da área e cruzamentos, jogando muito tempo."},
   {name:"GK Pegador de Pênalti",cat:"Goleiro",rar:"Lendário",how:"Defendeu pelo menos um pênalti."},
   // Ataque — gol
+  {name:"GOAT",cat:"Ataque",rar:"Lendário",how:"Pontuação máxima — a melhor atuação possível no jogo (28+ pts). O teto."},
   {name:"Matador",cat:"Ataque",rar:"Lendário",how:"Marcou 3+ gols (hat-trick)."},
   {name:"Artilheiro",cat:"Ataque",rar:"Épico",how:"Marcou 2 gols."},
+  {name:"Carrasco",cat:"Ataque",rar:"Épico",how:"Marcou o gol que tirou o time do empate/derrota e o colocou na frente (virada ou desempate decisivo)."},
+  {name:"Super Sub",cat:"Ataque",rar:"Raro",how:"Entrou do banco e marcou gol."},
+  {name:"Especialista de Bola Parada",cat:"Ataque",rar:"Raro",how:"Marcou gol de falta, escanteio ou bola parada."},
+  {name:"Canhão",cat:"Ataque",rar:"Épico",how:"Marcou um gol de fora da área."},
   {name:"Finalizador Frio",cat:"Ataque",rar:"Épico",how:"Marcou um gol que foi um golaço improvável."},
   {name:"Decisivo",cat:"Ataque",rar:"Raro",how:"Marcou gol E deu assistência no mesmo jogo."},
   {name:"Herói de Clutch",cat:"Ataque",rar:"Épico",how:"2+ ações decisivas nos minutos finais com jogo apertado."},
@@ -30,6 +35,7 @@ const ARCH_CATALOG=[
   {name:"Garçom",cat:"Criação",rar:"Raro",how:"Deu 2 assistências."},
   {name:"Cérebro do Time",cat:"Criação",rar:"Épico",how:"Criação excepcional de chances (muitas chances claras criadas)."},
   {name:"Maestro Criador",cat:"Criação",rar:"Raro",how:"Criou muitas chances de gol ao longo do jogo."},
+  {name:"Maestro de Cruzamentos",cat:"Criação",rar:"Incomum",how:"Acertou 4+ cruzamentos na área."},
   // Atacantes
   {name:"Driblador",cat:"Ataque",rar:"Raro",how:"Atacante com 6+ dribles certos."},
   {name:"Lobo Solitário",cat:"Ataque",rar:"Incomum",how:"Atacante com 4+ finalizações no alvo."},
@@ -52,6 +58,8 @@ const ARCH_CATALOG=[
   {name:"Articulador",cat:"Meio",rar:"Comum",how:"Meia que distribui o jogo: 8+ passes progressivos."},
   {name:"Engrenagem",cat:"Meio",rar:"Comum",how:"Meio-campista trabalhador: 6+ desarmes/recuperações."},
   {name:"Conector",cat:"Meio",rar:"Comum",how:"Atuação equilibrada sem um destaque específico (arquétipo base)."},
+  // Outros
+  {name:"Vilão",cat:"Outros",rar:"Comum",how:"Cometeu um pênalti, errou levando a gol, ou foi expulso (sem compensar com gol)."},
 ];
 const RAR_COLOR={Comum:"#9aa6b2",Incomum:"#54E0A8",Raro:"#5CA8FF",Épico:"#C77DFF",Mítico:"#FFC247",Lendário:"#FF6B6B"};
 // IMPULSO: cada ficha vale +BOOST_PCT% nos pontos da partida; teto de BOOST_MAX_PER_GAME fichas por jogo.
@@ -2399,7 +2407,7 @@ function collectionHTML(archObj){
   let html=`<div class="card"><div class="h2 disp">🃏 Coleção de arquétipos</div>
     <p class="p" style="margin:6px 0 10px">Você desbloqueou <b style="color:var(--amber)">${got}/${total}</b> arquétipos. Cada um é um papel que um jogador seu desempenhou numa partida. Toque pra ver como conseguir os que faltam.</p>`;
   // agrupa por categoria
-  const cats=["Goleiro","Defesa","Meio","Criação","Ataque"];
+  const cats=["Goleiro","Defesa","Meio","Criação","Ataque","Outros"];
   for(const cat of cats){
     const arr=ARCH_CATALOG.filter(a=>a.cat===cat);
     if(!arr.length)continue;
@@ -2434,7 +2442,7 @@ function profileHTML(){
   const st=prof._byMode?(prof[APP.profileTab]||prof.geral):prof;
   const medals=computeMedals(prof._byMode?prof.geral:prof);
   const archDistinct=Object.keys(st.archetypes).length;
-  const TOTAL_ARCH=33; // total de arquétipos possíveis no engine
+  const TOTAL_ARCH=ARCH_CATALOG.length; // total de arquétipos possíveis no engine
   const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
   const tit=userTitle(prof._byMode?prof.geral:prof);
@@ -2559,7 +2567,7 @@ function memberHTML(){
     <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
       ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
       ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("📈",st.avg||0,"média/jogo")}${statBox("🎯",st.podiumRate+"%","pódio")}
-      ${statBox("🃏",archDistinct+"/33","arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
+      ${statBox("🃏",archDistinct+"/"+ARCH_CATALOG.length,"arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
     </div>
     ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
     ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts${st.bestPerf.game?` em ${esc(st.bestPerf.game)}`:""}.</p>`:""}

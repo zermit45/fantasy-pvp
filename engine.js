@@ -232,6 +232,14 @@ function makeEngine(match){
     const golaco = p.goals.some(g=>tierXG(g.xg).t===4);           // xg<0.08
     const golDificil = p.goals.some(g=>tierXG(g.xg).t>=3);
     const defLimpa = p.gk && p.gk.conceded===0 && p.min>=60;
+    // CARRASCO: marcou um gol que tirou o time do empate/derrota e o colocou na frente
+    // (desempate pra liderança ou virada). Avalia o placar logo após cada gol do jogador.
+    const isCarrasco = p.goals.some(g=>{
+      const before=scoreAt(g.m);            // placar imediatamente antes do gol
+      const my=p.team===match.homeCode?0:1, op=my===0?1:0;
+      // antes do gol o time estava empatado ou perdendo, e o gol coloca na frente
+      return before[my]<=before[op] && (before[my]+1)>before[op];
+    });
     let arch="Conector"; const traits=[];
 
     // ---------- ARQUÉTIPO (prioridade do mais raro/marcante ao mais comum) ----------
@@ -246,6 +254,11 @@ function makeEngine(match){
     }
     else if(G>=3) arch="Matador";                                          // hat-trick
     else if(G>=2) arch="Artilheiro";                                       // 2 gols
+    else if(!p.gk&&total>=28) arch="GOAT";                                 // pontuação máxima do balanceamento
+    else if(G>=1&&isCarrasco&&G===1&&total>=10) arch="Carrasco";           // gol decisivo (virada/desempate) numa boa atuação
+    else if(G>=1&&!p.started) arch="Super Sub";                            // entrou do banco e marcou
+    else if(G>=1&&p.setPieceGoals>=1) arch="Especialista de Bola Parada";  // gol de falta/escanteio
+    else if(G>=1&&p.longGoals>=1) arch="Canhão";                           // gol de fora da área
     else if(clutch>=2) arch="Herói de Clutch";
     else if(G>=1&&golaco) arch="Finalizador Frio";
     else if(G>=1&&A>=1) arch="Decisivo";                                   // gol + assist
@@ -273,9 +286,11 @@ function makeEngine(match){
     else if((p.tklint+p.recovery)>=10&&ix.tw>=70) arch="Volante";
     else if(ix.tw>=72&&p.recovery>=8) arch="Motor";
     else if((p.tklint+p.recovery+p.clearance)>=12&&ix.sec>=74&&p.pos!=="ATT") arch="Cão de Guarda";  // muito trabalho defensivo
+    else if(p.accCross>=4) arch="Maestro de Cruzamentos";                  // muitos cruzamentos certos
     else if(ix.iui>=72&&ix.sec<42) arch="Ponta Caótico";
     else if(p.pos==="MID"&&p.prgp>=8&&ix.iui>=55) arch="Articulador";       // distribui jogo (acessível)
     else if(p.pos==="MID"&&(p.tklint+p.recovery)>=6) arch="Engrenagem";     // meio-campo trabalhador comum
+    else if((p.red||p.penCom>=1||p.errGoal>=1)&&G===0) arch="Vilão";        // fez besteira (e não compensou com gol)
 
     // ---------- TRAITS (selos de momento — até 3) ----------
     if(G>=3) traits.push("Hat-trick");
