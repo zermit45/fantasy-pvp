@@ -7,14 +7,19 @@
 // Pesos de pontuação. BASE = rebalanceado (gol/assist valem mais, passe/desarme menos).
 // BASE_V1 = pesos antigos, usados SÓ pelos jogos já apurados (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram.
-const BASE = { goal:4, assist:3, sot:.7, dribble:.4, prgp:.06, pib:.35, tib:.05, sca:.5, gca:1.5,
-  tklint:.6, block:.8, recovery:.14, aerial:.25, clearance:.1,
-  save:.7, penSave:4.5, opa:.85, crossStop:.45, accCross:.2, inaccCross:-.08,
-  yellow:-2, redH1:-10, redH2:-6, errGoal:-5, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2 };
-// pesos ANTIGOS (jogos já apurados / tacticRules v1) — diferem só nas ações rebalanceadas
-const BASE_V1 = Object.assign({}, BASE, { goal:2, assist:1.5, sot:.6, dribble:.35, prgp:.12, tib:.06, sca:.45, gca:1.25,
-  tklint:.9, block:.9, recovery:.22, aerial:.22 });
+const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.08, pib:.3, tib:.05, sca:.75, gca:2.0,
+  tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
+  save:1.35, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
+  wasFouled:.08, longBall:.12, prgCarry:.10,
+  yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2, ownGoal:-5 };
+// pesos ANTIGOS — CONGELADOS (jogos já apurados / tacticRules v1). NÃO herdam da BASE pra não alterar jogos finalizados.
+const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0.08, longBall:0.12, prgCarry:0.1, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:-5 };
 const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
+// multiplicador de equilíbrio por posição (só nos pontos POSITIVOS) — normaliza médias entre GK/DEF/MID/ATT.
+// Correção SUAVE: defensor pontua um pouco mais fácil, então leva leve desconto; atacante e goleiro ganham leve empurrão.
+// Conservador de propósito (amostra de jogos ainda pequena). Reavaliar com mais jogos apurados.
+// Só vale pros jogos NOVOS; jogos v1 usam 1.0 (ficam intactos).
+const POS_MULT = { GK:1.05, DEF:0.95, MID:1.0, ATT:1.15 };
 const TIER_EMO = {1:0,2:.4,3:.9,4:1.6};
 const r1 = x => Math.round(x*10)/10;
 const tierXG = v => v>0.5?{b:0,t:1} : v>=0.2?{b:1.2,t:2} : v>=0.08?{b:2.6,t:3} : {b:4.2,t:4};
@@ -56,47 +61,47 @@ const TACT_BONUS_PTS = 10;
 const TACT_ONUS_PTS  = -4.0;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:29.1, pressaototal:31.2, cerebro:22.6, tridente:12.6, aereo:6.7, contra:11.8 };
+const TACT_PTSREF = { muralha:5.5, pressaototal:6.0, cerebro:10.6, tridente:5.1, aereo:3.0, contra:5.8 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
-    desc:"Defesa em bloco. Ativa se a marcação (desarmes, cortes, bloqueios) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
-    fam:["tklint","clearance","block"], minPlayers:3,
-    metric:p=>p.tklint+p.clearance+p.block, partMin:2},
+    desc:"Defesa em bloco no próprio campo. Ativa se segurar o jogo (cortes, bloqueios e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
+    fam:["clearance","block","aerial"], minPlayers:3,
+    metric:p=>p.clearance+p.block+p.aerial, partMin:2},
   pressaototal:{name:"Gegenpress",
-    desc:"Pressão alta. Ativa se recuperar a bola (recuperações + desarmes) for o ponto forte do seu time e 3+ jogadores pressionarem.",
+    desc:"Pressão alta pra roubar a bola. Ativa se recuperar a posse (recuperações, desarmes e faltas táticas) for o ponto forte do seu time e 3+ jogadores pressionarem.",
     fam:["recovery","tklint"], minPlayers:3,
-    metric:p=>p.recovery+p.tklint, partMin:2},
+    metric:p=>p.recovery+p.tklint+p.fouls, partMin:2},
   cerebro:{name:"Tiki-Taka",
-    desc:"Posse e troca de passes. Ativa se a construção (passes progressivos + criação de chances) for o forte do seu time e 3+ jogadores criarem.",
+    desc:"Posse e troca de passes curtos. Ativa se a construção (passes progressivos, criação de chances e assistências) for o forte do seu time e 3+ jogadores criarem.",
     fam:["prgp","sca","gca","assist"], minPlayers:3,
     metric:p=>p.prgp+p.sca+p.gca*2, partMin:2},
   tridente:{name:"Ataque Total",
     desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 2+ jogadores finalizarem.",
     fam:["goal","sotPts"], minPlayers:2,
     metric:p=>p.sots.length+p.goals.length*2, partMin:1},
-  aereo:{name:"Chuveiro na Área",
-    desc:"Jogo aéreo e cruzamentos. Ativa se o jogo pelo alto (duelos aéreos + cruzamentos certos) for o forte do seu time e 2+ jogadores brigarem por cima.",
-    fam:["aerial","accCross","goal"], minPlayers:2,
-    metric:p=>p.aerial+p.accCross, partMin:2},
+  aereo:{name:"Jogo Aéreo",
+    desc:"Bola alta e jogo direto. Ativa se o jogo pelo alto (duelos aéreos, cruzamentos certos e lançamentos longos) for o forte do seu time e 2+ jogadores explorarem o alto.",
+    fam:["aerial","accCross","longBall"], minPlayers:2,
+    metric:p=>p.aerial+p.accCross+p.longBall, partMin:2},
   contra:{name:"Contra-Ataque",
-    desc:"Transição rápida. Ativa se conduzir e infiltrar (dribles + passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
-    fam:["dribbles","goal","pib"], minPlayers:3,
-    metric:p=>p.dribbles+p.pib, partMin:2},
+    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções progressivas, dribles e passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
+    fam:["prgCarry","dribbles","pib"], minPlayers:3,
+    metric:p=>p.prgCarry+p.dribbles+p.pib, partMin:2},
 };
 // famílias de referência pra calcular a DOMINÂNCIA (proporção interna do time).
 // IMPORTANTE: cada ação tem volume natural muito diferente (passes >> dribles >>
 // cruzamentos). Por isso normalizamos cada família por um divisor de referência,
 // para que "dominante" signifique "o time se destacou NAQUILO relativo ao normal
 // daquela ação", e não simplesmente a ação de maior volume bruto (passe sempre venceria).
-const TACT_NORM={ muralha:65, pressaototal:87, cerebro:226, tridente:9, aereo:17, contra:39 };
+const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20, contra:37 };
 // MINI REBOOT do balanceamento de táticas (z-score):
 // cada família tem distribuição muito diferente (passe >> finalização). Em vez de
 // comparar famílias entre si (o que sempre favorecia as de ação comum), medimos quão
 // ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
 // tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
 // Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
-const TACT_MEAN={ muralha:16.1, pressaototal:20, cerebro:57.1, tridente:2.3, aereo:4.8, contra:9.4 };
-const TACT_SD={ muralha:7.7, pressaototal:7.7, cerebro:29.4, tridente:2.7, aereo:2.6, contra:5.6 };
+const TACT_MEAN={ muralha:12.5, pressaototal:25.5, cerebro:44.3, tridente:0.8, aereo:15.5, contra:12.6 };
+const TACT_SD={ muralha:5.2, pressaototal:7.6, cerebro:17.3, tridente:1.2, aereo:4.1, contra:4.9 };
 const TACT_ZTHRESH=0.5; // z-score mínimo pra a família contar como "estilo do time"
 // REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
@@ -104,6 +109,15 @@ const TACT_ZTHRESH=0.5; // z-score mínimo pra a família contar como "estilo do
 const TACT_NORM_V1={ muralha:45, pressaototal:70, cerebro:113, tridente:11, aereo:26, contra:28 };
 const TACT_PART_V1={ tridente:{minPlayers:3,partMin:2}, aereo:{minPlayers:3,partMin:2} }; // antes do afrouxamento
 const TACT_FAMILIES={
+  muralha:p=>p.clearance+p.block+p.aerial,
+  pressaototal:p=>p.recovery+p.tklint+p.fouls,
+  cerebro:p=>p.prgp+p.sca+p.gca*2+(p.assists?p.assists.length:0),
+  tridente:p=>(p.sots?p.sots.length:0)+(p.goals?p.goals.length:0)*2,
+  aereo:p=>p.aerial+p.accCross+p.longBall,
+  contra:p=>p.prgCarry+p.dribbles+p.pib,
+};
+// FAMÍLIAS CONGELADAS dos jogos v1 (já apurados) — idênticas às antigas, pra não recalcular táticas finalizadas.
+const TACT_FAMILIES_V1={
   muralha:p=>p.tklint+p.clearance+p.block,
   pressaototal:p=>p.recovery+p.tklint,
   cerebro:p=>p.prgp+p.sca+p.gca*2,
@@ -117,7 +131,8 @@ function normP(raw){
   return Object.assign({
     min:0, started:false, goals:[], assists:[], sots:[], dribbles:0, prgp:0, pib:0, tib:0,
     sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
-    yellow:0, red:null, errGoal:0, penCom:0, accCross:0, inaccCross:0, gk:null,
+    yellow:0, red:null, errGoal:0, errShot:0, penCom:0, accCross:0, inaccCross:0, gk:null, ownGoal:0,
+    wasFouled:0, longBall:0, prgCarry:0,
     // dados de finalização (capturados do shotmap): bola parada e chute de fora
     setPieceSot:0, setPieceGoals:0, longSot:0, longGoals:0
   }, raw||{});
@@ -360,6 +375,8 @@ function makeEngine(match){
     ["Finalizações no gol",B.sot,p=>p.sots.length],["Dribles certos",B.dribble,p=>p.dribbles],
     ["Passes progressivos",B.prgp,p=>p.prgp],["Passes na área",B.pib,p=>p.pib],
     ["Toques na área",B.tib,p=>p.tib],["Cruzamentos certos",B.accCross,p=>p.accCross],
+    ["Lançamentos certos",B.longBall,p=>p.longBall||0],["Conduções progressivas",B.prgCarry,p=>p.prgCarry||0],
+    ["Faltas sofridas",B.wasFouled,p=>p.wasFouled||0],
     ["Cruzamentos errados",B.inaccCross,p=>p.inaccCross],["Desarmes + interceptações",B.tklint,p=>p.tklint],
     ["Bloqueios",B.block,p=>p.block],["Recuperações de bola",B.recovery,p=>p.recovery],
     ["Duelos aéreos vencidos",B.aerial,p=>p.aerial],["Cortes",B.clearance,p=>p.clearance],
@@ -367,7 +384,8 @@ function makeEngine(match){
     ["Saídas (sweeper)",B.opa,p=>p.gk?p.gk.opa:0],["Cruzamentos cortados",B.crossStop,p=>p.gk?p.gk.crossStop:0],
     ["Gols sofridos",B.concededGk,p=>p.gk?p.gk.conceded:0],["Cartão amarelo",B.yellow,p=>p.yellow],
     ["Faltas",B.foul,p=>p.fouls],["Vezes driblado",B.dribbledPast,p=>p.dribbledPast],
-    ["Erro → gol",B.errGoal,p=>p.errGoal],["Pênalti cometido",B.penCom,p=>p.penCom],
+    ["Erro → gol",B.errGoal,p=>p.errGoal],["Erro → finalização",B.errShot,p=>p.errShot||0],["Pênalti cometido",B.penCom,p=>p.penCom],
+    ["Gol contra",B.ownGoal,p=>p.ownGoal||0],
   ];
   function statLines(p){const o=[];for(const[l,v,c]of STAT_DEFS){const n=c(p);if(n)o.push([l,n,v,r1(n*v)]);}return o;}
 
@@ -383,14 +401,18 @@ function makeEngine(match){
       sca:r1(p.sca*mf)*B.sca,gca:p.gca*B.gca,tklint:r1(p.tklint*mf)*B.tklint,block:r1(p.block*mf)*B.block,
       recovery:r1(p.recovery*mf)*B.recovery,aerial:r1(p.aerial*mf)*B.aerial,clearance:r1(p.clearance*mf)*B.clearance,
       accCross:r1(p.accCross*mf)*B.accCross,inaccCross:r1(p.inaccCross*mf)*B.inaccCross,
+      wasFouled:r1(p.wasFouled*mf)*B.wasFouled,longBall:r1(p.longBall*mf)*B.longBall,prgCarry:r1(p.prgCarry*mf)*B.prgCarry,
     };
     let cs=0;const csEl=p.gk||(p.pos==="DEF"&&p.min>=60);
-    if(csEl){const c=cleanSheetHalves(p.team);if(c.h1)cs+=1.5;if(c.h2)cs+=1.5;}
+    if(csEl){const c=cleanSheetHalves(p.team);const gkCS=(match.tacticRules==="v1")?1.5:4.5;const csv=p.gk?gkCS:1.5;if(c.h1)cs+=csv;if(c.h2)cs+=csv;}
     let gkB=0,conc=0;
     if(p.gk){gkB=p.gk.saves.length*B.save+p.gk.opa*B.opa+p.gk.crossStop*B.crossStop+p.gk.penSave*B.penSave;conc=p.gk.conceded*B.concededGk;}
     const negRed=redPenalty(p.red);
-    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+p.penCom*B.penCom+r1(p.dribbledPast*mf)*B.dribbledPast+r1(p.fouls*mf)*B.foul;
-    const baseTot=Object.values(comp).reduce((a,b)=>a+b,0)+gkB+conc+neg+cs;
+    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+(p.errShot||0)*B.errShot+p.penCom*B.penCom+(p.ownGoal||0)*B.ownGoal+r1(p.dribbledPast*mf)*B.dribbledPast+r1(p.fouls*mf)*B.foul;
+    // multiplicador de equilíbrio por posição: só nos POSITIVOS, e só em jogos novos (v1 = 1.0)
+    const posMult=(match.tacticRules==="v1")?1:((POS_MULT[p.pos])||1);
+    const posPart=(Object.values(comp).reduce((a,b)=>a+b,0)+gkB+cs)*posMult;
+    const baseTot=posPart+conc+neg;
     if(mf<1)push(`Stats escalonados (${p.min}', fator ${mf.toFixed(2)})`,0);
     if(cs>0)push(`Clean sheet ${cs===3?"completo":"(1 metade)"}`,cs);
     if(p.red)push(`Vermelho${p.red.doubleYellow?" 2º amarelo":""} ${p.red.m<=50?"(1ºT)":"(2ºT)"}`,negRed);
@@ -447,10 +469,11 @@ function makeEngine(match){
     const useV1 = match.tacticRules==="v1"; // jogos já apurados antes do reboot
     // soma bruta de cada família no time
     const famRaw={},famNorm={},famZ={};
-    for(const k of Object.keys(TACT_FAMILIES)){famRaw[k]=0;}
-    for(const p of ps){for(const k of Object.keys(TACT_FAMILIES))famRaw[k]+=TACT_FAMILIES[k](p);}
+    const FAMSET = useV1?TACT_FAMILIES_V1:TACT_FAMILIES;
+    for(const k of Object.keys(FAMSET)){famRaw[k]=0;}
+    for(const p of ps){for(const k of Object.keys(FAMSET))famRaw[k]+=FAMSET[k](p);}
     const NORMSET = useV1?TACT_NORM_V1:TACT_NORM;
-    for(const k of Object.keys(TACT_FAMILIES)){
+    for(const k of Object.keys(FAMSET)){
       famNorm[k]=famRaw[k]/(NORMSET[k]||1);
       famZ[k]=(famRaw[k]-(TACT_MEAN[k]||0))/(TACT_SD[k]||1);
     }

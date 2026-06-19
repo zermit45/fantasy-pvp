@@ -2746,7 +2746,7 @@ function buildHTML(){
   const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
     dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
     tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
-    accCross:"cruzamentos",fouls:"faltas"};
+    accCross:"cruzamentos",fouls:"faltas",prgCarry:"conduções",longBall:"lançamentos"};
   // cor-tema por tática (casa com as variáveis --tac-* do CSS)
   const TACT_COLOR={muralha:"var(--tac-muralha)",pressaototal:"var(--tac-pressaototal)",cerebro:"var(--tac-cerebro)",tridente:"var(--tac-tridente)",aereo:"var(--tac-aereo)",contra:"var(--tac-contra)"};
   function tactEffectHTML(t){
@@ -3728,6 +3728,8 @@ function rulesModalHTML(){
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele — mas o reserva rende só <b style="color:var(--chalk)">80%</b> da nota (pedágio por começar fora). Ele só entra se, já com o desconto, ainda superar o titular. <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Cada tática tem um ESTILO de jogo. Ela fica <b style="color:var(--chalk)">completa (bônus)</b> se, na partida, aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele (ex: Tiki-Taka pede que passes/criação sejam o forte do time e 4+ jogadores criando). Se faltar um dos dois, fica <b style="color:var(--chalk)">incompleta (ônus)</b> — e o ônus é sempre menor que o bônus. Todas as táticas valem o mesmo em pontos (são balanceadas), e o bônus é dividido entre os jogadores conforme quem mais produziu no estilo. Conta todos que entraram, mesmo substituídos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Penalidades:</b> o jogador perde pontos por cartão amarelo (-2), vermelho (-10 no 1º tempo / -6 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), <b style="color:#FF6B6B">gol contra (-5)</b>, faltas e ser driblado. Um gol contra conta no placar do jogo e ainda desconta 5 pontos de quem o fez — pesa como um gol ao contrário.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Outras ações que pontuam:</b> além de gols e defesas, o jogo recompensa quem constrói: faltas sofridas, lançamentos longos certos e conduções progressivas (carregar a bola pra frente) dão pontos leves, premiando armadores e quem puxa contra-ataque.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Ranking:</b> quando o jogo acaba, todos os times da sala são pontuados e o ranking aparece, com a apuração detalhada de cada jogador.</p>
     <button class="btn" style="margin-top:8px" onclick="toggleRules()">Entendi</button>
   </div></div>`;
@@ -3751,7 +3753,9 @@ function superManualHTML(){
       p(`${b("Tática:")} escolha 1. Cada uma tem um estilo. Fica completa (bônus) se aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele. Senão fica incompleta (ônus menor que o bônus).`))}
 
     ${sec("3. Pontuação",
-      p(`Gols, assistências, defesas, desarmes, dribles etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`))}
+      p(`Gols, assistências, defesas, desarmes, dribles etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
+      p(`${b("Penalidades")} tiram pontos: cartão amarelo (-2), vermelho (-10 no 1º tempo / -6 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-5), faltas e ser driblado. O gol contra pesa como um gol ao contrário: conta no placar e desconta 5 pontos de quem o fez.`)+
+      p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`))}
 
     ${sec("4. Mini rodadas e os modos",
       p(`Uma ${b("mini rodada")} junta vários jogos. O modo dela define a estratégia. São 4:`)+
