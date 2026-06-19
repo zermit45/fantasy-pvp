@@ -4,24 +4,23 @@
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
 // modos de mini rodada (agrupamento + cores na home). Rodadas antigas (sem mode) = 'select'.
 const MODE_META={
-  select:{label:"SELECIONE",icon:"🎯",color:"#5CA8FF",desc:"Escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia.",hidden:true},
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
   boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). Trava no 1º jogo."},
-  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e ordene-os do que você MAIS confia pro que menos confia. O 1º da sua ordem vale 2x os pontos; o último, só 0,5x. Acertar a ordem da sua confiança é a estratégia. Trava no 1º jogo."},
+  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. Trava no 1º jogo."},
   previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus grande por acertar o resultado — e um bônus ainda maior por cravar o placar exato. Trava no 1º jogo."},
 };
 // modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
 const MODE_LIST=["full","boost","confianca","previsao"];
-const modeOf=r=>(r&&r.mode)||"select";
-const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
-// multiplicador de confiança: o ALCANCE cresce com o nº de jogos (poucos jogos = suave).
-// piso de 0.4x pra nunca zerar um jogo. topo cresce até ~2x com muitos jogos.
+const modeOf=r=>(r&&r.mode)||"full";
+const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.full;
+// multiplicador de confiança: alcance cresce com o nº de jogos (poucos jogos = suave).
+// piso 0.5x. quanto mais jogos, mais o topo se destaca (até ~1.8x).
 function confMultiplier(rank,total){
   if(total<=1)return 1;
-  const spread=Math.min(1.0, 0.22*(total-1)); // 2j=0.22, 3j=0.44, 4j=0.66, 6j=1.0
-  const t=rank/(total-1);                       // 0 (topo) .. 1 (fundo)
+  const spread=Math.min(0.8, 0.18*(total-1));
+  const t=rank/(total-1);
   const m=1+spread - t*(2*spread);
-  return Math.max(0.4, Math.round(m*100)/100);  // piso 0.4x
+  return Math.max(0.5, Math.round(m*100)/100);
 }
 // bônus de previsão em PORCENTAGEM (escala com os pontos do time naquele jogo)
 const PRED_EXACT_PCT=28;   // cravou o placar exato → +28%
@@ -491,6 +490,8 @@ async function loadRounds(){
   if(!APP.groupId)return;
   try{APP.rounds=await sb("rounds?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
   catch(e){APP.rounds=[];}
+  // modo Selecione foi descontinuado: esconde qualquer rodada select remanescente da UI
+  APP.rounds=(APP.rounds||[]).filter(r=>modeOf(r)!=="select");
   // carrega os jogos (round_rooms) de TODAS as mini rodadas de uma vez,
   // pra saber quais rodadas já terminaram (todos os jogos finalizados).
   try{
@@ -1654,8 +1655,8 @@ function roundsCardHTML(){
   const liveList=avulsasAll.filter(r=>!compIsFinishedView("round",r.id));
   const doneList=avulsasAll.filter(r=>compIsFinishedView("round",r.id));
   const avulsas=tab==="done"?doneList:liveList;
-  // agrupar por modo: novos modos primeiro, select por último (legado)
-  const order=["full","boost","confianca","previsao","select"];
+  // agrupar por modo
+  const order=["full","boost","confianca","previsao"];
   let groupsHTML="";
   for(const mk of order){
     const list=avulsas.filter(r=>modeOf(r)===mk);
@@ -2041,10 +2042,13 @@ function roundHTML(){
     const ranked=confRankedCount();
     const totalGames=APP.roundRooms.length;
     const ord=confOrdered();
+    // multiplicadores reais desta rodada (dependem de quantos jogos foram ordenados)
+    const topMult=ranked>0?confMultiplier(0,ranked):1;
+    const lowMult=ranked>1?confMultiplier(ranked-1,ranked):1;
     // mini resumo da ordem atual
     const ordList=ord.map((e,i)=>{const g=window.GAMES.data[e.room_id];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e ordene-os por confiança. O 1º da sua ordem vale <b>2x</b>; o último, <b>0,5x</b>. ${bLocked?"<b>Ordem travada</b> (o 1º jogo começou).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
+      ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e coloque-os em ordem de confiança: do 1º (mais confia) ao último. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (o 1º jogo começou).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
       ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}`;
   }else if(isPred){
@@ -3178,8 +3182,8 @@ function memberHTML(){
 // prefix distingue contexto ("m"=membro, "p"=perfil próprio) pra estados de toggle separados
 function histGameHTML(h,hi,prefix){
   const open=_openHistGame[prefix+hi];
-  const MODECOLOR={avulsa:"var(--mid)",select:MODE_META.select.color,full:MODE_META.full.color,boost:MODE_META.boost.color};
-  const MODELABEL={avulsa:"AVULSA",select:"🎯 SELECIONE",full:"🏆 COMPLETO",boost:"⚡ IMPULSO"};
+  const MODECOLOR={avulsa:"var(--mid)",select:"#5CA8FF",full:MODE_META.full.color,boost:MODE_META.boost.color,confianca:MODE_META.confianca.color,previsao:MODE_META.previsao.color};
+  const MODELABEL={avulsa:"AVULSA",select:"🎯 SELECIONE",full:"🏆 COMPLETO",boost:"⚡ IMPULSO",confianca:"📊 CONFIANÇA",previsao:"🔮 PREVISÃO"};
   const e=h.entry;
   // cor da nota principal: normal se for avulsa; cor do modo + aviso se não tem avulsa
   const headColor=h.isAvulsa?(e.total<0?"var(--red)":"var(--amber)"):MODECOLOR[h.principalMode];
