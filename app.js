@@ -5,9 +5,9 @@ const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANC
 // modos de mini rodada (agrupamento + cores na home). Rodadas antigas (sem mode) = 'select'.
 const MODE_META={
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
-  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). Trava no 1º jogo."},
-  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. Trava no 1º jogo."},
-  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus grande por acertar o resultado — e um bônus ainda maior por cravar o placar exato. Trava no 1º jogo."},
+  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
+  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
+  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação e o palpite de cada jogo travam quando aquele jogo é fechado."},
 };
 // modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
 const MODE_LIST=["full","boost","confianca","previsao"];
@@ -815,6 +815,7 @@ function picksLocked(){
 function roomTimeLocked(roomId){
   const g=window.GAMES.data[roomId];
   if(g&&g.match&&g.match.status==="finished")return true;
+  // sem kickoff automático: a trava por horário não se aplica (tudo é manual via "Fechar pool")
   const idx=(APP.jogos||[]).find(j=>j.room_id===roomId);
   if(idx&&idx.kickoff){const k=new Date(idx.kickoff);if(!isNaN(k)&&Date.now()>=k.getTime())return true;}
   return false;
@@ -830,20 +831,22 @@ function roomLockedInRound(roomId){
 }
 // ── MODO IMPULSO ──
 // 1º kickoff da rodada (ISO mais cedo entre os jogos da rodada). Impulsos travam aqui.
-function roundFirstKickoff(){
-  let min=Infinity;
-  for(const rr of (APP.roundRooms||[])){
-    const j=(APP.jogos||[]).find(x=>x.room_id===rr.room_id);
-    if(j&&j.kickoff){const k=new Date(j.kickoff).getTime();if(!isNaN(k)&&k<min)min=k;}
-  }
-  return min;
+// 1ª partida da rodada (a primeira que foi adicionada / ordem dos round_rooms)
+function roundFirstRoomId(){
+  const rrs=APP.roundRooms||[];
+  if(!rrs.length)return null;
+  // usa a ordem em que aparecem (primeira da lista) como "1ª partida"
+  return rrs[0].room_id;
 }
-// impulsos travados? (passou o 1º kickoff da rodada — todos travam juntos)
-// EXCEÇÃO admin: se o dev reabriu manualmente (boost_reopened), destrava mesmo após o kickoff.
+// trava da parte ESTRATÉGICA (ordem de confiança / fichas de impulso / palpites globais):
+// trava quando a 1ª partida da rodada é fechada manualmente (status != open) OU já finalizada.
+// EXCEÇÃO admin: se reabriu manualmente (boost_reopened), destrava.
 function boostLocked(){
   if(APP.round&&APP.round.boost_reopened===true)return false; // admin reabriu
-  const f=roundFirstKickoff();
-  return isFinite(f)&&Date.now()>=f;
+  const first=roundFirstRoomId();
+  if(!first)return false;
+  // 1ª partida travada (admin fechou a pool dela) ou já finalizada → trava a estratégia
+  return roomAdminLocked(first) || roomIsFinished(first);
 }
 // === IMPULSO v2: fichas com valores específicos ===
 // a pool define APP.round.boost_chips = lista de valores, ex [25,15,15,-20].
@@ -864,7 +867,7 @@ function confRankedCount(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=
 // lista de entries rankeadas, em ordem
 function confOrdered(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).slice().sort((a,b)=>a.conf_rank-b.conf_rank);}
 async function confAdd(roomId){
-  if(boostLocked()){toast("A ordem já travou (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
   if(e.conf_rank!=null)return;
@@ -873,7 +876,7 @@ async function confAdd(roomId){
   catch(e2){toast("Erro: "+e2.message);}
 }
 async function confRemove(roomId){
-  if(boostLocked()){toast("A ordem já travou (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
   const ord=confOrdered().filter(e=>e.room_id!==roomId);
   try{
     // tira este e reindexa os demais
@@ -883,7 +886,7 @@ async function confRemove(roomId){
   }catch(e2){toast("Erro: "+e2.message);}
 }
 async function confMove(roomId,delta){
-  if(boostLocked()){toast("A ordem já travou (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
   const ord=confOrdered();
   const idx=ord.findIndex(e=>e.room_id===roomId);
   if(idx<0)return;
@@ -899,7 +902,7 @@ async function confMove(roomId,delta){
 // ===== PREVISÃO =====
 function predOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);if(!e)return null;if(e.pred_home==null&&e.pred_away==null)return null;return {home:e.pred_home,away:e.pred_away};}
 async function predSet(roomId,homeVal,awayVal){
-  if(boostLocked()){toast("Os palpites já travaram (o 1º jogo começou).");return;}
+  if(roomLockedInRound(roomId)){toast("Esta partida já travou — o palpite dela não muda mais.");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
   const patch={confirmed:false,updated_at:new Date().toISOString()};
@@ -927,7 +930,7 @@ function chipsOn(roomId){
 }
 // atribui uma ficha (de um valor) a um jogo; ou remove (signRemove=valor a tirar)
 async function assignChip(roomId,value){
-  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
   // tem essa ficha disponível?
@@ -950,7 +953,7 @@ async function assignChip(roomId,value){
   }catch(e2){toast("Erro: "+e2.message);}
 }
 async function unassignChip(roomId,value){
-  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
   const cur=chipsOn(roomId).slice();
   const i=cur.indexOf(value);if(i<0)return;cur.splice(i,1);
   try{
@@ -965,7 +968,7 @@ function boostLeft(){return chipsAvailable().length;}
 function boostOn(roomId){return chipsOn(roomId).length;}
 // ajusta tokens de impulso num jogo (retrocompat para pools antigas: +1/−1 com fichas iguais)
 async function changeBoost(roomId,delta){
-  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
   if(delta>0){
@@ -978,7 +981,7 @@ async function changeBoost(roomId,delta){
   }
 }
 // IMPULSO — confirmar/reabrir a distribuição de tokens. Usa entry.confirmed (sem outro uso no boost).
-// Reeditável até o 1º jogo começar (boostLocked).
+// Reeditável até a 1ª partida ser fechada (boostLocked).
 function boostConfirmed(){
   const es=(APP.roundEntries||[]);
   if(!es.length)return false;
@@ -986,7 +989,7 @@ function boostConfirmed(){
   return es.every(e=>e.confirmed===true);
 }
 async function toggleBoostConfirm(){
-  if(boostLocked()){toast("Já travou (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("Já travou (a 1ª partida foi fechada).");return;}
   const willConfirm=!boostConfirmed();
   const mode=modeOf(APP.round);
   if(willConfirm){
@@ -1570,7 +1573,7 @@ function roundRankingHTML(){
   const mode=modeOf(APP.round);
   const bLockedNow=boostLocked(); // impulsos revelados só depois do 1º jogo
   html+=`<div class="card"><div class="h2 disp">👥 Quem está disputando</div>`;
-  if(mode==="boost")html+=`<p class="p" style="font-size:11px;margin:4px 0 0">${bLockedNow?"Impulsos travados — onde cada um gastou já está revelado.":"⚡ Os impulsos de cada um só aparecem depois que o 1º jogo começar."}</p>`;
+  if(mode==="boost")html+=`<p class="p" style="font-size:11px;margin:4px 0 0">${bLockedNow?"Impulsos travados — onde cada um gastou já está revelado.":"⚡ Os impulsos de cada um só aparecem depois que a 1ª partida ser fechada."}</p>`;
   if(!all.length){
     html+=`<p class="p" style="margin-top:6px">Ninguém entrou nesta rodada ainda.</p></div>`;
     return html;
@@ -1977,7 +1980,8 @@ function roundHTML(){
     }
     if(isPred&&!finished){
       const pr=predOf(rid); // {home,away} ou null
-      if(bLocked){
+      const predLocked=locked; // trava individual do jogo (admin fechou pool OU finalizou)
+      if(predLocked){
         extraCtrl=pr?`<span style="font-size:13px;font-weight:800;color:${mm.color}">🔮 cravou ${pr.home} × ${pr.away}</span>`:`<span style="font-size:11px;color:var(--dim)">sem palpite</span>`;
       }else if(team){
         const hc=g.prepool.home.code,ac=g.prepool.away.code;
@@ -2043,7 +2047,7 @@ function roundHTML(){
     if(temNeg)regras.push(`fichas <span style="color:#FF6B6B">vermelhas são negativas</span> e também precisam ser usadas`);
     if(boostNoMix())regras.push(`<span style="color:#FF6B6B">não misture</span> positivas e negativas no mesmo jogo`);
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
+      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (a 1ª partida foi fechada).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
   }else if(isConf){
     const bConf=boostConfirmed();
@@ -2056,7 +2060,7 @@ function roundHTML(){
     // mini resumo da ordem atual
     const ordList=ord.map((e,i)=>{const g=window.GAMES.data[e.room_id];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e coloque-os em ordem de confiança: do 1º (mais confia) ao último. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (o 1º jogo começou).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
+      ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e coloque-os em ordem de confiança: do 1º (mais confia) ao último. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
       ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}`;
   }else if(isPred){
@@ -2064,7 +2068,7 @@ function roundHTML(){
     const totalGames=APP.roundRooms.length;
     const feitos=(APP.roundEntries||[]).filter(e=>e.pred_home!=null&&e.pred_away!=null).length;
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. ${bLocked?"<b>Palpites travados</b> (o 1º jogo começou).":`Você cravou <b>${feitos}/${totalGames}</b>.`}</div>
+      ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. ${bLocked?"<b>Palpites travados</b> (a 1ª partida foi fechada).":`Você cravou <b>${feitos}/${totalGames}</b>.`}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Palpites confirmados — toque p/ reabrir":"🔒 Confirmar palpites"}</button>`:""}`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
@@ -3501,7 +3505,7 @@ function toggleRules(){APP.showRules=!APP.showRules;render();}
 // ---- mini-ajudas contextuais (botão ? pequeno em vários lugares) ----
 const HELP={
   minirodada:["Mini rodada","Você recebe um número de fichas (tokens) de entrada. Cada jogo que você escolher gasta 1 ficha e garante sua vaga naquele jogo. Você não precisa usar todas. Escolher os jogos certos (onde você acha que vai pontuar mais) é a estratégia. A escalação de cada jogo é montada depois e pode ser ajustada até a partida começar."],
-  token:["Fichas de entrada","Cada mini rodada te dá um número fixo de fichas (ex: 2). Tocar no + verde de um jogo gasta 1 ficha e sela sua participação NAQUELE jogo. Enquanto a seleção estiver aberta, dá pra trocar à vontade. Quando o 1º jogo começa, suas escolhas travam."],
+  token:["Fichas de entrada","Cada mini rodada te dá um número fixo de fichas (ex: 2). Tocar no + verde de um jogo gasta 1 ficha e sela sua participação NAQUELE jogo. Enquanto a seleção estiver aberta, dá pra trocar à vontade. Quando a partida é fechada, suas escolhas travam."],
   escalacao:["Escalação","Montar o time é separado de escolher o jogo. A escalação fica salva e você pode mudá-la quantas vezes quiser até a partida começar — ela trava sozinha no apito inicial. Não existe 'confirmar equipe' aqui: o que está garantido é a vaga no jogo (a ficha)."],
   liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
