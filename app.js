@@ -1632,6 +1632,7 @@ function roomHTML(){
       ${!open&&!finished&&hasEntry()?`<button class="btn" onclick="go('build')">👀 Ver meu time escalado</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
+    ${(!finished&&!roomTimeLocked(APP.roomId)&&hasEntry())?othersEnteredHTML():""}
     ${!finished&&roomTimeLocked(APP.roomId)?peekTeamsHTML():""}
     ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
       <div class="tag" style="margin-bottom:6px">ADMIN</div>
@@ -1670,6 +1671,14 @@ async function setPoolStatus(status){
 // ── ESPIAR TIMES DOS MEMBROS (só com pool fechada e jogo não finalizado) ──
 let _openPeek={};
 function togglePeek(i){_openPeek[i]=!_openPeek[i];render();}
+function othersEnteredHTML(){
+  const me=APP.user?.username;
+  const outros=(APP.entries||[]).filter(e=>e.username!==me&&e.slots&&Object.values(e.slots).some(Boolean)).map(e=>e.username);
+  if(!outros.length)return `<div class="prebox" style="margin-top:10px;font-size:12px">Você montou seu time. Ninguém mais escalou ainda — quando alguém montar, aparece aqui (sem mostrar o time).</div>`;
+  const nomes=outros.map(n=>`<b style="color:var(--chalk)">${esc(n)}</b>`).join(", ");
+  const verbo=outros.length===1?"também montou um time":"também montaram um time";
+  return `<div class="prebox" style="margin-top:10px;font-size:12px">👥 ${nomes} ${verbo}. O time de cada um fica escondido até a partida começar — aí você pode espiar.</div>`;
+}
 function peekTeamsHTML(){
   const ents=(APP.entries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
   const byId=APP._byId;
