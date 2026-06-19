@@ -1109,8 +1109,8 @@ async function createRound(name,limit,phaseId,mode,boostTokens,cfg){
   toast("Mini rodada criada!");
   if(rows&&rows[0]){enterRound(rows[0].id);}else render();
 }
-async function addRoomToRound(roomId){
-  if(!isAdmin())return;
+function setAddGameTab(t){APP.addGameTab=t;render();}
+async function addRoomToRound(roomId){  if(!isAdmin())return;
   if(isArchived(roomId)){toast("Jogo arquivado não pode entrar em rodada.");return;}
   await sbInsert("round_rooms",{round_id:APP.roundId,room_id:roomId,status:"open"},true,"round_id,room_id");
   await loadRound(APP.roundId);render();
@@ -1679,7 +1679,7 @@ function roundsCardHTML(){
     ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:14px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
   </div>`;
 }
-function askCreateRound(){APP.confirm={mode:"createRound",newMode:"select",label:"Criar mini rodada"};render();}
+function askCreateRound(){APP.confirm={mode:"createRound",newMode:"full",label:"Criar mini rodada"};render();}
 function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm.draftName=n.value;APP.confirm.newMode=mk;render();}}
 function toggleModeGroup(mk){APP.collapsedModes[mk]=!APP.collapsedModes[mk];render();}
 
@@ -1849,7 +1849,7 @@ function standingCardHTML(st,tab,tabFn,nivel){
 function setLeagueTab(t){APP.leagueTab=t;render();}
 function setPhaseTab(t){APP.phaseTab=t;render();}
 function askCreatePhase(leagueId){APP.confirm={mode:"createPhase",leagueId,label:"Criar rodada"};render();}
-function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",newMode:"select",phaseId,label:"Criar mini rodada"};render();}
+function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",newMode:"full",phaseId,label:"Criar mini rodada"};render();}
 async function addPhaseToLeague(phaseId){
   if(!isAdmin())return;
   try{await sbUpdate("phases",{league_id:APP.leagueId},`id=eq.${phaseId}`);await loadPhases();await loadLeague(APP.leagueId);toast("Rodada adicionada à liga.");render();}
@@ -2014,10 +2014,18 @@ function roundHTML(){
       ${hasLineCtrl?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">${lineCtrl}</div>`:""}
     </div>`;
   }).join("");
-  const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
-  const foraRows=fora.map(j=>`<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
-    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para adicionar à mini rodada</div></div>
-    <span class="statuspill st-closed">+ ADD</span></div>`).join("");
+  const foraAll=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
+  const addTab=APP.addGameTab||"open"; // 'open' | 'done'
+  const foraOpen=foraAll.filter(j=>!roomIsFinished(j.room_id));
+  const foraDone=foraAll.filter(j=>roomIsFinished(j.room_id));
+  const fora=addTab==="done"?foraDone:foraOpen;
+  const addTabsHTML=`<div style="display:flex;gap:6px;margin:14px 0 8px">
+    <span onclick="setAddGameTab('open')" style="cursor:pointer;font-size:11px;font-weight:800;padding:5px 12px;border-radius:99px;border:1px solid ${addTab==="open"?mm.color:"var(--line)"};color:${addTab==="open"?mm.color:"var(--dim)"};background:${addTab==="open"?`color-mix(in srgb,${mm.color} 14%,transparent)`:"transparent"}">Em aberto (${foraOpen.length})</span>
+    <span onclick="setAddGameTab('done')" style="cursor:pointer;font-size:11px;font-weight:800;padding:5px 12px;border-radius:99px;border:1px solid ${addTab==="done"?mm.color:"var(--line)"};color:${addTab==="done"?mm.color:"var(--dim)"};background:${addTab==="done"?`color-mix(in srgb,${mm.color} 14%,transparent)`:"transparent"}">Finalizadas (${foraDone.length})</span>
+  </div>`;
+  const foraRows=fora.map(j=>{const fin=roomIsFinished(j.room_id);return `<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
+    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${fin?"jogo finalizado · ":""}toque para adicionar à mini rodada</div></div>
+    <span class="statuspill ${fin?"st-finished":"st-closed"}">+ ADD</span></div>`;}).join("");
   // banner explicativo por modo
   let banner;
   if(isBoost){
@@ -2095,7 +2103,7 @@ function roundHTML(){
         : `<button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="toggleBoostReopen()">⚡ Reabrir distribuição de impulsos</button>
            <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">⚠️ Cuidado: reabrir após um jogo começar permite remanejar tokens vendo como a partida está indo. Use só se combinado com o grupo.</p>`}
     </div>`:""}
-    ${fora.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${foraRows}`:""}
+    ${foraAll.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${addTabsHTML}${foraRows||`<p class="p" style="font-size:11px;color:var(--dim)">Nenhum jogo ${addTab==="done"?"finalizado":"em aberto"} pra adicionar.</p>`}`:""}
   </div>`:""}`;
 }
 
@@ -2328,7 +2336,7 @@ function confirmModalHTML(){
   if(c.mode==="createRound"){
     const poolMax=(APP.jogos||[]).length;
     const defLimit=Math.min(3,poolMax||3);
-    const selMode=c.newMode||"full";
+    const selMode=MODE_META[c.newMode]?c.newMode:"full";
     const modeBtns=MODE_LIST.map(mk=>{
       const mm=MODE_META[mk],on=selMode===mk;
       return `<div onclick="setCreateMode('${mk}')" style="flex:1 1 calc(50% - 3px);cursor:pointer;text-align:center;padding:9px 4px;border-radius:9px;border:1px solid ${on?mm.color:"var(--line)"};background:${on?`color-mix(in srgb,${mm.color} 18%,transparent)`:"var(--panel2)"};color:${on?mm.color:"var(--dim)"};font-size:11px;font-weight:700">${mm.icon} ${mm.label}</div>`;
