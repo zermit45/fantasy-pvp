@@ -36,7 +36,7 @@ let APP={
   leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay", homeSearch:"", homeDay:"todos",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
-  profile:null, profileHistory:null,         // estatísticas do perfil (calculadas ao vivo)
+  profile:null, profileHistory:null, profileTab:"geral", memberProfileTab:"geral",
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
   prepool:null, match:null, roomMeta:null,
   slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},
@@ -175,18 +175,73 @@ async function unarchiveGame(roomId){
 // ============================================================
 const RARITY_ORDER=["Comum","Incomum","Raro","Épico","Mítico","Lendário"];
 // estatísticas agregadas do usuário no grupo atual, varrendo jogos arquivados (encerrados)
-async function loadProfileStats(username){
-  const stats={
+function _blankStats(){
+  return {
     games:0, wins:0, podiums:0, bestScore:0, bestGame:null, totalPoints:0,
     archetypes:{}, traits:{}, rarities:{}, players:{}, bestPlayer:null,
     playerPts:{}, topPlayer:null, bestPerf:null,
     tactics:{}, topTactic:null, capHits:0, capTotal:0,
-    bestStreak:0, zebraWins:0
+    bestStreak:0, zebraWins:0, _results:[]
   };
-  if(!SUPA.ready()||!APP.groupId)return stats;
+}
+// acumula UMA participação (entry pontuada "me") no balde de stats, na posição myIdx do ranking
+function _accumStats(stats,me,myIdx,j,ctx){
+  stats.games++;
+  stats.totalPoints+=me.total;
+  if(myIdx===0)stats.wins++;
+  if(myIdx<3)stats.podiums++;
+  stats._results.push(myIdx<3);
+  if(me.total>stats.bestScore){stats.bestScore=me.total;stats.bestGame=j.match_name;}
+  if(me.tactic){const tn=window.ENGINE_TACTICS[me.tactic]?window.ENGINE_TACTICS[me.tactic].name:me.tactic;stats.tactics[tn]=(stats.tactics[tn]||0)+1;}
+  if(myIdx===0){
+    const m=ctx.match,homeUnder=m.homeElo<m.awayElo;
+    const underCode=homeUnder?m.homeCode:m.awayCode;
+    let underN=0,tot=0;
+    for(const v of me.view){if(!v||v.slot==="BENCH")continue;const pl=ctx.byId[v.pid];if(pl){tot++;if(pl.team===underCode)underN++;}}
+    if(tot&&underN/tot>=0.6)stats.zebraWins++;
+  }
+  let capPts=null,maxTitular=-1e9;
+  for(const v of me.view){
+    if(!v||v.slot==="BENCH")continue;
+    const meta=v.r&&v.r.meta;
+    const pl=ctx.byId[v.pid];
+    if(meta&&meta.arch&&meta.arch!=="—")stats.archetypes[meta.arch]=(stats.archetypes[meta.arch]||0)+1;
+    if(meta)(meta.traits||[]).forEach(t=>{if(t!=="Regular"&&t!=="Não entrou em campo")stats.traits[t]=(stats.traits[t]||0)+1;});
+    if(meta&&meta.rarity)stats.rarities[meta.rarity]=(stats.rarities[meta.rarity]||0)+1;
+    if(pl){
+      stats.players[pl.name]=(stats.players[pl.name]||0)+1;
+      stats.playerPts[pl.name]=(stats.playerPts[pl.name]||0)+v.pts;
+      if(!stats.bestPerf||v.pts>stats.bestPerf.pts)stats.bestPerf={name:pl.name,team:pl.team,pts:v.pts,game:j.match_name,cap:v.cap};
+      if(v.cap)capPts=v.pts/1.2;
+      if(v.pts>maxTitular)maxTitular=v.pts;
+    }
+  }
+  if(capPts!=null){stats.capTotal++;const capWithBonus=capPts*1.2;if(Math.abs(capWithBonus-maxTitular)<0.01||capWithBonus>=maxTitular)stats.capHits++;}
+}
+// finaliza derivados de um balde
+function _finalizeStats(stats){
+  let top=null;for(const[name,n]of Object.entries(stats.players)){if(!top||n>top.n)top={name,n};}
+  stats.bestPlayer=top;
+  let tp=null;for(const[name,pts]of Object.entries(stats.playerPts)){if(!tp||pts>tp.pts)tp={name,pts:Math.round(pts*10)/10};}
+  stats.topPlayer=tp;
+  let tt=null;for(const[name,n]of Object.entries(stats.tactics)){if(!tt||n>tt.n)tt={name,n};}
+  stats.topTactic=tt;
+  let cur=0;for(const ok of stats._results){if(ok){cur++;if(cur>stats.bestStreak)stats.bestStreak=cur;}else cur=0;}
+  stats.avg=stats.games?Math.round(stats.totalPoints/stats.games*10)/10:0;
+  stats.podiumRate=stats.games?Math.round(stats.podiums/stats.games*100):0;
+  stats.winRate=stats.games?Math.round(stats.wins/stats.games*100):0;
+  stats.capRate=stats.capTotal?Math.round(stats.capHits/stats.capTotal*100):0;
+  return stats;
+}
+
+async function loadProfileStats(username){
+  // baldes: geral + por modo. modo: avulsa | select | full | boost
+  const buckets={geral:_blankStats(),avulsa:_blankStats(),select:_blankStats(),full:_blankStats(),boost:_blankStats()};
+  if(!SUPA.ready()||!APP.groupId)return _finalizeStats(buckets.geral)&&{...buckets,_byMode:true};
+  // mapa round_id → modo
+  const roundById={};
+  for(const r of (APP.rounds||[]))roundById[r.id]=r;
   const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
-  // ordenar por ordem do catálogo pra calcular sequências de pódio
-  const myResults=[]; // {pos, podium} na ordem que joguei
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
     let entries;
@@ -194,67 +249,26 @@ async function loadProfileStats(username){
     catch(e){continue;}
     if(!entries||!entries.length)continue;
     entries=entries.filter(e=>!(e.username===username&&e.hidden_profile===true));
-    const scored=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
-    const myIdx=scored.findIndex(s=>s.username===username);
-    if(myIdx<0)continue;
-    const me=scored[myIdx];
-    stats.games++;
-    stats.totalPoints+=me.total;
-    if(myIdx===0)stats.wins++;
-    if(myIdx<3)stats.podiums++;
-    myResults.push(myIdx<3);
-    if(me.total>stats.bestScore){stats.bestScore=me.total;stats.bestGame=j.match_name;}
-    // tática usada
-    if(me.tactic){const tn=window.ENGINE_TACTICS[me.tactic]?window.ENGINE_TACTICS[me.tactic].name:me.tactic;stats.tactics[tn]=(stats.tactics[tn]||0)+1;}
-    // zebra: venceu escalando maioria de jogadores do time underdog (menor ELO)
-    if(myIdx===0){
-      const m=ctx.match,homeUnder=m.homeElo<m.awayElo;
-      const underCode=homeUnder?m.homeCode:m.awayCode;
-      let underN=0,tot=0;
-      for(const v of me.view){if(!v||v.slot==="BENCH")continue;const pl=ctx.byId[v.pid];if(pl){tot++;if(pl.team===underCode)underN++;}}
-      if(tot&&underN/tot>=0.6)stats.zebraWins++;
+    // separa minhas entries por modo (pode ter várias por jogo)
+    const minhas=entries.filter(e=>e.username===username&&e.slots&&Object.values(e.slots).some(Boolean));
+    if(!minhas.length)continue;
+    for(const myEntry of minhas){
+      const mode=myEntry.round_id?(roundById[myEntry.round_id]?modeOf(roundById[myEntry.round_id]):"select"):"avulsa";
+      // SELECIONE: só conta entries travadas (confirmed)
+      if(mode==="select"&&myEntry.confirmed!==true)continue;
+      // ranking do jogo NAQUELE modo (pra posição): compara entries do mesmo round_id
+      const rid=myEntry.round_id||null;
+      const sameScope=entries.filter(e=>(e.round_id||null)===rid&&e.slots&&Object.values(e.slots).some(Boolean));
+      const scored=sameScope.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
+      const myIdx=scored.findIndex(s=>s.username===username);
+      const me=scored[myIdx]||scoreEntryFor(JSON.parse(JSON.stringify(myEntry)),ctx.eng,ctx);
+      _accumStats(buckets[mode]||buckets.select,me,myIdx<0?0:myIdx,j,ctx);
+      _accumStats(buckets.geral,me,myIdx<0?0:myIdx,j,ctx);
     }
-    // capitão certeiro: o capitão foi o maior pontuador (titular) do meu time?
-    let capPts=null,maxTitular=-1e9;
-    for(const v of me.view){
-      if(!v||v.slot==="BENCH")continue;
-      const meta=v.r&&v.r.meta;
-      const pl=ctx.byId[v.pid];
-      if(meta&&meta.arch&&meta.arch!=="—")stats.archetypes[meta.arch]=(stats.archetypes[meta.arch]||0)+1;
-      if(meta)(meta.traits||[]).forEach(t=>{if(t!=="Regular"&&t!=="Não entrou em campo")stats.traits[t]=(stats.traits[t]||0)+1;});
-      if(meta&&meta.rarity)stats.rarities[meta.rarity]=(stats.rarities[meta.rarity]||0)+1;
-      if(pl){
-        stats.players[pl.name]=(stats.players[pl.name]||0)+1;
-        // pontos somados por jogador (craque favorito) e melhor atuação individual
-        const base=v.cap?v.pts/1.2:v.pts; // pontos do jogador sem o bônus de capitão (pra comparar justo)
-        stats.playerPts[pl.name]=(stats.playerPts[pl.name]||0)+v.pts;
-        if(!stats.bestPerf||v.pts>stats.bestPerf.pts){
-          stats.bestPerf={name:pl.name,team:pl.team,pts:v.pts,game:j.match_name,cap:v.cap};
-        }
-        if(v.cap)capPts=v.pts/1.2;
-        if(v.pts>maxTitular)maxTitular=v.pts;
-      }
-    }
-    // capitão acertou se o jogador capitão (pontos sem bônus) foi o melhor titular
-    if(capPts!=null){stats.capTotal++;const capWithBonus=capPts*1.2;if(Math.abs(capWithBonus-maxTitular)<0.01||capWithBonus>=maxTitular)stats.capHits++;}
   }
-  // jogador mais escalado (frequência)
-  let top=null;for(const[name,n]of Object.entries(stats.players)){if(!top||n>top.n)top={name,n};}
-  stats.bestPlayer=top;
-  // craque favorito (mais pontos somados)
-  let tp=null;for(const[name,pts]of Object.entries(stats.playerPts)){if(!tp||pts>tp.pts)tp={name,pts:Math.round(pts*10)/10};}
-  stats.topPlayer=tp;
-  // tática preferida
-  let tt=null;for(const[name,n]of Object.entries(stats.tactics)){if(!tt||n>tt.n)tt={name,n};}
-  stats.topTactic=tt;
-  // melhor sequência de pódios
-  let cur=0;for(const ok of myResults){if(ok){cur++;if(cur>stats.bestStreak)stats.bestStreak=cur;}else cur=0;}
-  // derivados
-  stats.avg=stats.games?Math.round(stats.totalPoints/stats.games*10)/10:0;
-  stats.podiumRate=stats.games?Math.round(stats.podiums/stats.games*100):0;
-  stats.winRate=stats.games?Math.round(stats.wins/stats.games*100):0;
-  stats.capRate=stats.capTotal?Math.round(stats.capHits/stats.capTotal*100):0;
-  return stats;
+  for(const k in buckets)_finalizeStats(buckets[k]);
+  buckets._byMode=true;
+  return buckets;
 }
 // ── MEMBROS DO GRUPO ──
 async function loadGroupMembers(){
@@ -2334,16 +2348,23 @@ function userTitle(st){
   const prog=next?Math.round((xp-cur[0])/(next[0]-cur[0])*100):100;
   return {name:cur[1], emoji:cur[2], xp, next:next?{name:next[1],falta:next[0]-xp}:null, prog};
 }
+function profileTabsHTML(active,onclickFn){
+  const tabs=[["geral","Geral"],["avulsa","Avulsa"],["select","🎯 Selecione"],["full","🏆 Completo"],["boost","⚡ Impulso"]];
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,l])=>`<button class="statuspill ${k===active?"st-open":""}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="${onclickFn}('${k}')">${l}</button>`).join("")}</div>`;
+}
+function setProfileTab(t){APP.profileTab=t;render();}
+function setMemberProfileTab(t){APP.memberProfileTab=t;render();}
 function openProfile(){go("profile");}
 function profileHTML(){
-  const st=APP.profile;
-  if(!st)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
-  const medals=computeMedals(st);
+  const prof=APP.profile;
+  if(!prof)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
+  const st=prof._byMode?(prof[APP.profileTab]||prof.geral):prof;
+  const medals=computeMedals(prof._byMode?prof.geral:prof);
   const archDistinct=Object.keys(st.archetypes).length;
   const TOTAL_ARCH=33; // total de arquétipos possíveis no engine
   const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
-  const tit=userTitle(st);
+  const tit=userTitle(prof._byMode?prof.geral:prof);
   let html=`<div class="card">
     <div class="h1 disp" style="color:var(--amber)">${esc(APP.user.username)}</div>
     <div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px">
@@ -2358,6 +2379,7 @@ function profileHTML(){
   </div>`;
   // resumo em números
   html+=`<div class="card"><div class="h2 disp">Resumo</div>
+    ${profileTabsHTML(APP.profileTab,"setProfileTab")}
     <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
       ${statBox("🎮",st.games,"jogos")}
       ${statBox("🏆",st.wins,"vitórias")}
@@ -2432,7 +2454,7 @@ function openMember(encU){const u=decodeURIComponent(encU);go("member",null,null
 // ── PERFIL + HISTÓRICO DE UM MEMBRO ──
 function memberHTML(){
   const u=APP.memberView;
-  const st=APP.memberProfile;
+  const prof=APP.memberProfile;
   const hist=APP.memberHistory;
   let html=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -2441,12 +2463,14 @@ function memberHTML(){
     </div>
     <p class="p" style="margin-top:6px">Perfil no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
   </div>`;
-  if(!st){html+=`<div class="card"><div class="loading">Calculando perfil…</div></div>`;return html;}
+  if(!prof){html+=`<div class="card"><div class="loading">Calculando perfil…</div></div>`;return html;}
+  const st=prof._byMode?(prof[APP.memberProfileTab]||prof.geral):prof;
+  const stGeral=prof._byMode?prof.geral:prof;
   const archDistinct=Object.keys(st.archetypes).length;
   const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
   const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const medals=computeMedals(st);
-  const tit=userTitle(st);
+  const medals=computeMedals(stGeral);
+  const tit=userTitle(stGeral);
   // título/nível
   html+=`<div class="card"><div style="display:flex;align-items:center;gap:10px">
     <span style="font-size:26px">${tit.emoji}</span>
@@ -2456,15 +2480,18 @@ function memberHTML(){
   </div></div>`;
   // resumo
   html+=`<div class="card"><div class="h2 disp">Resumo</div>
+    ${profileTabsHTML(APP.memberProfileTab,"setMemberProfileTab")}
     <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
       ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
       ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("📈",st.avg||0,"média/jogo")}${statBox("🎯",st.podiumRate+"%","pódio")}
       ${statBox("🃏",archDistinct+"/33","arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
     </div>
     ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
-    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts.</p>`:""}
-    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito: <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts).</p>`:""}
-    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b>.</p>`:""}
+    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts${st.bestPerf.game?` em ${esc(st.bestPerf.game)}`:""}.</p>`:""}
+    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito: <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts somados).</p>`:""}
+    ${st.bestPlayer?`<p class="p" style="margin-top:4px">📋 Mais escalado: <b style="color:var(--chalk)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b> (${st.topTactic.n}×).</p>`:""}
+    ${st.capTotal>=1?`<p class="p" style="margin-top:4px">🎖️ Capitão certeiro: <b style="color:var(--chalk)">${st.capRate}%</b> (acertou o melhor ${st.capHits}/${st.capTotal}).</p>`:""}
   </div>`;
   // medalhas
   if(medals.length)html+=`<div class="card"><div class="h2 disp">Medalhas</div><div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div></div>`;
