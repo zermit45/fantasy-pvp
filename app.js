@@ -4,12 +4,28 @@
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
 // modos de mini rodada (agrupamento + cores na home). Rodadas antigas (sem mode) = 'select'.
 const MODE_META={
-  select:{label:"SELECIONE",icon:"🎯",color:"#5CA8FF",desc:"Escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia."},
+  select:{label:"SELECIONE",icon:"🎯",color:"#5CA8FF",desc:"Escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia.",hidden:true},
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
   boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). Trava no 1º jogo."},
+  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e ordene-os do que você MAIS confia pro que menos confia. O 1º da sua ordem vale 2x os pontos; o último, só 0,5x. Acertar a ordem da sua confiança é a estratégia. Trava no 1º jogo."},
+  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus grande por acertar o resultado — e um bônus ainda maior por cravar o placar exato. Trava no 1º jogo."},
 };
+// modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
+const MODE_LIST=["full","boost","confianca","previsao"];
 const modeOf=r=>(r&&r.mode)||"select";
 const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
+// multiplicador de confiança: o ALCANCE cresce com o nº de jogos (poucos jogos = suave).
+// piso de 0.4x pra nunca zerar um jogo. topo cresce até ~2x com muitos jogos.
+function confMultiplier(rank,total){
+  if(total<=1)return 1;
+  const spread=Math.min(1.0, 0.22*(total-1)); // 2j=0.22, 3j=0.44, 4j=0.66, 6j=1.0
+  const t=rank/(total-1);                       // 0 (topo) .. 1 (fundo)
+  const m=1+spread - t*(2*spread);
+  return Math.max(0.4, Math.round(m*100)/100);  // piso 0.4x
+}
+// bônus de previsão em PORCENTAGEM (escala com os pontos do time naquele jogo)
+const PRED_EXACT_PCT=28;   // cravou o placar exato → +28%
+const PRED_RESULT_PCT=12;  // acertou só o resultado (V/E/D) → +12%
 // Catálogo dos 33 arquétipos: categoria, raridade típica e como conseguir.
 // (a raridade real varia por atuação; aqui é a faixa típica de quem ativa o arquétipo)
 const ARCH_CATALOG=[
@@ -615,10 +631,10 @@ async function loadRound(roundId){
     APP.roundRooms=await sb("round_rooms?round_id=eq."+roundId+"&select=*");
     // minhas entries nesta rodada (seleção + time + confirmação)
     if(APP.user){
-      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,boost,boost_chips,confirmed");
+      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,boost,boost_chips,confirmed,conf_rank,pred_home,pred_away");
     }
     // entries de TODOS os membros nesta rodada (escalação completa pra ranking clicável)
-    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,boost,boost_chips,confirmed&limit=2000");
+    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,boost,boost_chips,confirmed,conf_rank,pred_home,pred_away&limit=2000");
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
@@ -628,8 +644,16 @@ async function computeRoundRanking(roundId){
   try{
     const all=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=*");
     if(!all||!all.length)return [];
-    const isSelect=modeOf(APP.round)==="select";
+    const mode=modeOf(APP.round);
+    const isSelect=mode==="select";
+    const isConf=mode==="confianca";
+    const isPred=mode==="previsao";
     const byUser={};
+    // CONFIANÇA: preciso saber o total de jogos rankeados por usuário (pra escala do multiplicador)
+    const confTotalByUser={};
+    if(isConf){
+      for(const e of all){if(e.conf_rank!=null){confTotalByUser[e.username]=(confTotalByUser[e.username]||0)+1;}}
+    }
     for(const rr of APP.roundRooms){
       const g=window.GAMES.data[rr.room_id];
       if(!g||!g.match||g.match.status!=="finished")continue; // só jogos já apurados
@@ -639,13 +663,37 @@ async function computeRoundRanking(roundId){
         if(!e.slots||!Object.values(e.slots).some(Boolean))continue; // sem time montado
         if(isSelect&&e.confirmed!==true)continue; // SELECIONE: só pontua jogo travado
         const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
-        if(!byUser[e.username])byUser[e.username]={username:e.username,total:0,games:0};
-        byUser[e.username].total+=sc.total;
+        let pts=sc.total;
+        // CONFIANÇA: multiplica pelo peso da posição na ordem do usuário
+        if(isConf&&e.conf_rank!=null){
+          const tot=confTotalByUser[e.username]||1;
+          pts=Math.round(pts*confMultiplier(e.conf_rank,tot)*10)/10;
+        }
+        if(!byUser[e.username])byUser[e.username]={username:e.username,total:0,games:0,predBonus:0};
+        byUser[e.username].total+=pts;
         byUser[e.username].games++;
+        // PREVISÃO: bônus em % sobre os pontos da escalação naquele jogo
+        if(isPred&&e.pred_home!=null&&e.pred_away!=null){
+          const pct=predBonusPct(e,g.match);
+          const b=Math.round(sc.total*(pct/100)*10)/10;
+          byUser[e.username].total+=b;
+          byUser[e.username].predBonus+=b;
+        }
       }
     }
     return Object.values(byUser).map(u=>({...u,total:Math.round(u.total*10)/10})).sort((a,b)=>b.total-a.total);
   }catch(e){return [];}
+}
+// % de bônus de previsão: compara o placar cravado com o real do match
+function predBonusPct(entry,match){
+  const ph=entry.pred_home,pa=entry.pred_away;
+  if(ph==null||pa==null||!Array.isArray(match.score))return 0;
+  const rh=match.score[0],ra=match.score[1];
+  if(rh==null||ra==null)return 0;
+  if(ph===rh&&pa===ra)return PRED_EXACT_PCT;              // cravou o placar
+  const sign=x=>x>0?1:x<0?-1:0;
+  if(sign(ph-pa)===sign(rh-ra))return PRED_RESULT_PCT;    // acertou o resultado (V/E/D)
+  return 0;
 }
 // mostra a escalação de um usuário em cada jogo FINALIZADO da rodada, com pontos por jogador
 function roundUserTeamsHTML(username){
@@ -808,6 +856,57 @@ function poolChips(){
 function boostMaxPerGame(){const r=APP.round;return r&&r.boost_max_per_game?r.boost_max_per_game:(r&&r.boost_chips&&r.boost_chips.length?0:BOOST_MAX_PER_GAME);}
 function boostMinGames(){const r=APP.round;return r&&r.boost_min_games?r.boost_min_games:0;}
 function boostNoMix(){const r=APP.round;return !!(r&&r.boost_no_mix);}
+// ===== CONFIANÇA =====
+// conf_rank é 0-based: 0 = mais confia. Guardado na entry de cada jogo.
+function confRankOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);return e&&e.conf_rank!=null?e.conf_rank:null;}
+function confRankedCount(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null&&e.slots&&Object.values(e.slots).some(Boolean)).length;}
+// lista de entries rankeadas, em ordem
+function confOrdered(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).slice().sort((a,b)=>a.conf_rank-b.conf_rank);}
+async function confAdd(roomId){
+  if(boostLocked()){toast("A ordem já travou (o 1º jogo começou).");return;}
+  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
+  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  if(e.conf_rank!=null)return;
+  const next=confRankedCount(); // entra no fim
+  try{await sbUpdate("entries",{conf_rank:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));await loadRound(APP.roundId);render();}
+  catch(e2){toast("Erro: "+e2.message);}
+}
+async function confRemove(roomId){
+  if(boostLocked()){toast("A ordem já travou (o 1º jogo começou).");return;}
+  const ord=confOrdered().filter(e=>e.room_id!==roomId);
+  try{
+    // tira este e reindexa os demais
+    await sbUpdate("entries",{conf_rank:null,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
+    for(let i=0;i<ord.length;i++){if(ord[i].conf_rank!==i)await sbUpdate("entries",{conf_rank:i},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${ord[i].room_id}`);}
+    await loadRound(APP.roundId);render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
+async function confMove(roomId,delta){
+  if(boostLocked()){toast("A ordem já travou (o 1º jogo começou).");return;}
+  const ord=confOrdered();
+  const idx=ord.findIndex(e=>e.room_id===roomId);
+  if(idx<0)return;
+  const swap=idx+delta;
+  if(swap<0||swap>=ord.length)return;
+  const a=ord[idx],b=ord[swap];
+  try{
+    await sbUpdate("entries",{conf_rank:swap,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${a.room_id}`);
+    await sbUpdate("entries",{conf_rank:idx,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${b.room_id}`);
+    await loadRound(APP.roundId);render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
+// ===== PREVISÃO =====
+function predOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);if(!e)return null;if(e.pred_home==null&&e.pred_away==null)return null;return {home:e.pred_home,away:e.pred_away};}
+async function predSet(roomId,homeVal,awayVal){
+  if(boostLocked()){toast("Os palpites já travaram (o 1º jogo começou).");return;}
+  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
+  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  const patch={confirmed:false,updated_at:new Date().toISOString()};
+  if(homeVal!==null){let h=parseInt(homeVal,10);patch.pred_home=isNaN(h)?null:Math.max(0,h);}
+  if(awayVal!==null){let a=parseInt(awayVal,10);patch.pred_away=isNaN(a)?null:Math.max(0,a);}
+  try{await sbUpdate("entries",patch,entryFilter(roomId));await loadRound(APP.roundId);render();}
+  catch(e2){toast("Erro: "+e2.message);}
+}
 // fichas que o jogador já atribuiu (lista achatada de valores, por todos os jogos da rodada)
 function chipsAssigned(){
   const out=[];
@@ -886,27 +985,42 @@ function boostConfirmed(){
   return es.every(e=>e.confirmed===true);
 }
 async function toggleBoostConfirm(){
-  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  if(boostLocked()){toast("Já travou (o 1º jogo começou).");return;}
   const willConfirm=!boostConfirmed();
+  const mode=modeOf(APP.round);
   if(willConfirm){
-    // precisa ter distribuído TODAS as fichas (inclusive as negativas obrigatórias)
-    const left=chipsAvailable();
-    if(left.length){
-      const neg=left.filter(v=>v<0).length;
-      toast(neg?`Você ainda tem ${left.length} ficha(s) por usar, incluindo ${neg} negativa(s) obrigatória(s).`:`Você ainda tem ${left.length} ficha(s) de impulso por distribuir.`);
-      return;
-    }
-    // regra de mínimo de partidas diferentes
-    const mg=boostMinGames();
-    if(mg>0){
-      const jogosComFicha=(APP.roundEntries||[]).filter(e=>Array.isArray(e.boost_chips)&&e.boost_chips.length).length;
-      if(jogosComFicha<mg){toast(`Distribua suas fichas em pelo menos ${mg} partidas diferentes (hoje em ${jogosComFicha}).`);return;}
+    if(mode==="boost"){
+      // precisa ter distribuído TODAS as fichas (inclusive as negativas obrigatórias)
+      const left=chipsAvailable();
+      if(left.length){
+        const neg=left.filter(v=>v<0).length;
+        toast(neg?`Você ainda tem ${left.length} ficha(s) por usar, incluindo ${neg} negativa(s) obrigatória(s).`:`Você ainda tem ${left.length} ficha(s) de impulso por distribuir.`);
+        return;
+      }
+      const mg=boostMinGames();
+      if(mg>0){
+        const jogosComFicha=(APP.roundEntries||[]).filter(e=>Array.isArray(e.boost_chips)&&e.boost_chips.length).length;
+        if(jogosComFicha<mg){toast(`Distribua suas fichas em pelo menos ${mg} partidas diferentes (hoje em ${jogosComFicha}).`);return;}
+      }
+    }else if(mode==="confianca"){
+      // todos os jogos escalados devem estar na ordem
+      const montados=(APP.roundEntries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
+      const semOrdem=montados.filter(e=>e.conf_rank==null);
+      if(montados.length<APP.roundRooms.length){toast("Escale todos os jogos antes de confirmar a ordem.");return;}
+      if(semOrdem.length){toast(`Coloque todos os jogos na sua ordem de confiança (faltam ${semOrdem.length}).`);return;}
+    }else if(mode==="previsao"){
+      const montados=(APP.roundEntries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
+      const semPalpite=montados.filter(e=>e.pred_home==null||e.pred_away==null);
+      if(montados.length<APP.roundRooms.length){toast("Escale todos os jogos antes de confirmar os palpites.");return;}
+      if(semPalpite.length){toast(`Crave o placar de todos os jogos (faltam ${semPalpite.length}).`);return;}
     }
   }
+  const msgOn=mode==="confianca"?"Ordem confirmada! (dá pra reeditar até o 1º jogo)":mode==="previsao"?"Palpites confirmados! (dá pra reeditar até o 1º jogo)":"Impulsos confirmados! (dá pra reeditar até o 1º jogo)";
+  const msgOff=mode==="confianca"?"Ordem reaberta pra edição.":mode==="previsao"?"Palpites reabertos pra edição.":"Impulsos reabertos pra edição.";
   try{
     await sbUpdate("entries",{confirmed:willConfirm,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
     await loadRound(APP.roundId);
-    toast(willConfirm?"Impulsos confirmados! (dá pra reeditar até o 1º jogo)":"Impulsos reabertos pra edição.");
+    toast(willConfirm?msgOn:msgOff);
     render();
   }catch(e2){toast("Erro: "+e2.message);}
 }
@@ -1521,6 +1635,8 @@ function roundRowHTML(r){
   let metaTxt;
   if(modeOf(r)==="full")metaTxt="joga todos os jogos";
   else if(modeOf(r)==="boost"){const nc=Array.isArray(r.boost_chips)&&r.boost_chips.length?r.boost_chips.length:(r.boost_tokens||0);metaTxt=`todos os jogos · ${nc} ficha(s) de impulso`;}
+  else if(modeOf(r)==="confianca")metaTxt="todos os jogos · ordene por confiança";
+  else if(modeOf(r)==="previsao")metaTxt="todos os jogos · crave os placares";
   else metaTxt=`escolha ${r.pick_limit} jogos`;
   // botão admin de mover entre andamento/finalizada (manual)
   const arch=compIsArchived("round",r.id);
@@ -1538,8 +1654,8 @@ function roundsCardHTML(){
   const liveList=avulsasAll.filter(r=>!compIsFinishedView("round",r.id));
   const doneList=avulsasAll.filter(r=>compIsFinishedView("round",r.id));
   const avulsas=tab==="done"?doneList:liveList;
-  // agrupar por modo, na ordem select → full → boost
-  const order=["select","full","boost"];
+  // agrupar por modo: novos modos primeiro, select por último (legado)
+  const order=["full","boost","confianca","previsao","select"];
   let groupsHTML="";
   for(const mk of order){
     const list=avulsas.filter(r=>modeOf(r)===mk);
@@ -1769,6 +1885,10 @@ function roundHTML(){
   const mm=modeMeta(r);
   const isSelect=mode==="select";
   const isBoost=mode==="boost";
+  const isConf=mode==="confianca";
+  const isPred=mode==="previsao";
+  // confiança e previsão se comportam como o impulso na escalação: escala todos, trava no 1º jogo
+  const isAllGames=isBoost||isConf||isPred||mode==="full";
   const left=picksLeft(), used=picksUsed();
   const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
   const bLocked=boostLocked();
@@ -1830,6 +1950,48 @@ function roundHTML(){
         boostCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ impulsionar</span>`;
       }
     }
+    // controle de CONFIANÇA: ordenar jogos por confiança (setas ↑/↓), mostra multiplicador
+    // controle de PREVISÃO: cravar placar (inputs home x away)
+    let extraCtrl="";
+    if(isConf&&!finished){
+      const myRank=confRankOf(rid);                  // posição na ordem (0-based) ou null
+      const total=confRankedCount();
+      if(bLocked){
+        extraCtrl=myRank!=null?`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:${mm.color}">📊 ${myRank+1}º confiança · <span>${confMultiplier(myRank,total).toFixed(2)}x</span></span>`:`<span style="font-size:11px;color:var(--dim)">sem ordem</span>`;
+      }else if(team){
+        if(myRank==null){
+          extraCtrl=`<button style="border-radius:8px;border:1px dashed ${mm.color};background:transparent;color:${mm.color};font-size:11px;font-weight:800;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();confAdd('${rid}')">+ pôr na minha ordem de confiança</button>`;
+        }else{
+          const mult=confMultiplier(myRank,total);
+          extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
+            <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
+            <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
+            <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
+          </div>`;
+        }
+      }else{
+        extraCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ ordenar</span>`;
+      }
+    }
+    if(isPred&&!finished){
+      const pr=predOf(rid); // {home,away} ou null
+      if(bLocked){
+        extraCtrl=pr?`<span style="font-size:13px;font-weight:800;color:${mm.color}">🔮 cravou ${pr.home} × ${pr.away}</span>`:`<span style="font-size:11px;color:var(--dim)">sem palpite</span>`;
+      }else if(team){
+        const hc=g.prepool.home.code,ac=g.prepool.away.code;
+        extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--dim)">🔮 seu placar:</span>
+          <span style="font-weight:800;font-size:12px;color:var(--chalk)">${esc(hc)}</span>
+          <input type="number" inputmode="numeric" min="0" value="${pr&&pr.home!=null?pr.home:""}" placeholder="-" style="width:42px;text-align:center;padding:5px;border-radius:8px;border:1px solid ${mm.color};background:var(--panel2);color:var(--chalk);font-weight:800" onclick="event.stopPropagation()" onchange="predSet('${rid}',this.value,null)" />
+          <span style="color:var(--dim)">×</span>
+          <input type="number" inputmode="numeric" min="0" value="${pr&&pr.away!=null?pr.away:""}" placeholder="-" style="width:42px;text-align:center;padding:5px;border-radius:8px;border:1px solid ${mm.color};background:var(--panel2);color:var(--chalk);font-weight:800" onclick="event.stopPropagation()" onchange="predSet('${rid}',null,this.value)" />
+          <span style="font-weight:800;font-size:12px;color:var(--chalk)">${esc(ac)}</span>
+        </div>`;
+      }else{
+        extraCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ cravar placar</span>`;
+      }
+    }
     // bloco de admin (separado, com divisória sutil)
     let devBlock="";
     if(isAdmin()){
@@ -1841,12 +2003,14 @@ function roundHTML(){
         <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
-    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${isBoost&&!finished&&boostCtrl?"flex-direction:column;align-items:stretch":""}">
+    const lineCtrl=isBoost?boostCtrl:(isConf||isPred?extraCtrl:"");
+    const hasLineCtrl=(isBoost||isConf||isPred)&&!finished&&lineCtrl;
+    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
       <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
         <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${!isBoost?boostCtrl:""}${devBlock}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${(!isBoost&&!isConf&&!isPred)?boostCtrl:""}${devBlock}</div>
       </div>
-      ${isBoost&&!finished&&boostCtrl?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">${boostCtrl}</div>`:""}
+      ${hasLineCtrl?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">${lineCtrl}</div>`:""}
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
@@ -1872,6 +2036,24 @@ function roundHTML(){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
+  }else if(isConf){
+    const bConf=boostConfirmed();
+    const ranked=confRankedCount();
+    const totalGames=APP.roundRooms.length;
+    const ord=confOrdered();
+    // mini resumo da ordem atual
+    const ordList=ord.map((e,i)=>{const g=window.GAMES.data[e.room_id];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
+      ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e ordene-os por confiança. O 1º da sua ordem vale <b>2x</b>; o último, <b>0,5x</b>. ${bLocked?"<b>Ordem travada</b> (o 1º jogo começou).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
+      ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
+      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}`;
+  }else if(isPred){
+    const bConf=boostConfirmed();
+    const totalGames=APP.roundRooms.length;
+    const feitos=(APP.roundEntries||[]).filter(e=>e.pred_home!=null&&e.pred_away!=null).length;
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
+      ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. ${bLocked?"<b>Palpites travados</b> (o 1º jogo começou).":`Você cravou <b>${feitos}/${totalGames}</b>.`}</div>
+      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Palpites confirmados — toque p/ reabrir":"🔒 Confirmar palpites"}</button>`:""}`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
   }else{
@@ -2142,20 +2324,22 @@ function confirmModalHTML(){
   if(c.mode==="createRound"){
     const poolMax=(APP.jogos||[]).length;
     const defLimit=Math.min(3,poolMax||3);
-    const selMode=c.newMode||"select";
-    const modeBtns=["select","full","boost"].map(mk=>{
+    const selMode=c.newMode||"full";
+    const modeBtns=MODE_LIST.map(mk=>{
       const mm=MODE_META[mk],on=selMode===mk;
-      return `<div onclick="setCreateMode('${mk}')" style="flex:1;cursor:pointer;text-align:center;padding:9px 4px;border-radius:9px;border:1px solid ${on?mm.color:"var(--line)"};background:${on?`color-mix(in srgb,${mm.color} 18%,transparent)`:"var(--panel2)"};color:${on?mm.color:"var(--dim)"};font-size:11px;font-weight:700">${mm.icon} ${mm.label}</div>`;
+      return `<div onclick="setCreateMode('${mk}')" style="flex:1 1 calc(50% - 3px);cursor:pointer;text-align:center;padding:9px 4px;border-radius:9px;border:1px solid ${on?mm.color:"var(--line)"};background:${on?`color-mix(in srgb,${mm.color} 18%,transparent)`:"var(--panel2)"};color:${on?mm.color:"var(--dim)"};font-size:11px;font-weight:700">${mm.icon} ${mm.label}</div>`;
     }).join("");
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:var(--amber)">Criar mini rodada</div>
       <p class="p" style="margin:8px 0">Escolha o modo:</p>
-      <div style="display:flex;gap:6px;margin-bottom:8px">${modeBtns}</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">${modeBtns}</div>
       <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
       <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
       ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
       ${selMode==="boost"?boostBuilderHTML(c):""}
       ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
+      ${selMode==="confianca"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e ordenam os jogos por confiança: o 1º vale 2x, o último 0,5x.</p>`:""}
+      ${selMode==="previsao"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e cravam o placar de cada jogo. Bônus: +${PRED_RESULT_PCT}% pelo resultado, +${PRED_EXACT_PCT}% pelo placar exato.</p>`:""}
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
