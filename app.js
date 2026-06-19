@@ -2089,16 +2089,16 @@ function roundHTML(){
   ${roundRankingHTML()}
   ${isAdmin()?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
-    <p class="p" style="margin-bottom:8px">${isSelect?"1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).":"Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha). "+(isBoost?"Os impulsos travam sozinhos no 1º jogo.":"")}</p>
+    <p class="p" style="margin-bottom:8px">${isSelect?"1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).":"Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha). "+(isBoost?"A distribuição de impulsos trava sozinha quando a 1ª partida é fechada.":isConf?"A ordem de confiança trava sozinha quando a 1ª partida é fechada.":isPred?"Os palpites travam sozinhos quando a 1ª partida é fechada.":"")}</p>
     ${isSelect?(selLocked
       ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
       : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`):""}
-    ${isBoost?`<div style="margin-top:10px">
+    ${(isBoost||isConf||isPred)?`<div style="margin-top:10px">
       ${APP.round.boost_reopened===true
-        ? `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="toggleBoostReopen()">🔒 Fechar impulsos novamente</button>
-           <p class="p" style="font-size:11px;color:var(--amber);margin-top:6px">⚠️ Impulsos reabertos — todos conseguem reeditar mesmo com jogo em andamento.</p>`
-        : `<button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="toggleBoostReopen()">⚡ Reabrir distribuição de impulsos</button>
-           <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">⚠️ Cuidado: reabrir após um jogo começar permite remanejar tokens vendo como a partida está indo. Use só se combinado com o grupo.</p>`}
+        ? `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="toggleBoostReopen()">🔒 Fechar ${isConf?"ordem":isPred?"palpites":"impulsos"} novamente</button>
+           <p class="p" style="font-size:11px;color:var(--amber);margin-top:6px">⚠️ ${isConf?"Ordem reaberta":isPred?"Palpites reabertos":"Impulsos reabertos"} — todos conseguem reeditar mesmo com jogo em andamento.</p>`
+        : `<button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="toggleBoostReopen()">${mm.icon} Reabrir ${isConf?"ordem de confiança":isPred?"palpites":"distribuição de impulsos"}</button>
+           <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">⚠️ Cuidado: reabrir após um jogo começar permite ${isConf?"remanejar a ordem":isPred?"mudar palpites":"remanejar fichas"} vendo como as partidas estão indo. Use só se combinado com o grupo.</p>`}
     </div>`:""}
     ${foraAll.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${addTabsHTML}${foraRows||`<p class="p" style="font-size:11px;color:var(--dim)">Nenhum jogo ${addTab==="done"?"finalizado":"em aberto"} pra adicionar.</p>`}`:""}
   </div>`:""}`;
