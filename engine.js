@@ -4,10 +4,16 @@
 // e devolve a pontuação detalhada. Mesmo motor pra todas as salas.
 // ============================================================
 
-const BASE = { goal:2, assist:1.5, sot:.6, dribble:.35, prgp:.12, pib:.35, tib:.06, sca:.45, gca:1.25,
-  tklint:.9, block:.9, recovery:.22, aerial:.22, clearance:.1,
+// Pesos de pontuação. BASE = rebalanceado (gol/assist valem mais, passe/desarme menos).
+// BASE_V1 = pesos antigos, usados SÓ pelos jogos já apurados (match.tacticRules==="v1"),
+// pra não recalcular pontuações que já valeram.
+const BASE = { goal:4, assist:3, sot:.7, dribble:.4, prgp:.06, pib:.35, tib:.05, sca:.5, gca:1.5,
+  tklint:.6, block:.8, recovery:.14, aerial:.25, clearance:.1,
   save:.7, penSave:4.5, opa:.85, crossStop:.45, accCross:.2, inaccCross:-.08,
   yellow:-2, redH1:-10, redH2:-6, errGoal:-5, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2 };
+// pesos ANTIGOS (jogos já apurados / tacticRules v1) — diferem só nas ações rebalanceadas
+const BASE_V1 = Object.assign({}, BASE, { goal:2, assist:1.5, sot:.6, dribble:.35, prgp:.12, tib:.06, sca:.45, gca:1.25,
+  tklint:.9, block:.9, recovery:.22, aerial:.22 });
 const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
 const TIER_EMO = {1:0,2:.4,3:.9,4:1.6};
 const r1 = x => Math.round(x*10)/10;
@@ -118,6 +124,10 @@ function normP(raw){
 }
 
 function makeEngine(match){
+  // PRÉVIA: se ligada, força as regras NOVAS mesmo em jogos marcados v1 (só visual, não salva nada)
+  const _preview = (typeof window!=="undefined" && window.PREVIEW_NEW_RULES);
+  const _v1 = match.tacticRules==="v1" && !_preview;
+  const B = _v1 ? BASE_V1 : BASE; // pesos antigos p/ jogos já apurados
   const GOALS_TL = match.goals_tl||[];
   const endMin = match.endMin||96;
   function scoreAt(min){let h=0,a=0;for(const g of GOALS_TL){if(g.m<min){g.t===match.homeCode?h++:a++;}}return [h,a];}
@@ -216,7 +226,7 @@ function makeEngine(match){
     return 1+Math.min(0.14,Math.max(0,edge/1450));
   }
   function minFactor(p){if(p.started||p.min>=45)return 1.0;return p.min/90;}
-  function redPenalty(red){if(!red)return 0;const h1=red.m<=50;if(red.doubleYellow)return h1?-3.0:-2.0;return h1?BASE.redH1:BASE.redH2;}
+  function redPenalty(red){if(!red)return 0;const h1=red.m<=50;if(red.doubleYellow)return h1?-3.0:-2.0;return h1?B.redH1:B.redH2;}
 
   function indices(p){
     if(p.min===0)return null;
@@ -349,18 +359,18 @@ function makeEngine(match){
   }
 
   const STAT_DEFS=[
-    ["Gols",BASE.goal,p=>p.goals.length],["Assistências",BASE.assist,p=>p.assists.length],
-    ["Finalizações no gol",BASE.sot,p=>p.sots.length],["Dribles certos",BASE.dribble,p=>p.dribbles],
-    ["Passes progressivos",BASE.prgp,p=>p.prgp],["Passes na área",BASE.pib,p=>p.pib],
-    ["Toques na área",BASE.tib,p=>p.tib],["Cruzamentos certos",BASE.accCross,p=>p.accCross],
-    ["Cruzamentos errados",BASE.inaccCross,p=>p.inaccCross],["Desarmes + interceptações",BASE.tklint,p=>p.tklint],
-    ["Bloqueios",BASE.block,p=>p.block],["Recuperações de bola",BASE.recovery,p=>p.recovery],
-    ["Duelos aéreos vencidos",BASE.aerial,p=>p.aerial],["Cortes",BASE.clearance,p=>p.clearance],
-    ["Defesas",BASE.save,p=>p.gk?p.gk.saves.length:0],["Defesa de pênalti",BASE.penSave,p=>p.gk?p.gk.penSave:0],
-    ["Saídas (sweeper)",BASE.opa,p=>p.gk?p.gk.opa:0],["Cruzamentos cortados",BASE.crossStop,p=>p.gk?p.gk.crossStop:0],
-    ["Gols sofridos",BASE.concededGk,p=>p.gk?p.gk.conceded:0],["Cartão amarelo",BASE.yellow,p=>p.yellow],
-    ["Faltas",BASE.foul,p=>p.fouls],["Vezes driblado",BASE.dribbledPast,p=>p.dribbledPast],
-    ["Erro → gol",BASE.errGoal,p=>p.errGoal],["Pênalti cometido",BASE.penCom,p=>p.penCom],
+    ["Gols",B.goal,p=>p.goals.length],["Assistências",B.assist,p=>p.assists.length],
+    ["Finalizações no gol",B.sot,p=>p.sots.length],["Dribles certos",B.dribble,p=>p.dribbles],
+    ["Passes progressivos",B.prgp,p=>p.prgp],["Passes na área",B.pib,p=>p.pib],
+    ["Toques na área",B.tib,p=>p.tib],["Cruzamentos certos",B.accCross,p=>p.accCross],
+    ["Cruzamentos errados",B.inaccCross,p=>p.inaccCross],["Desarmes + interceptações",B.tklint,p=>p.tklint],
+    ["Bloqueios",B.block,p=>p.block],["Recuperações de bola",B.recovery,p=>p.recovery],
+    ["Duelos aéreos vencidos",B.aerial,p=>p.aerial],["Cortes",B.clearance,p=>p.clearance],
+    ["Defesas",B.save,p=>p.gk?p.gk.saves.length:0],["Defesa de pênalti",B.penSave,p=>p.gk?p.gk.penSave:0],
+    ["Saídas (sweeper)",B.opa,p=>p.gk?p.gk.opa:0],["Cruzamentos cortados",B.crossStop,p=>p.gk?p.gk.crossStop:0],
+    ["Gols sofridos",B.concededGk,p=>p.gk?p.gk.conceded:0],["Cartão amarelo",B.yellow,p=>p.yellow],
+    ["Faltas",B.foul,p=>p.fouls],["Vezes driblado",B.dribbledPast,p=>p.dribbledPast],
+    ["Erro → gol",B.errGoal,p=>p.errGoal],["Pênalti cometido",B.penCom,p=>p.penCom],
   ];
   function statLines(p){const o=[];for(const[l,v,c]of STAT_DEFS){const n=c(p);if(n)o.push([l,n,v,r1(n*v)]);}return o;}
 
@@ -371,28 +381,28 @@ function makeEngine(match){
     const lines=[];const push=(k,v,n)=>{if(Math.abs(v)>=0.05)lines.push([k+(n?` ${n}`:""),v]);};
     const mf=minFactor(p);
     const comp={
-      goal:p.goals.length*BASE.goal,assist:p.assists.length*BASE.assist,sotPts:p.sots.length*BASE.sot,
-      dribbles:r1(p.dribbles*mf)*BASE.dribble,prgp:r1(p.prgp*mf)*BASE.prgp,pib:r1(p.pib*mf)*BASE.pib,tib:r1(p.tib*mf)*BASE.tib,
-      sca:r1(p.sca*mf)*BASE.sca,gca:p.gca*BASE.gca,tklint:r1(p.tklint*mf)*BASE.tklint,block:r1(p.block*mf)*BASE.block,
-      recovery:r1(p.recovery*mf)*BASE.recovery,aerial:r1(p.aerial*mf)*BASE.aerial,clearance:r1(p.clearance*mf)*BASE.clearance,
-      accCross:r1(p.accCross*mf)*BASE.accCross,inaccCross:r1(p.inaccCross*mf)*BASE.inaccCross,
+      goal:p.goals.length*B.goal,assist:p.assists.length*B.assist,sotPts:p.sots.length*B.sot,
+      dribbles:r1(p.dribbles*mf)*B.dribble,prgp:r1(p.prgp*mf)*B.prgp,pib:r1(p.pib*mf)*B.pib,tib:r1(p.tib*mf)*B.tib,
+      sca:r1(p.sca*mf)*B.sca,gca:p.gca*B.gca,tklint:r1(p.tklint*mf)*B.tklint,block:r1(p.block*mf)*B.block,
+      recovery:r1(p.recovery*mf)*B.recovery,aerial:r1(p.aerial*mf)*B.aerial,clearance:r1(p.clearance*mf)*B.clearance,
+      accCross:r1(p.accCross*mf)*B.accCross,inaccCross:r1(p.inaccCross*mf)*B.inaccCross,
     };
     let cs=0;const csEl=p.gk||(p.pos==="DEF"&&p.min>=60);
     if(csEl){const c=cleanSheetHalves(p.team);if(c.h1)cs+=1.5;if(c.h2)cs+=1.5;}
     let gkB=0,conc=0;
-    if(p.gk){gkB=p.gk.saves.length*BASE.save+p.gk.opa*BASE.opa+p.gk.crossStop*BASE.crossStop+p.gk.penSave*BASE.penSave;conc=p.gk.conceded*BASE.concededGk;}
+    if(p.gk){gkB=p.gk.saves.length*B.save+p.gk.opa*B.opa+p.gk.crossStop*B.crossStop+p.gk.penSave*B.penSave;conc=p.gk.conceded*B.concededGk;}
     const negRed=redPenalty(p.red);
-    const neg=p.yellow*BASE.yellow+negRed+p.errGoal*BASE.errGoal+p.penCom*BASE.penCom+r1(p.dribbledPast*mf)*BASE.dribbledPast+r1(p.fouls*mf)*BASE.foul;
+    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+p.penCom*B.penCom+r1(p.dribbledPast*mf)*B.dribbledPast+r1(p.fouls*mf)*B.foul;
     const baseTot=Object.values(comp).reduce((a,b)=>a+b,0)+gkB+conc+neg+cs;
     if(mf<1)push(`Stats escalonados (${p.min}', fator ${mf.toFixed(2)})`,0);
     if(cs>0)push(`Clean sheet ${cs===3?"completo":"(1 metade)"}`,cs);
     if(p.red)push(`Vermelho${p.red.doubleYellow?" 2º amarelo":""} ${p.red.m<=50?"(1ºT)":"(2ºT)"}`,negRed);
     const sl=statLines(p);
     let dif=0,ctx=0,clutch=0;const ev=[];
-    for(const g of p.goals){const t=tierXG(g.xg),d=diffAt(g.m);dif+=t.b;ctx+=(BASE.goal+t.b)*(ctxDecisive(d)-1);if(g.m>=85&&d<=1){const x=extendsLead(p.team,g.m);clutch+=x?0:t.b*0.25+1.0+TIER_EMO[t.t];ev.push(`⚽ Gol ${g.m}' xG ${g.xg.toFixed(2)} (T${t.t}${x?", ampliou":", clutch!"})`);}else ev.push(`⚽ Gol ${g.m}' xG ${g.xg.toFixed(2)} (T${t.t})`);}
-    for(const a of p.assists){const t=tierXG(a.xag),d=diffAt(a.m);dif+=t.b;ctx+=(BASE.assist+t.b)*(ctxDecisive(d)-1);if(a.m>=85&&d<=1&&!extendsLead(p.team,a.m))clutch+=t.b*0.25+1.0+TIER_EMO[t.t];ev.push(`🅰️ Assist ${a.m}' xAG ${a.xag.toFixed(2)} (T${t.t})`);}
-    for(const s of p.sots){const d=diffAt(s.m);ctx+=BASE.sot*(ctxDecisive(d)-1);if(s.m>=85&&d<=1)clutch+=0.6;}
-    if(p.gk)for(const s of p.gk.saves){const t=tierSV(s.psxg),d=diffAt(s.m);dif+=t.b;ctx+=(BASE.save+t.b)*(ctxDefEvt(d)-1);if(s.m>=85&&d<=1){clutch+=t.b*0.25+0.6+TIER_EMO[t.t];ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t}) clutch`);}else if(t.t>=3)ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t})`);}
+    for(const g of p.goals){const t=tierXG(g.xg),d=diffAt(g.m);dif+=t.b;ctx+=(B.goal+t.b)*(ctxDecisive(d)-1);if(g.m>=85&&d<=1){const x=extendsLead(p.team,g.m);clutch+=x?0:t.b*0.25+1.0+TIER_EMO[t.t];ev.push(`⚽ Gol ${g.m}' xG ${g.xg.toFixed(2)} (T${t.t}${x?", ampliou":", clutch!"})`);}else ev.push(`⚽ Gol ${g.m}' xG ${g.xg.toFixed(2)} (T${t.t})`);}
+    for(const a of p.assists){const t=tierXG(a.xag),d=diffAt(a.m);dif+=t.b;ctx+=(B.assist+t.b)*(ctxDecisive(d)-1);if(a.m>=85&&d<=1&&!extendsLead(p.team,a.m))clutch+=t.b*0.25+1.0+TIER_EMO[t.t];ev.push(`🅰️ Assist ${a.m}' xAG ${a.xag.toFixed(2)} (T${t.t})`);}
+    for(const s of p.sots){const d=diffAt(s.m);ctx+=B.sot*(ctxDecisive(d)-1);if(s.m>=85&&d<=1)clutch+=0.6;}
+    if(p.gk)for(const s of p.gk.saves){const t=tierSV(s.psxg),d=diffAt(s.m);dif+=t.b;ctx+=(B.save+t.b)*(ctxDefEvt(d)-1);if(s.m>=85&&d<=1){clutch+=t.b*0.25+0.6+TIER_EMO[t.t];ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t}) clutch`);}else if(t.t>=3)ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t})`);}
     const defAgg=comp.tklint+comp.block+comp.recovery+comp.aerial+comp.clearance;
     const smallAgg=comp.prgp+comp.pib+comp.tib+comp.sca+comp.dribbles+comp.accCross;
     ctx+=defAgg*(ctxDefAgg-1)+smallAgg*(ctxSmallAgg-1);
@@ -437,7 +447,7 @@ function makeEngine(match){
   function squadSum(players){
     const ps=[];
     for(const raw of players){const p=normP(raw);if(p.min>0)ps.push(p);}
-    const useV1 = match.tacticRules==="v1"; // jogos já apurados antes do reboot
+    const useV1 = match.tacticRules==="v1" && !(typeof window!=="undefined" && window.PREVIEW_NEW_RULES); // jogos já apurados (salvo na prévia)
     // soma bruta de cada família no time
     const famRaw={},famNorm={},famZ={};
     for(const k of Object.keys(TACT_FAMILIES)){famRaw[k]=0;}
