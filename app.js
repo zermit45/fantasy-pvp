@@ -1257,6 +1257,58 @@ function askDeleteRound(roundId){
 // hash de senha bem simples (suficiente pra evitar troca de nome casual)
 function hashPass(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;}return"h"+h.toString(16);}
 
+// ---------- TROCAR NOME / SENHA (perfil) ----------
+function askChangeUsername(){APP.confirm={mode:"changeUsername"};render();}
+function askChangePassword(){APP.confirm={mode:"changePassword"};render();}
+function submitChangeUsername(){
+  const novo=($("cu-new")?.value||"").trim();
+  const senha=$("cu-pass")?.value||"";
+  if(novo.length<2){toast("O novo apelido precisa ter 2+ letras.");return;}
+  if(!senha){toast("Digite sua senha atual.");return;}
+  changeUsername(novo,senha).catch(e=>toast("Erro: "+e.message));
+}
+function submitChangePassword(){
+  const atual=$("cp-old")?.value||"";
+  const nova=$("cp-new")?.value||"";
+  const nova2=$("cp-new2")?.value||"";
+  if(!atual){toast("Digite sua senha atual.");return;}
+  if(nova.length<3){toast("A nova senha precisa ter 3+ caracteres.");return;}
+  if(nova!==nova2){toast("As duas senhas novas não batem.");return;}
+  changePassword(atual,nova).catch(e=>toast("Erro: "+e.message));
+}
+async function changeUsername(novo,senha){
+  if(!APP.user)return;
+  const atual=APP.user.username;
+  if(novo===atual){toast("Esse já é o seu apelido.");return;}
+  // valida senha atual
+  const me=await sb("users?username=eq."+encodeURIComponent(atual)+"&select=pass_hash");
+  if(!me||!me[0]||me[0].pass_hash!==hashPass(senha)){toast("Senha incorreta.");return;}
+  // o novo apelido não pode já existir
+  const ex=await sb("users?username=eq."+encodeURIComponent(novo)+"&select=username");
+  if(ex&&ex.length){toast("Já existe alguém com esse apelido. Escolha outro.");return;}
+  // atualiza nas três tabelas que guardam o username
+  await sbUpdate("users",{username:novo},"username=eq."+encodeURIComponent(atual));
+  try{await sbUpdate("group_members",{username:novo},"username=eq."+encodeURIComponent(atual));}catch(e){}
+  try{await sbUpdate("entries",{username:novo},"username=eq."+encodeURIComponent(atual));}catch(e){}
+  APP.user={username:novo};
+  try{localStorage_safe_set("fpvp_user",novo);localStorage_safe_set("fpvp_pass",me[0].pass_hash);}catch(e){}
+  APP.confirm=null;
+  toast("Pronto! Agora você é "+novo+".");
+  clearEntriesCache();
+  if(APP.view==="profile"){const ps=await loadProfileStats(novo);APP.profile=ps;}
+  render();
+}
+async function changePassword(atual,nova){
+  if(!APP.user)return;
+  const me=await sb("users?username=eq."+encodeURIComponent(APP.user.username)+"&select=pass_hash");
+  if(!me||!me[0]||me[0].pass_hash!==hashPass(atual)){toast("Senha atual incorreta.");return;}
+  await sbUpdate("users",{pass_hash:hashPass(nova)},"username=eq."+encodeURIComponent(APP.user.username));
+  try{localStorage_safe_set("fpvp_pass",hashPass(nova));}catch(e){}
+  APP.confirm=null;
+  toast("Senha alterada! Use a nova da próxima vez que entrar.");
+  render();
+}
+
 // ---------- carregar JSONs locais ----------
 async function loadJSON(path){const r=await fetch(path+"?t="+Date.now());if(!r.ok)throw new Error("404 "+path);return r.json();}
 
@@ -1270,11 +1322,12 @@ function toast(m){let e=$("toast");if(!e){e=document.createElement("div");e.id="
 function needLogin(){ return !APP.user; }
 function loginModalHTML(){
   return `<div class="modal" id="loginModal"><div class="box">
-    <div class="h2 disp" style="color:var(--amber)">Entrar</div>
-    <p class="p" style="margin-bottom:12px">Escolha um apelido e uma senha. Se já existe, valida a senha; se é novo, cria a conta.</p>
-    <input class="input" id="li-user" placeholder="Apelido" autocomplete="off">
+    <div class="h2 disp" style="color:var(--amber)">Criar perfil / Entrar</div>
+    <p class="p" style="margin-bottom:6px;font-size:13px">Você está criando o <b style="color:var(--chalk)">seu perfil</b> no Fantasy PvP. O <b style="color:var(--chalk)">apelido</b> que você escolher é como os outros jogadores vão te ver no app (nos rankings, em "quem está disputando" etc).</p>
+    <p class="p" style="margin-bottom:12px;font-size:13px">A <b style="color:var(--chalk)">senha</b> protege seu perfil: toda vez que você abrir o app vai precisar dela pra entrar. Anote num lugar seguro — sem ela não dá pra acessar seu perfil. Se o apelido já existir, a senha precisa bater; se for novo, a conta é criada na hora.</p>
+    <input class="input" id="li-user" placeholder="Apelido (como vão te ver)" autocomplete="off">
     <div style="position:relative">
-      <input class="input" id="li-pass" type="password" placeholder="Senha" autocomplete="off" style="padding-right:44px">
+      <input class="input" id="li-pass" type="password" placeholder="Senha (você vai usar toda vez)" autocomplete="off" style="padding-right:44px">
       <span id="li-eye" onclick="togglePassVisib('li-pass','li-eye')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8" title="Mostrar/ocultar senha">👁️</span>
     </div>
     <div class="warn" id="li-warn" style="display:none"></div>
@@ -2375,6 +2428,41 @@ function confirmModalHTML(){
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
+  // trocar nome de usuário (pede senha atual pra confirmar)
+  if(c.mode==="changeUsername"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Mudar nome de usuário</div>
+      <p class="p" style="margin:10px 0">Seu apelido atual é <b style="color:var(--chalk)">${esc(APP.user.username)}</b>. Escolha um novo — é assim que os outros vão te ver. Seu histórico e conquistas vão junto.</p>
+      <input id="cu-new" class="input" placeholder="Novo apelido" autocomplete="off" />
+      <div style="position:relative">
+        <input id="cu-pass" class="input" type="password" placeholder="Sua senha atual (confirmar)" autocomplete="off" style="padding-right:44px" />
+        <span id="cu-eye" onclick="togglePassVisib('cu-pass','cu-eye')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <button class="btn" style="margin-top:4px" onclick="submitChangeUsername()">Trocar nome</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // trocar senha (pede senha atual + nova duas vezes)
+  if(c.mode==="changePassword"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Mudar senha</div>
+      <p class="p" style="margin:10px 0">Digite sua senha atual e a nova senha. Você vai usar a nova senha toda vez que entrar no app.</p>
+      <div style="position:relative">
+        <input id="cp-old" class="input" type="password" placeholder="Senha atual" autocomplete="off" style="padding-right:44px" />
+        <span id="cp-eye1" onclick="togglePassVisib('cp-old','cp-eye1')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <div style="position:relative">
+        <input id="cp-new" class="input" type="password" placeholder="Nova senha (3+)" autocomplete="off" style="padding-right:44px" />
+        <span id="cp-eye2" onclick="togglePassVisib('cp-new','cp-eye2')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <div style="position:relative">
+        <input id="cp-new2" class="input" type="password" placeholder="Repita a nova senha" autocomplete="off" style="padding-right:44px" />
+        <span id="cp-eye3" onclick="togglePassVisib('cp-new2','cp-eye3')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <button class="btn" style="margin-top:4px" onclick="submitChangePassword()">Trocar senha</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
   // modo: arquivar jogo (admin) — move pra Resultados, global
   if(c.mode==="archive"){
     const j=APP.jogos.find(x=>x.room_id===c.roomId);
@@ -3166,6 +3254,12 @@ function profileHTML(){
   else if(!phist.length)html+=`<p class="p" style="margin-top:8px">Você ainda não jogou nenhuma partida finalizada.</p>`;
   else{html+=`<p class="p" style="margin:6px 0 4px;font-size:12px">Toque numa partida pra abrir, e num jogador pra ver os detalhes da pontuação e o arquétipo.</p>`;phist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"p");});}
   html+=`</div>`;
+  html+=`<div class="card">
+    <div class="tag" style="margin-bottom:6px">CONTA</div>
+    <p class="p" style="margin-bottom:10px;font-size:12px">Seu apelido é como os outros te veem. A senha é o que você usa pra entrar no app.</p>
+    <button class="btn ghost" style="margin-bottom:8px" onclick="askChangeUsername()">✏️ Mudar nome de usuário</button>
+    <button class="btn ghost" onclick="askChangePassword()">🔑 Mudar senha</button>
+  </div>`;
   html+=`<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--red)">ZONA DE RISCO</div>
     <p class="p" style="margin-bottom:10px">Excluir seu histórico oculta do seu perfil os times que você montou nos jogos já encerrados (zera medalhas e conquistas). Você continua no ranking das salas. Pede sua senha pra confirmar.</p>
