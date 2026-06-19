@@ -4,7 +4,7 @@
 const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANCO"};
 // modos de mini rodada (agrupamento + cores na home). Rodadas antigas (sem mode) = 'select'.
 const MODE_META={
-  full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
+  full:{label:"COMPLETO",icon:"🏆",color:"#5CA8FF",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
   boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
   confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
   previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação e o palpite de cada jogo travam quando aquela partida for fechada (cada jogo é independente)."},
@@ -349,7 +349,7 @@ async function loadAllFinishedEntries(){
 function clearEntriesCache(){_entriesCache=null;_entriesCacheKey=null;}
 async function loadProfileStats(username){
   // baldes: geral + por modo. modo: avulsa | select | full | boost
-  const buckets={geral:_blankStats(),avulsa:_blankStats(),select:_blankStats(),full:_blankStats(),boost:_blankStats()};
+  const buckets={geral:_blankStats(),avulsa:_blankStats(),full:_blankStats(),boost:_blankStats(),confianca:_blankStats(),previsao:_blankStats()};
   if(!SUPA.ready()||!APP.groupId)return _finalizeStats(buckets.geral)&&{...buckets,_byMode:true};
   // mapa round_id → modo
   const roundById={};
@@ -365,8 +365,8 @@ async function loadProfileStats(username){
     const minhas=entries.filter(e=>e.username===username&&e.slots&&Object.values(e.slots).some(Boolean));
     if(!minhas.length)continue;
     for(const myEntry of minhas){
-      const mode=myEntry.round_id?(roundById[myEntry.round_id]?modeOf(roundById[myEntry.round_id]):"select"):"avulsa";
-      // SELECIONE: só conta entries travadas (confirmed)
+      const mode=myEntry.round_id?(roundById[myEntry.round_id]?modeOf(roundById[myEntry.round_id]):"full"):"avulsa";
+      // SELECIONE (legado): só conta entries travadas (confirmed)
       if(mode==="select"&&myEntry.confirmed!==true)continue;
       // ranking do jogo NAQUELE modo (pra posição): compara entries do mesmo round_id
       const rid=myEntry.round_id||null;
@@ -374,7 +374,7 @@ async function loadProfileStats(username){
       const scored=sameScope.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx)).sort((a,b)=>b.total-a.total);
       const myIdx=scored.findIndex(s=>s.username===username);
       const me=scored[myIdx]||scoreEntryFor(JSON.parse(JSON.stringify(myEntry)),ctx.eng,ctx);
-      _accumStats(buckets[mode]||buckets.select,me,myIdx<0?0:myIdx,j,ctx);
+      _accumStats(buckets[mode]||buckets.geral,me,myIdx<0?0:myIdx,j,ctx);
       _accumStats(buckets.geral,me,myIdx<0?0:myIdx,j,ctx);
     }
   }
@@ -3185,7 +3185,7 @@ function collectionHTML(archObj){
   return html;
 }
 function profileTabsHTML(active,onclickFn){
-  const tabs=[["geral","Geral"],["avulsa","Avulsa"],["select","🎯 Selecione"],["full","🏆 Completo"],["boost","⚡ Impulso"]];
+  const tabs=[["geral","Geral"],["avulsa","Avulsa"],["full","🏆 Completo"],["boost","⚡ Impulso"],["confianca","📊 Confiança"],["previsao","🔮 Previsão"]];
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,l])=>`<button class="statuspill ${k===active?"st-open":""}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="${onclickFn}('${k}')">${l}</button>`).join("")}</div>`;
 }
 function setProfileTab(t){APP.profileTab=t;render();}
