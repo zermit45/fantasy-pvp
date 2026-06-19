@@ -7,7 +7,7 @@ const MODE_META={
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
   boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
   confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
-  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação de cada jogo trava quando aquele jogo é fechado; os palpites de placar travam todos quando a 1ª partida da rodada for fechada."},
+  previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação e o palpite de cada jogo travam quando aquela partida for fechada (cada jogo é independente)."},
 };
 // modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
 const MODE_LIST=["full","boost","confianca","previsao"];
@@ -908,7 +908,7 @@ async function confMove(roomId,delta){
 // ===== PREVISÃO =====
 function predOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);if(!e)return null;if(e.pred_home==null&&e.pred_away==null)return null;return {home:e.pred_home,away:e.pred_away};}
 async function predSet(roomId,homeVal,awayVal){
-  if(boostLocked()){toast("Os palpites já travaram (uma partida da rodada foi fechada).");return;}
+  if(roomLockedInRound(roomId)){toast("Esta partida já travou — o palpite dela não muda mais.");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
   const patch={confirmed:false,updated_at:new Date().toISOString()};
@@ -1990,7 +1990,7 @@ function roundHTML(){
     }
     if(isPred&&!finished){
       const pr=predOf(rid); // {home,away} ou null
-      const predLocked=bLocked; // trava global: qualquer jogo fechado trava todos os palpites
+      const predLocked=locked; // trava por jogo: junto com a escalação daquele jogo
       if(predLocked){
         extraCtrl=pr?`<span style="font-size:13px;font-weight:800;color:${mm.color}">🔮 cravou ${pr.home} × ${pr.away}</span>`:`<span style="font-size:11px;color:var(--dim)">sem palpite</span>`;
       }else if(team){
@@ -2074,12 +2074,10 @@ function roundHTML(){
       ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}`;
   }else if(isPred){
-    const bConf=boostConfirmed();
     const totalGames=APP.roundRooms.length;
     const feitos=(APP.roundEntries||[]).filter(e=>e.pred_home!=null&&e.pred_away!=null).length;
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. ${bLocked?"<b>Palpites travados</b> (a 1ª partida foi fechada).":`Você cravou <b>${feitos}/${totalGames}</b>.`}</div>
-      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Palpites confirmados — toque p/ reabrir":"🔒 Confirmar palpites"}</button>`:""}`;
+      ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. Você cravou <b>${feitos}/${totalGames}</b>. A escalação e o palpite de cada jogo travam quando aquela partida for fechada.</div>`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
   }else{
@@ -2106,12 +2104,12 @@ function roundHTML(){
   ${roundRankingHTML()}
   ${isAdmin()?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
-    <p class="p" style="margin-bottom:8px">${isSelect?"1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).":"Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha). "+(isBoost?"A distribuição de impulsos trava sozinha quando a 1ª partida é fechada.":isConf?"A ordem de confiança trava sozinha quando a 1ª partida é fechada.":isPred?"Os palpites travam sozinhos quando a 1ª partida é fechada.":"")}</p>
+    <p class="p" style="margin-bottom:8px">${isSelect?"1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).":"Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha). "+(isBoost?"A distribuição de impulsos trava sozinha quando a 1ª partida é fechada.":isConf?"A ordem de confiança trava sozinha quando a 1ª partida é fechada.":isPred?"No modo Previsão, o palpite de cada jogo trava junto com a escalação daquela partida.":"")}</p>
     ${isSelect?(selLocked
       ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
       : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`):""}
-    ${(isBoost||isConf||isPred)?(()=>{
-      const nome=isConf?"ordem de confiança":isPred?"palpites":"distribuição de impulsos";
+    ${(isBoost||isConf)?(()=>{
+      const nome=isConf?"ordem de confiança":"distribuição de impulsos";
       const travada=boostLocked();
       const auto=anyGameLockedInRound(); // alguma partida fechou (trava automática)
       if(travada){
