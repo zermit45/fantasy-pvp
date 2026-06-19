@@ -311,6 +311,27 @@ function _finalizeStats(stats){
   return stats;
 }
 
+// cache de entries dos jogos finalizados — busca TODAS de uma vez (1 consulta em vez de N)
+let _entriesCache=null;       // { room_id: [entries] }
+let _entriesCacheKey=null;    // pra invalidar quando muda de grupo
+async function loadAllFinishedEntries(){
+  const key=APP.groupId;
+  const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
+  const roomIds=arq.map(j=>j.room_id);
+  // cache válido se mesmo grupo e cobre os mesmos jogos
+  if(_entriesCache&&_entriesCacheKey===key+"|"+roomIds.sort().join(",")) return _entriesCache;
+  const byRoom={};
+  if(SUPA.ready()&&APP.groupId&&roomIds.length){
+    try{
+      // uma consulta só pra todos os jogos
+      const rows=await sb("entries?room_id=in.("+roomIds.join(",")+")&group_id=eq."+APP.groupId+"&select=*&limit=5000");
+      for(const e of (rows||[])){(byRoom[e.room_id]=byRoom[e.room_id]||[]).push(e);}
+    }catch(e){ /* fallback: deixa vazio, funções tratam */ }
+  }
+  _entriesCache=byRoom;_entriesCacheKey=key+"|"+roomIds.sort().join(",");
+  return byRoom;
+}
+function clearEntriesCache(){_entriesCache=null;_entriesCacheKey=null;}
 async function loadProfileStats(username){
   // baldes: geral + por modo. modo: avulsa | select | full | boost
   const buckets={geral:_blankStats(),avulsa:_blankStats(),select:_blankStats(),full:_blankStats(),boost:_blankStats()};
@@ -319,11 +340,10 @@ async function loadProfileStats(username){
   const roundById={};
   for(const r of (APP.rounds||[]))roundById[r.id]=r;
   const arq=APP.jogos.filter(j=>{const g=window.GAMES.data[j.room_id];return g&&g.match&&g.match.status==="finished";});
+  const allEntries=await loadAllFinishedEntries();
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
-    let entries;
-    try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
-    catch(e){continue;}
+    let entries=allEntries[j.room_id];
     if(!entries||!entries.length)continue;
     entries=entries.filter(e=>!(e.username===username&&e.hidden_profile===true));
     // separa minhas entries por modo (pode ter várias por jogo)
@@ -364,11 +384,10 @@ async function loadMemberHistory(username){
   // mapa round_id → modo (pra rotular cada entry)
   const roundById={};
   for(const r of (APP.rounds||[]))roundById[r.id]=r;
+  const allEntries=await loadAllFinishedEntries();
   for(const j of arq){
     const ctx=buildCtxFor(j.room_id);if(!ctx)continue;
-    let entries;
-    try{entries=await sb("entries?room_id=eq."+j.room_id+"&group_id=eq."+APP.groupId+"&select=*");}
-    catch(e){continue;}
+    let entries=allEntries[j.room_id];
     if(!entries||!entries.length)continue;
     // ranking geral do jogo (todas as entries, pra calcular posição) — usa a melhor de cada user
     const scoredAll=entries.map(e=>scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx));
@@ -2533,6 +2552,7 @@ function togglePreviewRules(){
   window.PREVIEW_NEW_RULES=!window.PREVIEW_NEW_RULES;
   // limpa tudo que cacheia engine/pontuação
   for(const k in _ctxCache)delete _ctxCache[k];
+  clearEntriesCache();
   if(typeof _dreamCache==="object")for(const k in _dreamCache)delete _dreamCache[k];
   APP.profile=null;APP.profileHistory=null;APP.memberProfile=null;APP.memberHistory=null;
   toast(window.PREVIEW_NEW_RULES?"Prévia LIGADA — vendo como ficaria com as regras novas (nada foi salvo)":"Prévia desligada — voltou ao real");
@@ -3212,10 +3232,10 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="room"){APP.entries=await loadEntries();_openPeek={};}
     if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};_dreamOpen=false;_dreamPlayer={};}
-    if(view==="profile"){APP.profile=null;APP.profileHistory=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;render();const ph=await loadMemberHistory(APP.user.username);if(APP.view==="profile")APP.profileHistory=ph;}
+    if(view==="profile"){clearEntriesCache();APP.profile=null;APP.profileHistory=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;render();const ph=await loadMemberHistory(APP.user.username);if(APP.view==="profile")APP.profileHistory=ph;}
     if(view==="members"){APP.members=null;render();const ms=await loadGroupMembers();if(APP.view==="members")APP.members=ms;}
     if(view==="member"){
-      APP.memberView=extra;APP.memberProfile=null;APP.memberHistory=null;_openHistGame={};_openHistPlayer={};render();
+      clearEntriesCache();APP.memberView=extra;APP.memberProfile=null;APP.memberHistory=null;_openHistGame={};_openHistPlayer={};render();
       const ps=await loadProfileStats(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberProfile=ps;render();
       const h=await loadMemberHistory(extra);if(APP.view==="member"&&APP.memberView===extra)APP.memberHistory=h;
     }
