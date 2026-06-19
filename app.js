@@ -6,7 +6,7 @@ const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANC
 const MODE_META={
   select:{label:"SELECIONE",icon:"🎯",color:"#5CA8FF",desc:"Escolha poucos jogos pra entrar. Acertar os jogos certos é a estratégia."},
   full:{label:"COMPLETO",icon:"🏆",color:"#54E0A8",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
-  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos e gaste fichas de impulso (+15% por ficha, até 2 por partida) nas partidas que você mais confia. Trava no 1º jogo."},
+  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). Trava no 1º jogo."},
 };
 const modeOf=r=>(r&&r.mode)||"select";
 const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
@@ -615,10 +615,10 @@ async function loadRound(roundId){
     APP.roundRooms=await sb("round_rooms?round_id=eq."+roundId+"&select=*");
     // minhas entries nesta rodada (seleção + time + confirmação)
     if(APP.user){
-      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,boost,confirmed");
+      APP.roundEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=room_id,slots,captain,tactic,boost,boost_chips,confirmed");
     }
     // entries de TODOS os membros nesta rodada (escalação completa pra ranking clicável)
-    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,boost,confirmed&limit=2000");
+    APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,boost,boost_chips,confirmed&limit=2000");
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
@@ -663,7 +663,7 @@ function roundUserTeamsHTML(username){
     achou=true;
     const nome=g.prepool.home.name+" × "+g.prepool.away.name;
     const tacName=e.tactic&&window.ENGINE_TACTICS[e.tactic]?window.ENGINE_TACTICS[e.tactic].name:"sem tática";
-    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span>${sc.boost>0?` <span class="statuspill" style="background:color-mix(in srgb,#FFC247 22%,transparent);color:#FFC247">⚡ +${sc.boost*BOOST_PCT}%</span>`:""}</div>`;
+    html+=`<div style="margin-bottom:8px"><div class="bsub" style="border:none;padding:0;margin:0 0 4px">${esc(nome)} · <span style="color:var(--amber)">${sc.total.toFixed(1)} pts</span>${sc.boostPct?` <span class="statuspill" style="background:color-mix(in srgb,${sc.boostPct<0?"#FF6B6B":"#FFC247"} 22%,transparent);color:${sc.boostPct<0?"#FF6B6B":"#FFC247"}">⚡ ${sc.boostPct<0?"":"+"}${sc.boostPct}%</span>`:""}</div>`;
     html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)} · toque num jogador p/ detalhe</div>`;
     const renderLine=(v,isBench)=>{
       const meta=ctx.byId[v.pid];if(!meta)return"";
@@ -705,9 +705,10 @@ function peekLineupHTML(entry,roomId){
   const g=window.GAMES.data[roomId];
   const finished=g&&g.match&&g.match.status==="finished";
   const tacName=entry.tactic&&window.ENGINE_TACTICS[entry.tactic]?window.ENGINE_TACTICS[entry.tactic].name:"sem tática";
-  const tk=parseInt(entry.boost,10)||0;
+  const _chips=Array.isArray(entry.boost_chips)?entry.boost_chips:null;
+  const tkPct=_chips&&_chips.length?_chips.reduce((s,v)=>s+(Number(v)||0),0):(parseInt(entry.boost,10)||0)*BOOST_PCT;
   let html=`<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;margin:2px 0 8px 6px;border-left:2px solid var(--line)">`;
-  html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tk>0?` · <span style="color:#FFC247">⚡ +${tk*BOOST_PCT}%</span>`:""}</div>`;
+  html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tkPct?` · <span style="color:${tkPct<0?"#FF6B6B":"#FFC247"}">⚡ ${tkPct<0?"":"+"}${tkPct}%</span>`:""}</div>`;
   // catálogo de jogadores do jogo (pid → nome/pos)
   const cat={};
   if(g&&g.prepool&&g.prepool.players)for(const p of g.prepool.players)cat[p.id]={name:p.name,pos:p.pos,team:p.team};
@@ -795,34 +796,78 @@ function boostLocked(){
   const f=roundFirstKickoff();
   return isFinite(f)&&Date.now()>=f;
 }
-// nº de tokens que ESTE usuário já gastou na rodada (soma de entry.boost)
-function boostUsed(){
-  return (APP.roundEntries||[]).reduce((s,e)=>s+(parseInt(e.boost,10)||0),0);
+// === IMPULSO v2: fichas com valores específicos ===
+// a pool define APP.round.boost_chips = lista de valores, ex [25,15,15,-20].
+// cada entry guarda boost_chips = valores das fichas atribuídas àquele jogo.
+function poolChips(){
+  const r=APP.round;
+  if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)return r.boost_chips.map(v=>Number(v)||0);
+  // retrocompat: pool antiga (só boost_tokens) → N fichas de BOOST_PCT
+  const n=r?(r.boost_tokens||0):0;return Array(n).fill(BOOST_PCT);
 }
-function boostLeft(){
-  const cap=APP.round?(APP.round.boost_tokens||0):0;
-  return Math.max(0,cap-boostUsed());
+function boostMaxPerGame(){const r=APP.round;return r&&r.boost_max_per_game?r.boost_max_per_game:(r&&r.boost_chips&&r.boost_chips.length?0:BOOST_MAX_PER_GAME);}
+function boostMinGames(){const r=APP.round;return r&&r.boost_min_games?r.boost_min_games:0;}
+// fichas que o jogador já atribuiu (lista achatada de valores, por todos os jogos da rodada)
+function chipsAssigned(){
+  const out=[];
+  for(const e of (APP.roundEntries||[])){const c=e.boost_chips;if(Array.isArray(c))for(const v of c)out.push(Number(v)||0);}
+  return out;
 }
-// quantos tokens ESTE usuário pôs num jogo específico
-function boostOn(roomId){
+// fichas ainda disponíveis = pool menos as já atribuídas (casando por valor)
+function chipsAvailable(){
+  const pool=poolChips().slice();
+  for(const v of chipsAssigned()){const i=pool.indexOf(v);if(i>=0)pool.splice(i,1);}
+  return pool;
+}
+// fichas (valores) que ESTE usuário pôs num jogo específico
+function chipsOn(roomId){
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
-  return e?(parseInt(e.boost,10)||0):0;
+  const c=e&&e.boost_chips;return Array.isArray(c)?c.map(v=>Number(v)||0):[];
 }
-// ajusta tokens de impulso num jogo (delta +1/−1)
+// atribui uma ficha (de um valor) a um jogo; ou remove (signRemove=valor a tirar)
+async function assignChip(roomId,value){
+  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
+  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  // tem essa ficha disponível?
+  const avail=chipsAvailable();
+  if(avail.indexOf(value)<0){toast("Você não tem mais uma ficha de "+(value<0?value:"+"+value)+"%.");return;}
+  const cur=chipsOn(roomId).slice();
+  const mx=boostMaxPerGame();
+  if(mx>0&&cur.length>=mx){toast("Máximo de "+mx+" ficha(s) por partida.");return;}
+  cur.push(value);
+  try{
+    await sbUpdate("entries",{boost_chips:cur,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
+    await loadRound(APP.roundId);render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
+async function unassignChip(roomId,value){
+  if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
+  const cur=chipsOn(roomId).slice();
+  const i=cur.indexOf(value);if(i<0)return;cur.splice(i,1);
+  try{
+    await sbUpdate("entries",{boost_chips:cur,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
+    await loadRound(APP.roundId);render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
+// nº de tokens que ESTE usuário já gastou na rodada (retrocompat — usa a lista nova)
+function boostUsed(){return chipsAssigned().length;}
+function boostLeft(){return chipsAvailable().length;}
+// quantos tokens ESTE usuário pôs num jogo específico
+function boostOn(roomId){return chipsOn(roomId).length;}
+// ajusta tokens de impulso num jogo (retrocompat para pools antigas: +1/−1 com fichas iguais)
 async function changeBoost(roomId,delta){
   if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
   const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
   if(!e){toast("Monte o time deste jogo primeiro.");return;}
-  const cur=parseInt(e.boost,10)||0;
-  let next=cur+delta;
-  if(next<0)next=0;
-  if(delta>0&&boostLeft()<=0){toast("Você já gastou todas as suas fichas de impulso.");return;}
-  if(delta>0&&next>BOOST_MAX_PER_GAME){toast("Máximo de "+BOOST_MAX_PER_GAME+" fichas por partida.");return;}
-  try{
-    await sbUpdate("entries",{boost:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
-    await loadRound(APP.roundId);
-    render();
-  }catch(e2){toast("Erro: "+e2.message);}
+  if(delta>0){
+    const avail=chipsAvailable();if(!avail.length){toast("Você já gastou todas as suas fichas.");return;}
+    // pega a ficha de maior valor disponível (comportamento antigo: todas iguais)
+    return assignChip(roomId,avail.sort((a,b)=>b-a)[0]);
+  }else{
+    const cur=chipsOn(roomId);if(!cur.length)return;
+    return unassignChip(roomId,cur[cur.length-1]);
+  }
 }
 // IMPULSO — confirmar/reabrir a distribuição de tokens. Usa entry.confirmed (sem outro uso no boost).
 // Reeditável até o 1º jogo começar (boostLocked).
@@ -835,6 +880,21 @@ function boostConfirmed(){
 async function toggleBoostConfirm(){
   if(boostLocked()){toast("Os impulsos já travaram (o 1º jogo começou).");return;}
   const willConfirm=!boostConfirmed();
+  if(willConfirm){
+    // precisa ter distribuído TODAS as fichas (inclusive as negativas obrigatórias)
+    const left=chipsAvailable();
+    if(left.length){
+      const neg=left.filter(v=>v<0).length;
+      toast(neg?`Você ainda tem ${left.length} ficha(s) por usar, incluindo ${neg} negativa(s) obrigatória(s).`:`Você ainda tem ${left.length} ficha(s) de impulso por distribuir.`);
+      return;
+    }
+    // regra de mínimo de partidas diferentes
+    const mg=boostMinGames();
+    if(mg>0){
+      const jogosComFicha=(APP.roundEntries||[]).filter(e=>Array.isArray(e.boost_chips)&&e.boost_chips.length).length;
+      if(jogosComFicha<mg){toast(`Distribua suas fichas em pelo menos ${mg} partidas diferentes (hoje em ${jogosComFicha}).`);return;}
+    }
+  }
   try{
     await sbUpdate("entries",{confirmed:willConfirm,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
     await loadRound(APP.roundId);
@@ -913,8 +973,13 @@ async function setRoundRoomStatus(roomId,status){
   }catch(e){toast("Erro: "+e.message);}
 }
 // admin: criar rodada
-async function createRound(name,limit,phaseId,mode,boostTokens){
+async function createRound(name,limit,phaseId,mode,boostTokens,cfg){
   const row={group_id:APP.groupId,name,pick_limit:limit,status:"open",phase_id:phaseId||null,mode:mode||"select",boost_tokens:boostTokens||0};
+  if(mode==="boost"&&cfg){
+    row.boost_chips=cfg.chips||[];
+    row.boost_max_per_game=cfg.maxPerGame||0;
+    row.boost_min_games=cfg.minGames||0;
+  }
   const rows=await sbInsert("rounds",row);
   await loadRounds();
   toast("Mini rodada criada!");
@@ -1396,9 +1461,10 @@ function roundRankingHTML(){
           ? `<span style="color:var(--green);font-size:10px">🔒 travou ✓ escalado</span>`
           : `<span style="color:var(--amber);font-size:10px">🔒 travou, sem time</span>`;
       }else if(mode==="boost"){
-        const tk=parseInt(e.boost,10)||0;
+        const _ch=Array.isArray(e.boost_chips)?e.boost_chips:null;
+        const tkPct=_ch&&_ch.length?_ch.reduce((s,v)=>s+(Number(v)||0),0):(parseInt(e.boost,10)||0)*BOOST_PCT;
         const showTokens=me||bLockedNow;
-        const tkTag=(showTokens&&tk>0)?` · <span style="color:#FFC247">⚡ +${tk*BOOST_PCT}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
+        const tkTag=(showTokens&&tkPct)?` · <span style="color:${tkPct<0?"#FF6B6B":"#FFC247"}">⚡ ${tkPct<0?"":"+"}${tkPct}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
         status=montou
           ? `<span style="color:var(--green);font-size:10px">✓ escalado${tkTag}</span>`
           : `<span style="color:var(--dim);font-size:10px">sem time</span>`;
@@ -1435,7 +1501,7 @@ function roundRowHTML(r){
     :(r.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>');
   let metaTxt;
   if(modeOf(r)==="full")metaTxt="joga todos os jogos";
-  else if(modeOf(r)==="boost")metaTxt=`todos os jogos · ${r.boost_tokens||0} token(s) de impulso`;
+  else if(modeOf(r)==="boost"){const nc=Array.isArray(r.boost_chips)&&r.boost_chips.length?r.boost_chips.length:(r.boost_tokens||0);metaTxt=`todos os jogos · ${nc} ficha(s) de impulso`;}
   else metaTxt=`escolha ${r.pick_limit} jogos`;
   // botão admin de mover entre andamento/finalizada (manual)
   const arch=compIsArchived("round",r.id);
@@ -1720,17 +1786,25 @@ function roundHTML(){
         playerBtn=`<span class="statuspill" style="background:var(--amber);color:#0A0E1C;cursor:pointer" title="Travar — este jogo vai contar" onclick="event.stopPropagation();toggleSelectLock('${rid}')">TRAVAR</span>`;
       }
     }
-    // controle de IMPULSO (modo boost): +/− tokens, enquanto não travou e o time foi montado
+    // controle de IMPULSO (modo boost): atribuir fichas (com valores), enquanto não travou
     let boostCtrl="";
     if(isBoost&&!finished){
-      const bn=boostOn(rid);
+      const myChips=chipsOn(rid);                 // fichas neste jogo (valores)
+      const sumPct=myChips.reduce((s,v)=>s+v,0);
+      const chipPill=v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:1px 5px;background:color-mix(in srgb,${col} 14%,transparent)">⚡${neg?v:"+"+v}%</span>`;};
       if(bLocked){
-        boostCtrl=bn>0?`<span class="statuspill" style="background:color-mix(in srgb,${mm.color} 20%,transparent);color:${mm.color}">⚡ +${bn*BOOST_PCT}%</span>`:"";
+        boostCtrl=myChips.length?`<span style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">${myChips.map(chipPill).join("")}</span>`:"";
       }else if(team){
-        boostCtrl=`<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Tirar 1 token" onclick="event.stopPropagation();changeBoost('${rid}',-1)">−</button>
-          <span style="min-width:46px;text-align:center;font-weight:800;color:${mm.color};font-size:13px">⚡${bn>0?` +${bn*BOOST_PCT}%`:" 0"}</span>
-          <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Pôr 1 ficha (+${BOOST_PCT}%)" onclick="event.stopPropagation();changeBoost('${rid}',1)">+</button>
+        const avail=chipsAvailable();
+        // fichas já neste jogo: clicáveis pra remover
+        const here=myChips.map(v=>`<span onclick="event.stopPropagation();unassignChip('${rid}',${v})" style="cursor:pointer" title="Remover">${chipPill(v)}</span>`).join("");
+        // valores distintos disponíveis pra adicionar
+        const distinct=[...new Set(avail)].sort((a,b)=>b-a);
+        const addBtns=distinct.map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;const n=avail.filter(x=>x===v).length;
+          return `<button class="cbtn" style="position:static;width:auto;padding:0 7px;height:28px;font-size:10px;font-weight:800;color:${col};border-color:${col}" title="Pôr ficha ${neg?v:"+"+v}% (${n} disp.)" onclick="event.stopPropagation();assignChip('${rid}',${v})">+${neg?v:"+"+v}%</button>`;}).join("");
+        boostCtrl=`<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;max-width:62%">
+          ${here}${here&&addBtns?'<span style="opacity:.3">|</span>':""}${addBtns}
+          ${myChips.length?`<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:12px">=${sumPct<0?"":"+"}${sumPct}%</span>`:""}
         </div>`;
       }else{
         boostCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ impulsionar</span>`;
@@ -1759,10 +1833,20 @@ function roundHTML(){
   // banner explicativo por modo
   let banner;
   if(isBoost){
-    const cap=r.boost_tokens||0;
+    const pool=poolChips();
+    const cap=pool.length;
     const bConf=boostConfirmed();
+    const avail=chipsAvailable();
+    const mx=boostMaxPerGame(),mg=boostMinGames();
+    // mostra as fichas que ainda restam, com cor
+    const availPills=avail.sort((a,b)=>b-a).map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:1px 6px;background:color-mix(in srgb,${col} 14%,transparent)">⚡${neg?v:"+"+v}%</span>`;}).join(" ");
+    const temNeg=pool.some(v=>v<0);
+    let regras=[];
+    if(mx>0)regras.push(`até ${mx} por partida`);
+    if(mg>0)regras.push(`gaste em pelo menos ${mg} partidas diferentes`);
+    if(temNeg)regras.push(`fichas <span style="color:#FF6B6B">vermelhas são negativas</span> e também precisam ser usadas`);
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos. Você tem <b>${cap}</b> ficha(s) de impulso — cada uma dá <b>+${BOOST_PCT}%</b> nos pontos da partida onde for usada (até <b>${BOOST_MAX_PER_GAME} por partida</b>). ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Restam <b>${boostLeft()}/${cap}</b>. Travam quando o 1º jogo começar.`}</div>
+      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
@@ -1909,6 +1993,39 @@ function peekTeamsHTML(){
 function askConfirm(word,label,action,msg){APP.confirm={word,label,action,msg,typed:""};render();}
 function closeConfirm(){APP.confirm=null;render();}
 function confirmInput(v){if(APP.confirm)APP.confirm.typed=v;}
+// editor de fichas de impulso (dev monta a economia da pool)
+function boostBuilderHTML(c){
+  const chips=c.chips||(c.chips=[15,15]); // default: 2 fichas de +15%
+  const maxPer=c.boostMaxPerGame!=null?c.boostMaxPerGame:0;
+  const minG=c.boostMinGames!=null?c.boostMinGames:0;
+  const chipRow=chips.map((v,i)=>{
+    const neg=v<0;const col=neg?"#FF6B6B":"#FFC247";
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <span style="width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;border:2px solid ${col};color:${col};background:color-mix(in srgb,${col} 16%,transparent)">⚡</span>
+      <input class="input" type="number" inputmode="numeric" style="flex:1;margin:0" value="${v}" onchange="setChipValue(${i},this.value)" />
+      <span style="font-size:11px;color:${col};width:54px">${neg?"NEGATIVA":"+"+v+"%"}</span>
+      <button class="cbtn" style="position:static;width:28px;height:28px;color:var(--red);border-color:var(--red)" onclick="removeChip(${i})">×</button>
+    </div>`;
+  }).join("");
+  const totalPos=chips.filter(v=>v>0).length, totalNeg=chips.filter(v=>v<0).length;
+  return `<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+    <p class="p" style="font-size:11px;margin:0 0 8px;color:#FFC247">Monte as fichas desta pool. Cada ficha tem seu valor — use número negativo pra criar uma ficha "ruim" (vermelha) que o jogador é obrigado a gastar.</p>
+    ${chipRow||'<p class="p" style="font-size:11px">Nenhuma ficha ainda.</p>'}
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button class="btn ghost" style="margin:0;flex:1;font-size:12px" onclick="addChip(15)">+ Ficha positiva</button>
+      <button class="btn ghost" style="margin:0;flex:1;font-size:12px;color:#FF6B6B;border-color:#FF6B6B" onclick="addChip(-15)">+ Ficha negativa</button>
+    </div>
+    <p class="p" style="font-size:10px;margin:8px 0 4px;color:var(--dim)">${chips.length} ficha(s): ${totalPos} positiva(s)${totalNeg?`, ${totalNeg} negativa(s)`:""}.</p>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0" /></div>
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Mín. de partidas (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${minG}" onchange="APP.confirm.boostMinGames=parseInt(this.value,10)||0" /></div>
+    </div>
+  </div>`;
+}
+function addChip(v){if(!APP.confirm)return;_syncCreateName();(APP.confirm.chips=APP.confirm.chips||[]).push(v);render();}
+function removeChip(i){if(!APP.confirm||!APP.confirm.chips)return;_syncCreateName();APP.confirm.chips.splice(i,1);render();}
+function setChipValue(i,val){if(!APP.confirm||!APP.confirm.chips)return;let v=parseInt(val,10);if(isNaN(v))v=0;APP.confirm.chips[i]=v;render();}
+function _syncCreateName(){const n=$("rndName");if(n&&APP.confirm)APP.confirm.draftName=n.value;}
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
   // modo: criar grupo (admin)
@@ -1982,7 +2099,7 @@ function confirmModalHTML(){
       <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
       <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
       ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
-      ${selMode==="boost"?`<input id="rndTokens" class="input" type="number" inputmode="numeric" min="1" placeholder="Quantas fichas de impulso (ex: 2)" value="2" /><p class="p" style="font-size:11px;margin-bottom:8px">Cada ficha = +${BOOST_PCT}% nos pontos da partida escolhida. Até ${BOOST_MAX_PER_GAME} por partida.</p>`:""}
+      ${selMode==="boost"?boostBuilderHTML(c):""}
       ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
@@ -2090,8 +2207,12 @@ function submitCreateRound(){
     limit=poolMax||999; // completo = todos
   }else if(mk==="boost"){
     limit=poolMax||999; // impulso = escala todos
-    const t=$("rndTokens");tokens=t?parseInt(t.value,10):2;
-    if(!tokens||tokens<1)tokens=1;
+    const chips=(c.chips||[]).map(v=>Number(v)||0).filter(v=>v!==0);
+    if(!chips.length){toast("Adicione pelo menos uma ficha de impulso.");return;}
+    const cfg={chips,maxPerGame:c.boostMaxPerGame||0,minGames:c.boostMinGames||0};
+    const phaseId=c.phaseId||null;
+    APP.confirm=null;createRound(name,limit,phaseId,mk,chips.length,cfg).catch(e=>toast("Erro: "+e.message));
+    return;
   }
   const phaseId=c.phaseId||null;
   APP.confirm=null;createRound(name,limit,phaseId,mk,tokens).catch(e=>toast("Erro: "+e.message));
@@ -2458,12 +2579,22 @@ function scoreEntryFor(entry,eng,ctx){
     if(sl!=="BENCH")sum+=pts;
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
   }
-  // IMPULSO (modo boost): +BOOST_PCT% por ficha usada nesta partida, aplicado por ÚLTIMO,
-  // sobre o total já fechado (tática, capitão, reserva, tudo). entry.boost = nº de fichas.
-  const boostTokens=Math.max(0,parseInt(entry.boost,10)||0);
-  const boostMult=1+(BOOST_PCT/100)*boostTokens;
+  // IMPULSO (modo boost): aplicado por ÚLTIMO, sobre o total já fechado (tática, capitão, etc.).
+  // Modelo novo: entry.boost_chips = lista de valores das fichas neste jogo, ex [25,15] ou [-20].
+  //   o % total é a SOMA das fichas (positivas e negativas).
+  // Modelo antigo (retrocompat): entry.boost = nº de fichas × BOOST_PCT.
+  let boostPct=0, boostTokens=0;
+  const chips=entry.boost_chips;
+  if(Array.isArray(chips)&&chips.length){
+    boostPct=chips.reduce((s,v)=>s+(Number(v)||0),0);
+    boostTokens=chips.length;
+  }else{
+    boostTokens=Math.max(0,parseInt(entry.boost,10)||0);
+    boostPct=BOOST_PCT*boostTokens;
+  }
+  const boostMult=1+(boostPct/100);
   const finalTotal=Math.round(sum*boostMult*10)/10;
-  return {username:entry.username,total:finalTotal,boost:boostTokens,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
+  return {username:entry.username,total:finalTotal,boost:boostTokens,boostPct,boostChips:Array.isArray(chips)?chips:null,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
 // ============================================================
 // TIME IDEAL — a escalação que teria dado a MAIOR pontuação possível
@@ -2824,7 +2955,7 @@ function histGameHTML(h,hi,prefix){
       const sc=v.entry;
       const tacName=window.ENGINE_TACTICS[sc.tactic]?.name||sc.tactic||"—";
       const descarte=(v.mode==="select"&&!v.counts)?` <span style="font-size:9px;color:var(--dim)">(não travado · não contou)</span>`:"";
-      const boostTag=(v.mode==="boost"&&sc.boost>0)?` <span style="color:${col}">⚡ +${sc.boost*BOOST_PCT}%</span>`:"";
+      const boostTag=(v.mode==="boost"&&sc.boostPct)?` <span style="color:${sc.boostPct<0?"#FF6B6B":col}">⚡ ${sc.boostPct<0?"":"+"}${sc.boostPct}%</span>`:"";
       html+=`<div style="border-left:3px solid ${col};padding:6px 0 6px 10px;margin:8px 0">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-family:'Saira Condensed';font-weight:800;font-size:12px;letter-spacing:.05em;color:${col}">${MODELABEL[v.mode]}${v.roundName?` · ${esc(v.roundName)}`:""}${descarte}</span>
