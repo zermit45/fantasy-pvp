@@ -807,6 +807,7 @@ function poolChips(){
 }
 function boostMaxPerGame(){const r=APP.round;return r&&r.boost_max_per_game?r.boost_max_per_game:(r&&r.boost_chips&&r.boost_chips.length?0:BOOST_MAX_PER_GAME);}
 function boostMinGames(){const r=APP.round;return r&&r.boost_min_games?r.boost_min_games:0;}
+function boostNoMix(){const r=APP.round;return !!(r&&r.boost_no_mix);}
 // fichas que o jogador já atribuiu (lista achatada de valores, por todos os jogos da rodada)
 function chipsAssigned(){
   const out=[];
@@ -835,6 +836,13 @@ async function assignChip(roomId,value){
   const cur=chipsOn(roomId).slice();
   const mx=boostMaxPerGame();
   if(mx>0&&cur.length>=mx){toast("Máximo de "+mx+" ficha(s) por partida.");return;}
+  // regra "não misturar": neste jogo, só positivas OU só negativas
+  if(boostNoMix()&&cur.length){
+    const temNeg=cur.some(v=>v<0), temPos=cur.some(v=>v>0);
+    if((value<0&&temPos)||(value>0&&temNeg)){
+      toast("Nesta pool não dá pra juntar fichas positivas e negativas no mesmo jogo.");return;
+    }
+  }
   cur.push(value);
   try{
     await sbUpdate("entries",{boost_chips:cur,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
@@ -979,6 +987,7 @@ async function createRound(name,limit,phaseId,mode,boostTokens,cfg){
     row.boost_chips=cfg.chips||[];
     row.boost_max_per_game=cfg.maxPerGame||0;
     row.boost_min_games=cfg.minGames||0;
+    row.boost_no_mix=!!cfg.noMix;
   }
   const rows=await sbInsert("rounds",row);
   await loadRounds();
@@ -1043,7 +1052,7 @@ async function askEnterRoundGame(roomId){
 // ----- RENOMEAR liga / rodada(phase) / mini rodada(round) -----
 function askRenameLeague(id){const l=(APP.leagues||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"league",id,cur:l?l.name:"",label:"Renomear liga"};render();}
 function askRenamePhase(id){const p=(APP.phases||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"phase",id,cur:p?p.name:"",label:"Renomear rodada"};render();}
-function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);const isBoost=r&&modeOf(r)==="boost";const chips=(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)?r.boost_chips.slice():(isBoost?Array(r.boost_tokens||2).fill(BOOST_PCT):[]);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",roundMode:r?modeOf(r):"select",pickLimit:r?r.pick_limit:3,boostTokens:r?(r.boost_tokens||0):0,chips,boostMaxPerGame:r?(r.boost_max_per_game||0):0,boostMinGames:r?(r.boost_min_games||0):0,label:"Editar mini rodada"};render();}
+function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);const isBoost=r&&modeOf(r)==="boost";const chips=(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)?r.boost_chips.slice():(isBoost?Array(r.boost_tokens||2).fill(BOOST_PCT):[]);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",roundMode:r?modeOf(r):"select",pickLimit:r?r.pick_limit:3,boostTokens:r?(r.boost_tokens||0):0,chips,boostMaxPerGame:r?(r.boost_max_per_game||0):0,boostMinGames:r?(r.boost_min_games||0):0,boostNoMix:r?!!r.boost_no_mix:false,label:"Editar mini rodada"};render();}
 async function submitRename(){
   const c=APP.confirm;if(!c||!isAdmin())return;
   const f=$("renameInput");const novo=f?f.value.trim():"";
@@ -1056,10 +1065,13 @@ async function submitRename(){
     if(c.roundMode==="boost"){
       const chips=(c.chips||[]).map(v=>Number(v)||0).filter(v=>v!==0);
       if(!chips.length){toast("Adicione pelo menos uma ficha de impulso.");return;}
+      const feas=boostFeasibility(chips,c.boostMaxPerGame||0,!!c.boostNoMix);
+      if(!feas.ok){toast("Configuração impossível: "+feas.msg);return;}
       patch.boost_chips=chips;
       patch.boost_tokens=chips.length;
       patch.boost_max_per_game=c.boostMaxPerGame||0;
       patch.boost_min_games=c.boostMinGames||0;
+      patch.boost_no_mix=!!c.boostNoMix;
     }
   }
   APP.confirm=null;
@@ -1856,6 +1868,7 @@ function roundHTML(){
     if(mx>0)regras.push(`até ${mx} por partida`);
     if(mg>0)regras.push(`gaste em pelo menos ${mg} partidas diferentes`);
     if(temNeg)regras.push(`fichas <span style="color:#FF6B6B">vermelhas são negativas</span> e também precisam ser usadas`);
+    if(boostNoMix())regras.push(`<span style="color:#FF6B6B">não misture</span> positivas e negativas no mesmo jogo`);
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (o 1º jogo começou).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}`;
@@ -2005,10 +2018,35 @@ function askConfirm(word,label,action,msg){APP.confirm={word,label,action,msg,ty
 function closeConfirm(){APP.confirm=null;render();}
 function confirmInput(v){if(APP.confirm)APP.confirm.typed=v;}
 // editor de fichas de impulso (dev monta a economia da pool)
+// valida se uma pool com 'não misturar fichas +/−' é cumprível.
+// retorna {ok:true} ou {ok:false, msg:"..."}. J = nº de jogos da pool (todos, pois Impulso escala todos).
+function boostFeasibility(chips,maxPerGame,noMix){
+  const nPos=chips.filter(v=>v>0).length, nNeg=chips.filter(v=>v<0).length;
+  const J=(APP.jogos||[]).length||0;
+  const mx=maxPerGame>0?maxPerGame:Infinity;
+  // sem a regra de não-misturar, basta caber o total respeitando o teto por jogo
+  if(!noMix){
+    const need=mx===Infinity?(chips.length?1:0):Math.ceil(chips.length/mx);
+    if(J>0&&need>J)return {ok:false,msg:`Com até ${maxPerGame} ficha(s) por partida e ${chips.length} ficha(s), seriam necessárias ${need} partidas, mas a pool só tem ${J}.`};
+    return {ok:true};
+  }
+  // com não-misturar: positivas e negativas ocupam jogos separados
+  const needPos=nPos?(mx===Infinity?1:Math.ceil(nPos/mx)):0;
+  const needNeg=nNeg?(mx===Infinity?1:Math.ceil(nNeg/mx)):0;
+  const need=needPos+needNeg;
+  if(J>0&&need>J){
+    return {ok:false,msg:`Sem misturar fichas, as ${nPos} positiva(s) precisam de ${needPos} partida(s) e as ${nNeg} negativa(s) de mais ${needNeg} — total ${need}, mas a pool só tem ${J} partida(s). Aumente o "máx. por partida", reduza fichas, ou desligue "não misturar".`};
+  }
+  return {ok:true};
+}
 function boostBuilderHTML(c){
   const chips=c.chips||(c.chips=[15,15]); // default: 2 fichas de +15%
   const maxPer=c.boostMaxPerGame!=null?c.boostMaxPerGame:0;
   const minG=c.boostMinGames!=null?c.boostMinGames:0;
+  const noMix=!!c.boostNoMix;
+  // aviso de viabilidade (bloqueia salvar se impossível)
+  const feas=boostFeasibility(chips.map(v=>Number(v)||0).filter(v=>v!==0),maxPer,noMix);
+  const feasMsg=feas.ok?"":`<p class="p" style="font-size:11px;margin:8px 0 0;color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent);border:1px solid var(--red);border-radius:8px;padding:7px 9px">⚠️ ${feas.msg}</p>`;
   const chipRow=chips.map((v,i)=>{
     const neg=v<0;const col=neg?"#FF6B6B":"#FFC247";
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
@@ -2028,14 +2066,20 @@ function boostBuilderHTML(c){
     </div>
     <p class="p" style="font-size:10px;margin:8px 0 4px;color:var(--dim)">${chips.length} ficha(s): ${totalPos} positiva(s)${totalNeg?`, ${totalNeg} negativa(s)`:""}.</p>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0" /></div>
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0;render()" /></div>
       <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Mín. de partidas (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${minG}" onchange="APP.confirm.boostMinGames=parseInt(this.value,10)||0" /></div>
     </div>
+    ${totalNeg?`<div onclick="toggleNoMix()" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+      <span style="width:34px;height:20px;border-radius:99px;background:${noMix?"#FF6B6B":"var(--line)"};position:relative;flex-shrink:0;transition:.15s"><span style="position:absolute;top:2px;left:${noMix?"16px":"2px"};width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s"></span></span>
+      <span style="font-size:11px;color:${noMix?"#FF6B6B":"var(--dim)"};font-weight:${noMix?"700":"400"}">Não misturar fichas + e − no mesmo jogo</span>
+    </div>${noMix?`<p class="p" style="font-size:10px;margin:4px 0 0;color:var(--dim)">Cada partida só aceita fichas positivas OU negativas. A negativa "contamina" o jogo — não dá pra anular com positiva.</p>`:""}`:""}
+    ${feasMsg}
   </div>`;
 }
 function addChip(v){if(!APP.confirm)return;_syncCreateName();(APP.confirm.chips=APP.confirm.chips||[]).push(v);render();}
 function removeChip(i){if(!APP.confirm||!APP.confirm.chips)return;_syncCreateName();APP.confirm.chips.splice(i,1);render();}
 function setChipValue(i,val){if(!APP.confirm||!APP.confirm.chips)return;let v=parseInt(val,10);if(isNaN(v))v=0;APP.confirm.chips[i]=v;render();}
+function toggleNoMix(){if(!APP.confirm)return;_syncCreateName();APP.confirm.boostNoMix=!APP.confirm.boostNoMix;render();}
 function _syncCreateName(){if(!APP.confirm)return;const n=$("rndName")||$("renameInput");if(n){if(APP.confirm.mode==="rename")APP.confirm.cur=n.value;else APP.confirm.draftName=n.value;}}
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
@@ -2220,7 +2264,9 @@ function submitCreateRound(){
     limit=poolMax||999; // impulso = escala todos
     const chips=(c.chips||[]).map(v=>Number(v)||0).filter(v=>v!==0);
     if(!chips.length){toast("Adicione pelo menos uma ficha de impulso.");return;}
-    const cfg={chips,maxPerGame:c.boostMaxPerGame||0,minGames:c.boostMinGames||0};
+    const feas=boostFeasibility(chips,c.boostMaxPerGame||0,!!c.boostNoMix);
+    if(!feas.ok){toast("Configuração impossível: "+feas.msg);return;}
+    const cfg={chips,maxPerGame:c.boostMaxPerGame||0,minGames:c.boostMinGames||0,noMix:!!c.boostNoMix};
     const phaseId=c.phaseId||null;
     APP.confirm=null;createRound(name,limit,phaseId,mk,chips.length,cfg).catch(e=>toast("Erro: "+e.message));
     return;
