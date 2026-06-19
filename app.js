@@ -835,11 +835,24 @@ function roomLockedInRound(roomId){
 // trava da parte ESTRATÉGICA (ordem de confiança / fichas de impulso / palpites globais):
 // trava assim que QUALQUER partida da rodada for fechada manualmente (pool fechada) ou finalizada.
 // (a 1ª partida a começar já dá vantagem de informação pra quem ajustaria depois.)
-// EXCEÇÃO admin: se reabriu manualmente (boost_reopened), destrava.
-function boostLocked(){
-  if(APP.round&&APP.round.boost_reopened===true)return false; // admin reabriu
+// ─────────────────────────────────────────────────────────────
+// TRAVA DA DISTRIBUIÇÃO (fichas de impulso / ordem de confiança / palpites de previsão)
+// Regras (valem igual pros 3 modos):
+//  • Trava AUTOMÁTICA: assim que QUALQUER partida da rodada é fechada (pool) ou finalizada.
+//  • Trava MANUAL: o dev pode forçar o fechamento a qualquer momento (boost_forced_lock).
+//  • REABERTURA: só o dev reabre (boost_reopened). Vale tanto contra a trava automática
+//    quanto contra a manual. Enquanto não há trava nenhuma, o player edita/confirma livremente.
+// Resultado: o player NUNCA reabre sozinho depois de travado; só o dev.
+// ─────────────────────────────────────────────────────────────
+function anyGameLockedInRound(){
   const rrs=APP.roundRooms||[];
   return rrs.some(rr=>roomAdminLocked(rr.room_id)||roomIsFinished(rr.room_id));
+}
+function boostLocked(){
+  const r=APP.round; if(!r)return false;
+  if(r.boost_forced_lock===true) return true;   // dev forçou fechamento → travado (prioridade)
+  if(r.boost_reopened===true) return false;       // dev reabriu → liberado
+  return anyGameLockedInRound();                  // automático: alguma partida fechou/finalizou
 }
 // === IMPULSO v2: fichas com valores específicos ===
 // a pool define APP.round.boost_chips = lista de valores, ex [25,15,15,-20].
@@ -1134,16 +1147,20 @@ async function setRoundStatus(status){
   }catch(e){toast("Erro: "+e.message);}
 }
 // ADMIN: reabrir/refechar a distribuição de impulsos mesmo após o 1º jogo (override da trava temporal)
-async function toggleBoostReopen(){
+async function setDistribLock(lock){
   if(!isAdmin()||!APP.roundId)return;
-  const willReopen=!(APP.round&&APP.round.boost_reopened===true);
+  const mode=modeOf(APP.round);
+  const nome=mode==="confianca"?"ordem de confiança":mode==="previsao"?"palpites":"distribuição de impulsos";
   try{
-    await sbUpdate("rounds",{boost_reopened:willReopen},"id=eq."+APP.roundId);
+    // lock=true: força fechamento. lock=false: reabre (libera mesmo com partida começada).
+    await sbUpdate("rounds",{boost_forced_lock:lock,boost_reopened:!lock},"id=eq."+APP.roundId);
     await loadRound(APP.roundId);
-    toast(willReopen?"Impulsos REABERTOS pelo admin — todos podem reeditar.":"Impulsos travados novamente.");
+    toast(lock?`A ${nome} foi fechada — ninguém mais edita.`:`A ${nome} foi REABERTA pelo admin — todos podem reeditar.`);
     render();
   }catch(e){toast("Erro: "+e.message);}
 }
+// compat: chamadas antigas
+function toggleBoostReopen(){ setDistribLock(boostLocked()?false:true); }
 function enterRound(roundId){go("round",null,roundId);}
 function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();window.scrollTo(0,0);}
 // toque num jogo da rodada → decide o que fazer
@@ -2093,13 +2110,24 @@ function roundHTML(){
     ${isSelect?(selLocked
       ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
       : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`):""}
-    ${(isBoost||isConf||isPred)?`<div style="margin-top:10px">
-      ${APP.round.boost_reopened===true
-        ? `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="toggleBoostReopen()">🔒 Fechar ${isConf?"ordem":isPred?"palpites":"impulsos"} novamente</button>
-           <p class="p" style="font-size:11px;color:var(--amber);margin-top:6px">⚠️ ${isConf?"Ordem reaberta":isPred?"Palpites reabertos":"Impulsos reabertos"} — todos conseguem reeditar mesmo com jogo em andamento.</p>`
-        : `<button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="toggleBoostReopen()">${mm.icon} Reabrir ${isConf?"ordem de confiança":isPred?"palpites":"distribuição de impulsos"}</button>
-           <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">⚠️ Cuidado: reabrir após um jogo começar permite ${isConf?"remanejar a ordem":isPred?"mudar palpites":"remanejar fichas"} vendo como as partidas estão indo. Use só se combinado com o grupo.</p>`}
-    </div>`:""}
+    ${(isBoost||isConf||isPred)?(()=>{
+      const nome=isConf?"ordem de confiança":isPred?"palpites":"distribuição de impulsos";
+      const travada=boostLocked();
+      const auto=anyGameLockedInRound(); // alguma partida fechou (trava automática)
+      if(travada){
+        // travada (auto ou forçada) → só o dev reabre
+        return `<div style="margin-top:10px">
+          <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="setDistribLock(false)">${mm.icon} Reabrir ${nome}</button>
+          <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">A ${nome} está <b>travada</b>${auto?" (uma partida já foi fechada)":" (você fechou manualmente)"}. Os jogadores não conseguem editar. ⚠️ Reabrir após uma partida começar permite remanejar vendo como os jogos estão indo — use só se combinado com o grupo.</p>
+        </div>`;
+      }else{
+        // aberta → dev pode forçar o fechamento antes da hora
+        return `<div style="margin-top:10px">
+          <button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setDistribLock(true)">🔒 Fechar ${nome} agora</button>
+          <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">A ${nome} trava sozinha quando a 1ª partida for fechada. Use este botão se quiser travar antes disso.</p>
+        </div>`;
+      }
+    })():""}
     ${foraAll.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${addTabsHTML}${foraRows||`<p class="p" style="font-size:11px;color:var(--dim)">Nenhum jogo ${addTab==="done"?"finalizado":"em aberto"} pra adicionar.</p>`}`:""}
   </div>`:""}`;
 }
