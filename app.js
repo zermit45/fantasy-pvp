@@ -2337,6 +2337,85 @@ function scoreEntryFor(entry,eng,ctx){
   const finalTotal=Math.round(sum*boostMult*10)/10;
   return {username:entry.username,total:finalTotal,boost:boostTokens,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
+// ============================================================
+// TIME IDEAL — a escalação que teria dado a MAIOR pontuação possível
+// (respeita 100 moedas, formação GK/DEF/MID/ATT/FLEX, melhor tática e capitão)
+// ============================================================
+const BUDGET_IDEAL=100;
+function computeDreamTeam(roomId){
+  const ctx=buildCtxFor(roomId);if(!ctx)return null;
+  const pp=ctx.prepool,eng=ctx.eng,m=ctx.match;
+  const rawOf=(p)=>{const r=m.players?m.players[String(p.id)]:null;return Object.assign({pos:p.pos,team:p.team},r||{min:0});};
+  const cand={GK:[],DEF:[],MID:[],ATT:[]};
+  for(const p of pp.players){
+    const raw=rawOf(p);
+    if(!(raw.min>0))continue;
+    const item={id:p.id,pos:p.pos,price:p.price||0,raw};
+    if(cand[p.pos])cand[p.pos].push(item);
+  }
+  if(!cand.GK.length||!cand.DEF.length||!cand.MID.length||!cand.ATT.length)return null;
+  const tactics=Object.keys(eng.TACTICS);
+  // PRÉ-COMPUTA pontos de cada jogador por tática nos 2 cenários (full/fail) — evita recalcular no loop
+  const fakeFull={},fakeFail={};
+  for(const t of tactics){fakeFull[t]="full";fakeFail[t]="fail";}
+  const pts={}, bestPossible={};
+  const all=cand.GK.concat(cand.DEF,cand.MID,cand.ATT);
+  for(const it of all){
+    pts[it.id]={};let bp=0;
+    for(const t of tactics){
+      const f=eng.scorePlayer(it.raw,t,{status:fakeFull}).total;
+      const x=eng.scorePlayer(it.raw,t,{status:fakeFail}).total;
+      pts[it.id][t]={full:f,fail:x};
+      if(f>bp)bp=f;
+    }
+    bestPossible[it.id]=bp; // melhor pontuação que esse jogador pode ter em qualquer tática
+  }
+  // ordena por melhor pontuação possível (poda mais cedo)
+  for(const k in cand)cand[k].sort((a,b)=>bestPossible[b.id]-bestPossible[a.id]);
+  const POOL=all.slice().sort((a,b)=>bestPossible[b.id]-bestPossible[a.id]);
+
+  let best=null;
+  for(const gk of cand.GK){
+    if(gk.price>BUDGET_IDEAL)continue;
+    for(const df of cand.DEF){
+      if(gk.price+df.price>BUDGET_IDEAL)continue;
+      for(const mf of cand.MID){
+        const p3=gk.price+df.price+mf.price; if(p3>BUDGET_IDEAL)continue;
+        for(const at of cand.ATT){
+          const p4=p3+at.price; if(p4>BUDGET_IDEAL)continue;
+          const usados=new Set([gk.id,df.id,mf.id,at.id]);
+          // teto otimista dos 4 já escolhidos (com capitão no melhor deles)
+          const base4=bestPossible[gk.id]+bestPossible[df.id]+bestPossible[mf.id]+bestPossible[at.id];
+          for(const fx of POOL){
+            if(usados.has(fx.id))continue;
+            const p5=p4+fx.price; if(p5>BUDGET_IDEAL)continue;
+            // PODA: teto otimista (5 melhores possíveis + 20% no maior) não supera o best? pula squadSum
+            if(best){
+              const tetoFive=base4+bestPossible[fx.id];
+              const maxInd=Math.max(bestPossible[gk.id],bestPossible[df.id],bestPossible[mf.id],bestPossible[at.id],bestPossible[fx.id]);
+              if(tetoFive+maxInd*0.2<=best.total)continue;
+            }
+            const five=[gk,df,mf,at,fx];
+            const sq=eng.squadSum(five.map(x=>x.raw));
+            for(const tac of tactics){
+              const stt=sq.status[tac];
+              let sum=0;const arr=[];
+              for(const it of five){const v=pts[it.id][tac][stt];arr.push(v);sum+=v;}
+              let capBonus=0,capIx=-1;
+              for(let i=0;i<arr.length;i++){const e=arr[i]*0.2;if(e>capBonus){capBonus=e;capIx=i;}}
+              const total=Math.round((sum+capBonus)*10)/10;
+              if(!best||total>best.total){
+                best={total,tactic:tac,captainId:five[capIx].id,spend:p5,
+                  picks:{GK:gk,DEF:df,MID:mf,ATT:at,FLEX:fx},sq};
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return best;
+}
 // constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
 const _ctxCache={};
 function buildCtxFor(roomId){
@@ -2699,6 +2778,8 @@ function resultHTML(){
     }
   });
   html+=`</div>`;
+  // TIME IDEAL — escalação que teria dado a maior pontuação possível
+  html+=dreamTeamHTML();
   // minha apuração detalhada
   if(mine){
     html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
@@ -2758,6 +2839,76 @@ function baseAllHTML(eng){
 }
 let _openBase={};
 function toggleBase(i){_openBase[i]=!_openBase[i];render();}
+// ── TIME IDEAL (dream team) ──
+let _dreamCache={};          // roomId → resultado de computeDreamTeam
+let _dreamOpen=false;        // card aberto?
+let _dreamPlayer={};         // jogadores expandidos no time ideal
+let _dreamCalc={};           // roomId → "calculando"
+function toggleDream(){
+  _dreamOpen=!_dreamOpen;
+  // calcula sob demanda (assíncrono pra não travar a UI), só na 1ª vez
+  if(_dreamOpen&&_dreamCache[APP.roomId]===undefined&&!_dreamCalc[APP.roomId]){
+    _dreamCalc[APP.roomId]=true;
+    render();
+    setTimeout(()=>{
+      try{_dreamCache[APP.roomId]=computeDreamTeam(APP.roomId);}
+      catch(e){_dreamCache[APP.roomId]=null;}
+      _dreamCalc[APP.roomId]=false;render();
+    },30);
+    return;
+  }
+  render();
+}
+function toggleDreamPlayer(k){_dreamPlayer[k]=!_dreamPlayer[k];render();}
+function dreamTeamHTML(){
+  const roomId=APP.roomId;
+  const calc=_dreamCalc[roomId];
+  const best=_dreamCache[roomId];
+  let html=`<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleDream()"><div class="nm disp" style="font-size:16px">🧠 Time ideal da partida</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_dreamOpen?"▲":"▼"}</div></div>`;
+  if(_dreamOpen){
+    if(calc){
+      html+=`<p class="p" style="margin:10px 0"><span class="loading">Calculando a escalação perfeita…</span></p>`;
+    }else if(!best){
+      html+=`<p class="p" style="margin:10px 0">Não foi possível calcular (jogo sem dados suficientes).</p>`;
+    }else{
+      const ctx=buildCtxFor(roomId);
+      const TAC=window.ENGINE_TACTICS;
+      html+=`<p class="p" style="margin:8px 0 4px">A escalação que teria feito a <b style="color:var(--amber)">maior pontuação possível</b> nesta partida, respeitando as ${BUDGET_IDEAL} moedas.</p>`;
+      html+=`<div class="slots" style="grid-template-columns:repeat(3,1fr);margin:10px 0">
+        ${statBox("🏆",best.total.toFixed(1),"pontos")}
+        ${statBox("🧠",TAC[best.tactic]?.name||best.tactic,"tática")}
+        ${statBox("💰",best.spend+"/"+BUDGET_IDEAL,"gasto")}
+      </div>`;
+      html+=`<p class="p" style="font-size:10px;margin:0 0 6px">toque num jogador p/ ver o cálculo</p>`;
+      const order=["GK","DEF","MID","ATT","FLEX"];
+      for(const sl of order){
+        const it=best.picks[sl];
+        const pl=ctx.byId[it.id];
+        const isCap=it.id===best.captainId;
+        // pontua o jogador no contexto do time ideal (com a tática vencedora)
+        const r=ctx.eng.scorePlayer(it.raw,best.tactic,best.sq);
+        let pts=r.total; if(isCap)pts=Math.round(pts*1.2*10)/10;
+        const capTag=isCap?` <span class="badgeC">C</span>`:"";
+        const pkey="dream_"+sl;
+        const pOpen=_dreamPlayer[pkey];
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleDreamPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> ${esc(pl?pl.name:"?")}<span class="teamtag" style="--tc:${teamColor(pl?pl.team:"")};margin-left:6px">${pl?pl.team:""}</span>${capTag} <span style="color:var(--dim);font-size:10px">${it.price}💰</span> <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
+        if(pOpen&&r){
+          html+=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
+            <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo</div>
+            ${(r.statLines||[]).map(([l,c,u,p2])=>`<div class="line stat" style="padding:2px 0"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${p2>0?"plus":p2<0?"minus":""}">${p2>0?"+":""}${(+p2).toFixed(1)}</span></div>`).join("")}
+            ${(r.lines||[]).length?`<div class="bsub" style="margin:6px 0 2px">⚙️ Modificadores</div>`:""}
+            ${(r.lines||[]).map(([k,val])=>`<div class="line" style="padding:2px 0"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+            ${isCap?`<div class="line" style="padding:2px 0"><span>👑 Capitão (×1.2)</span><span class="v mono plus">+${(r.total*0.2).toFixed(1)}</span></div>`:""}
+            ${r.meta?`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
+          </div>`;
+        }
+      }
+      html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
+    }
+  }
+  html+=`</div>`;
+  return html;
+}
 let _openRec={};
 let _openRank={};
 function toggleRank(i){_openRank[i]=!_openRank[i];render();}
@@ -2928,7 +3079,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="room"){APP.entries=await loadEntries();_openPeek={};}
-    if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};}
+    if(view==="result"){APP.entries=await loadEntries();_openRec={};_openRank={};_dreamOpen=false;_dreamPlayer={};}
     if(view==="profile"){APP.profile=null;APP.profileHistory=null;render();const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;render();const ph=await loadMemberHistory(APP.user.username);if(APP.view==="profile")APP.profileHistory=ph;}
     if(view==="members"){APP.members=null;render();const ms=await loadGroupMembers();if(APP.view==="members")APP.members=ms;}
     if(view==="member"){
