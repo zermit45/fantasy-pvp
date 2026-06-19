@@ -10,6 +10,50 @@ const MODE_META={
 };
 const modeOf=r=>(r&&r.mode)||"select";
 const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.select;
+// Catálogo dos 33 arquétipos: categoria, raridade típica e como conseguir.
+// (a raridade real varia por atuação; aqui é a faixa típica de quem ativa o arquétipo)
+const ARCH_CATALOG=[
+  // Goleiros
+  {name:"GK Seguro",cat:"Goleiro",rar:"Comum",how:"Goleiro que cumpriu seu papel sem grandes sustos."},
+  {name:"GK Muralha",cat:"Goleiro",rar:"Raro",how:"Goleiro com muitas defesas ou uma defesa difícil."},
+  {name:"GK Paredão",cat:"Goleiro",rar:"Épico",how:"Muitas defesas (ou uma defesaça) E sem sofrer gol."},
+  {name:"GK Líbero",cat:"Goleiro",rar:"Raro",how:"Goleiro que saiu jogando: cortes fora da área e cruzamentos, jogando muito tempo."},
+  {name:"GK Pegador de Pênalti",cat:"Goleiro",rar:"Lendário",how:"Defendeu pelo menos um pênalti."},
+  // Ataque — gol
+  {name:"Matador",cat:"Ataque",rar:"Lendário",how:"Marcou 3+ gols (hat-trick)."},
+  {name:"Artilheiro",cat:"Ataque",rar:"Épico",how:"Marcou 2 gols."},
+  {name:"Finalizador Frio",cat:"Ataque",rar:"Épico",how:"Marcou um gol que foi um golaço improvável."},
+  {name:"Decisivo",cat:"Ataque",rar:"Raro",how:"Marcou gol E deu assistência no mesmo jogo."},
+  {name:"Herói de Clutch",cat:"Ataque",rar:"Épico",how:"2+ ações decisivas nos minutos finais com jogo apertado."},
+  // Criação / assistência
+  {name:"Rei das Assistências",cat:"Criação",rar:"Épico",how:"Deu 3+ assistências."},
+  {name:"Garçom",cat:"Criação",rar:"Raro",how:"Deu 2 assistências."},
+  {name:"Cérebro do Time",cat:"Criação",rar:"Épico",how:"Criação excepcional de chances (muitas chances claras criadas)."},
+  {name:"Maestro Criador",cat:"Criação",rar:"Raro",how:"Criou muitas chances de gol ao longo do jogo."},
+  // Atacantes
+  {name:"Driblador",cat:"Ataque",rar:"Raro",how:"Atacante com 6+ dribles certos."},
+  {name:"Lobo Solitário",cat:"Ataque",rar:"Incomum",how:"Atacante com 4+ finalizações no alvo."},
+  {name:"Pivô de Área",cat:"Ataque",rar:"Incomum",how:"Atacante com 5+ duelos aéreos ganhos."},
+  {name:"Camisa 10",cat:"Criação",rar:"Incomum",how:"Meia ou atacante que criou bastante (chances de gol)."},
+  {name:"Homem de Frente",cat:"Ataque",rar:"Comum",how:"Atacante que atuou sem grande destaque estatístico."},
+  // Defensores
+  {name:"Xerife",cat:"Defesa",rar:"Raro",how:"Defensor dominante: muitos desarmes, cortes e bloqueios (16+)."},
+  {name:"Muralha Aérea",cat:"Defesa",rar:"Incomum",how:"Defensor forte no alto: aéreos, bloqueios e cortes (12+)."},
+  {name:"Ala Moderno",cat:"Defesa",rar:"Incomum",how:"Lateral ofensivo: 4+ dribles e muito envolvimento no jogo."},
+  {name:"Zagueiro Construtor",cat:"Defesa",rar:"Incomum",how:"Zagueiro que saiu jogando: muitos passes progressivos com segurança."},
+  {name:"Lateral de Corredor",cat:"Defesa",rar:"Comum",how:"Lateral com muito envolvimento ofensivo e passes pra frente."},
+  // Meio-campo
+  {name:"Box-to-Box",cat:"Meio",rar:"Raro",how:"Meia que defende E cria: recuperações + criação, muito envolvido."},
+  {name:"Volante",cat:"Meio",rar:"Incomum",how:"10+ desarmes/recuperações com muito envolvimento."},
+  {name:"Motor",cat:"Meio",rar:"Incomum",how:"Muito envolvimento no jogo + 8+ recuperações."},
+  {name:"Condutor",cat:"Meio",rar:"Incomum",how:"Meia com 5+ dribles certos (conduz a bola)."},
+  {name:"Cão de Guarda",cat:"Defesa",rar:"Incomum",how:"Muito trabalho defensivo (12+ ações) com segurança, fora do ataque."},
+  {name:"Ponta Caótico",cat:"Meio",rar:"Comum",how:"Muito envolvimento ofensivo, mas pouca segurança (joga solto)."},
+  {name:"Articulador",cat:"Meio",rar:"Comum",how:"Meia que distribui o jogo: 8+ passes progressivos."},
+  {name:"Engrenagem",cat:"Meio",rar:"Comum",how:"Meio-campista trabalhador: 6+ desarmes/recuperações."},
+  {name:"Conector",cat:"Meio",rar:"Comum",how:"Atuação equilibrada sem um destaque específico (arquétipo base)."},
+];
+const RAR_COLOR={Comum:"#9aa6b2",Incomum:"#54E0A8",Raro:"#5CA8FF",Épico:"#C77DFF",Mítico:"#FFC247",Lendário:"#FF6B6B"};
 // IMPULSO: cada ficha vale +BOOST_PCT% nos pontos da partida; teto de BOOST_MAX_PER_GAME fichas por jogo.
 const BOOST_PCT=15;            // % por ficha
 const BOOST_MAX_PER_GAME=2;    // máximo de fichas empilháveis numa mesma partida
@@ -2348,6 +2392,35 @@ function userTitle(st){
   const prog=next?Math.round((xp-cur[0])/(next[0]-cur[0])*100):100;
   return {name:cur[1], emoji:cur[2], xp, next:next?{name:next[1],falta:next[0]-xp}:null, prog};
 }
+function collectionHTML(archObj){
+  const tem=archObj||{};
+  const total=ARCH_CATALOG.length;
+  const got=ARCH_CATALOG.filter(a=>tem[a.name]>0).length;
+  let html=`<div class="card"><div class="h2 disp">🃏 Coleção de arquétipos</div>
+    <p class="p" style="margin:6px 0 10px">Você desbloqueou <b style="color:var(--amber)">${got}/${total}</b> arquétipos. Cada um é um papel que um jogador seu desempenhou numa partida. Toque pra ver como conseguir os que faltam.</p>`;
+  // agrupa por categoria
+  const cats=["Goleiro","Defesa","Meio","Criação","Ataque"];
+  for(const cat of cats){
+    const arr=ARCH_CATALOG.filter(a=>a.cat===cat);
+    if(!arr.length)continue;
+    html+=`<div class="bsub" style="margin:10px 0 4px">${cat}</div>`;
+    for(const a of arr){
+      const has=tem[a.name]>0;
+      const col=RAR_COLOR[a.rar]||"#9aa6b2";
+      const n=tem[a.name]||0;
+      html+=`<div class="line" style="padding:8px 0;align-items:flex-start;${has?"":"opacity:.5"}">
+        <span style="flex:1">
+          <b style="color:${has?"var(--chalk)":"var(--dim)"}">${has?"":"🔒 "}${esc(a.name)}</b>
+          <span style="font-size:9px;color:${col};border:1px solid ${col};border-radius:6px;padding:1px 5px;margin-left:6px">${a.rar}</span>
+          ${has?`<span style="font-size:9px;color:var(--green);margin-left:4px">✓ ${n}×</span>`:""}
+          <br><i style="font-size:11px;color:var(--dim)">${esc(a.how)}</i>
+        </span>
+      </div>`;
+    }
+  }
+  html+=`</div>`;
+  return html;
+}
 function profileTabsHTML(active,onclickFn){
   const tabs=[["geral","Geral"],["avulsa","Avulsa"],["select","🎯 Selecione"],["full","🏆 Completo"],["boost","⚡ Impulso"]];
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,l])=>`<button class="statuspill ${k===active?"st-open":""}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="${onclickFn}('${k}')">${l}</button>`).join("")}</div>`;
@@ -2403,6 +2476,8 @@ function profileHTML(){
   if(!medals.length)html+=`<p class="p" style="margin-top:8px">Nenhuma medalha ainda. Monte times nos jogos encerrados para começar a colecionar.</p>`;
   else html+=`<div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div>`;
   html+=`</div>`;
+  // COLEÇÃO completa de arquétipos (usa o geral: tudo que já desbloqueou)
+  html+=collectionHTML((APP.profile._byMode?APP.profile.geral:APP.profile).archetypes);
   // coleção de arquétipos
   if(topArch.length){
     html+=`<div class="card"><div class="h2 disp">Seus arquétipos mais frequentes${helpBtn("arquetipo")}</div><div style="margin-top:10px">`;
@@ -2495,6 +2570,8 @@ function memberHTML(){
   </div>`;
   // medalhas
   if(medals.length)html+=`<div class="card"><div class="h2 disp">Medalhas</div><div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div></div>`;
+  // coleção de arquétipos do membro (geral)
+  html+=collectionHTML(stGeral.archetypes);
   // arquétipos
   if(topArch.length){
     html+=`<div class="card"><div class="h2 disp">Arquétipos mais frequentes</div><div style="margin-top:10px">`;
