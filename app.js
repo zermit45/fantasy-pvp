@@ -1043,7 +1043,7 @@ async function askEnterRoundGame(roomId){
 // ----- RENOMEAR liga / rodada(phase) / mini rodada(round) -----
 function askRenameLeague(id){const l=(APP.leagues||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"league",id,cur:l?l.name:"",label:"Renomear liga"};render();}
 function askRenamePhase(id){const p=(APP.phases||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"phase",id,cur:p?p.name:"",label:"Renomear rodada"};render();}
-function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",roundMode:r?modeOf(r):"select",pickLimit:r?r.pick_limit:3,boostTokens:r?(r.boost_tokens||0):0,label:"Editar mini rodada"};render();}
+function askRenameRound(id){const r=(APP.rounds||[]).find(x=>x.id===id);const isBoost=r&&modeOf(r)==="boost";const chips=(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)?r.boost_chips.slice():(isBoost?Array(r.boost_tokens||2).fill(BOOST_PCT):[]);APP.confirm={mode:"rename",kind:"round",id,cur:r?r.name:"",roundMode:r?modeOf(r):"select",pickLimit:r?r.pick_limit:3,boostTokens:r?(r.boost_tokens||0):0,chips,boostMaxPerGame:r?(r.boost_max_per_game||0):0,boostMinGames:r?(r.boost_min_games||0):0,label:"Editar mini rodada"};render();}
 async function submitRename(){
   const c=APP.confirm;if(!c||!isAdmin())return;
   const f=$("renameInput");const novo=f?f.value.trim():"";
@@ -1053,7 +1053,14 @@ async function submitRename(){
   // mini rodada: permite editar limite de jogos (select) ou tokens (boost)
   if(c.kind==="round"){
     if(c.roundMode==="select"){const li=$("renamePick");if(li){let v=parseInt(li.value,10);if(v&&v>=1)patch.pick_limit=v;}}
-    if(c.roundMode==="boost"){const ti=$("renameTokens");if(ti){let v=parseInt(ti.value,10);if(v&&v>=1)patch.boost_tokens=v;}}
+    if(c.roundMode==="boost"){
+      const chips=(c.chips||[]).map(v=>Number(v)||0).filter(v=>v!==0);
+      if(!chips.length){toast("Adicione pelo menos uma ficha de impulso.");return;}
+      patch.boost_chips=chips;
+      patch.boost_tokens=chips.length;
+      patch.boost_max_per_game=c.boostMaxPerGame||0;
+      patch.boost_min_games=c.boostMinGames||0;
+    }
   }
   APP.confirm=null;
   try{
@@ -1793,7 +1800,7 @@ function roundHTML(){
       const sumPct=myChips.reduce((s,v)=>s+v,0);
       const chipPill=v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:3px 8px;height:26px;box-sizing:border-box;background:color-mix(in srgb,${col} 16%,transparent)">⚡${neg?v:"+"+v}%</span>`;};
       if(bLocked){
-        boostCtrl=myChips.length?`<span style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">${myChips.map(chipPill).join("")}</span>`:"";
+        boostCtrl=myChips.length?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${myChips.map(chipPill).join("")}<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:13px;margin-left:2px">=${sumPct<0?"":"+"}${sumPct}%</span></div>`:"";
       }else if(team){
         const avail=chipsAvailable();
         // fichas já neste jogo: clicáveis pra remover
@@ -1803,9 +1810,9 @@ function roundHTML(){
         const addBtns=distinct.map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;const n=avail.filter(x=>x===v).length;
           const label=neg?`${v}%`:`+${v}%`;
           return `<button style="display:inline-flex;align-items:center;gap:2px;border-radius:8px;border:1px dashed ${col};background:transparent;color:${col};font-size:10px;font-weight:800;padding:3px 8px;height:26px;cursor:pointer" title="Pôr ficha ${label} (${n} disponível(is))" onclick="event.stopPropagation();assignChip('${rid}',${v})">+ ⚡${label}</button>`;}).join("");
-        boostCtrl=`<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;max-width:62%">
+        boostCtrl=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${here}${here&&addBtns?'<span style="opacity:.3">|</span>':""}${addBtns}
-          ${myChips.length?`<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:12px">=${sumPct<0?"":"+"}${sumPct}%</span>`:""}
+          ${myChips.length?`<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:13px;margin-left:2px">=${sumPct<0?"":"+"}${sumPct}%</span>`:""}
         </div>`;
       }else{
         boostCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ impulsionar</span>`;
@@ -1822,9 +1829,12 @@ function roundHTML(){
         <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
-    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"}">
-      <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${boostCtrl}${devBlock}</div>
+    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${isBoost&&!finished&&boostCtrl?"flex-direction:column;align-items:stretch":""}">
+      <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
+        <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${!isBoost?boostCtrl:""}${devBlock}</div>
+      </div>
+      ${isBoost&&!finished&&boostCtrl?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">${boostCtrl}</div>`:""}
     </div>`;
   }).join("");
   const fora=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
@@ -2026,7 +2036,7 @@ function boostBuilderHTML(c){
 function addChip(v){if(!APP.confirm)return;_syncCreateName();(APP.confirm.chips=APP.confirm.chips||[]).push(v);render();}
 function removeChip(i){if(!APP.confirm||!APP.confirm.chips)return;_syncCreateName();APP.confirm.chips.splice(i,1);render();}
 function setChipValue(i,val){if(!APP.confirm||!APP.confirm.chips)return;let v=parseInt(val,10);if(isNaN(v))v=0;APP.confirm.chips[i]=v;render();}
-function _syncCreateName(){const n=$("rndName");if(n&&APP.confirm)APP.confirm.draftName=n.value;}
+function _syncCreateName(){if(!APP.confirm)return;const n=$("rndName")||$("renameInput");if(n){if(APP.confirm.mode==="rename")APP.confirm.cur=n.value;else APP.confirm.draftName=n.value;}}
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
   // modo: criar grupo (admin)
@@ -2113,7 +2123,7 @@ function confirmModalHTML(){
     if(isRound&&c.roundMode==="select"){
       extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Quantos jogos cada um escolhe:</p><input id="renamePick" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} value="${c.pickLimit||3}" />`;
     }else if(isRound&&c.roundMode==="boost"){
-      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Fichas de impulso por jogador (+${BOOST_PCT}% cada):</p><input id="renameTokens" class="input" type="number" inputmode="numeric" min="1" value="${c.boostTokens||2}" />`;
+      extra=`<p class="p" style="font-size:11px;margin-bottom:6px;color:#FFC247">Fichas de impulso desta pool:</p>${boostBuilderHTML(c)}`;
     }
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Editar mini rodada"}</div>
