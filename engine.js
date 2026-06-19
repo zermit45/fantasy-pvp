@@ -124,10 +124,7 @@ function normP(raw){
 }
 
 function makeEngine(match){
-  // PRÉVIA: se ligada, força as regras NOVAS mesmo em jogos marcados v1 (só visual, não salva nada)
-  const _preview = (typeof window!=="undefined" && window.PREVIEW_NEW_RULES);
-  const _v1 = match.tacticRules==="v1" && !_preview;
-  const B = _v1 ? BASE_V1 : BASE; // pesos antigos p/ jogos já apurados
+  const B = match.tacticRules==="v1" ? BASE_V1 : BASE; // pesos antigos p/ jogos já apurados
   const GOALS_TL = match.goals_tl||[];
   const endMin = match.endMin||96;
   function scoreAt(min){let h=0,a=0;for(const g of GOALS_TL){if(g.m<min){g.t===match.homeCode?h++:a++;}}return [h,a];}
@@ -447,7 +444,7 @@ function makeEngine(match){
   function squadSum(players){
     const ps=[];
     for(const raw of players){const p=normP(raw);if(p.min>0)ps.push(p);}
-    const useV1 = match.tacticRules==="v1" && !(typeof window!=="undefined" && window.PREVIEW_NEW_RULES); // jogos já apurados (salvo na prévia)
+    const useV1 = match.tacticRules==="v1"; // jogos já apurados antes do reboot
     // soma bruta de cada família no time
     const famRaw={},famNorm={},famZ={};
     for(const k of Object.keys(TACT_FAMILIES)){famRaw[k]=0;}

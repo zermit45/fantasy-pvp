@@ -2545,32 +2545,6 @@ function computeDreamTeam(roomId){
   return best;
 }
 // constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
-// ── PRÉVIA das regras novas (só admin, só visual) ──
-// liga window.PREVIEW_NEW_RULES e limpa os caches que guardam o engine,
-// pra os jogos antigos serem recalculados com as regras novas SÓ na tela. Nada é salvo.
-function togglePreviewRules(){
-  window.PREVIEW_NEW_RULES=!window.PREVIEW_NEW_RULES;
-  // limpa tudo que cacheia engine/pontuação
-  for(const k in _ctxCache)delete _ctxCache[k];
-  clearEntriesCache();
-  if(typeof _dreamCache==="object")for(const k in _dreamCache)delete _dreamCache[k];
-  APP.profile=null;APP.profileHistory=null;APP.memberProfile=null;APP.memberHistory=null;
-  toast(window.PREVIEW_NEW_RULES?"Prévia LIGADA — recalculando… (nada foi salvo)":"Prévia desligada — voltou ao real");
-  render();
-  // dispara o recálculo da tela atual (senão fica preso em "Calculando…")
-  setTimeout(async()=>{
-    try{
-      if(APP.view==="profile"){
-        const ps=await loadProfileStats(APP.user.username);if(APP.view==="profile")APP.profile=ps;render();
-        const ph=await loadMemberHistory(APP.user.username);if(APP.view==="profile")APP.profileHistory=ph;render();
-      }else if(APP.view==="member"&&APP.memberView){
-        const u=APP.memberView;
-        const ps=await loadProfileStats(u);if(APP.view==="member"&&APP.memberView===u)APP.memberProfile=ps;render();
-        const ph=await loadMemberHistory(u);if(APP.view==="member"&&APP.memberView===u)APP.memberHistory=ph;render();
-      }
-    }catch(e){}
-  },20);
-}
 const _ctxCache={};
 function buildCtxFor(roomId){
   if(_ctxCache[roomId]!==undefined)return _ctxCache[roomId];
@@ -2691,17 +2665,6 @@ function profileHTML(){
     </div>
     <p class="p" style="margin-bottom:0">Conquistas no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
   </div>`;
-  // PRÉVIA das regras novas (só admin) — recalcula os jogos antigos na tela, sem salvar
-  if(isAdmin()){
-    const on=!!window.PREVIEW_NEW_RULES;
-    html+=`<div class="card" style="border-color:${on?"var(--amber)":"var(--line)"}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div style="flex:1"><div style="font-weight:700;color:${on?"var(--amber)":"var(--chalk)"};font-size:14px">🔬 Prévia das regras novas</div>
-        <div style="font-size:11px;color:var(--dim);margin-top:2px">${on?"LIGADA — os jogos antigos estão sendo mostrados com as regras novas (gol vale mais, etc.). Nada foi salvo; é só visual.":"Veja como os jogos já apurados ficariam com o rebalanceamento, sem alterar nada de verdade."}</div></div>
-        <button class="statuspill ${on?"st-open":"st-closed"}" style="cursor:pointer;${on?"border-color:var(--amber);color:var(--amber)":""}" onclick="togglePreviewRules()">${on?"Desligar":"Ligar prévia"}</button>
-      </div>
-    </div>`;
-  }
   // resumo em números
   html+=`<div class="card"><div class="h2 disp">Resumo</div>
     ${profileTabsHTML(APP.profileTab,"setProfileTab")}
