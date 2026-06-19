@@ -636,6 +636,8 @@ async function loadRound(roundId){
     }
     // entries de TODOS os membros nesta rodada (escalação completa pra ranking clicável)
     APP.roundAllEntries=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=room_id,username,slots,captain,tactic,boost,boost_chips,confirmed,conf_rank,pred_home,pred_away&limit=2000");
+    // status das pools avulsas (pra trava por jogo refletir "Fechar pool" feito na partida avulsa)
+    try{APP.groupRooms=await sb("group_rooms?group_id=eq."+APP.groupId+"&select=*");}catch(e){}
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
@@ -820,10 +822,14 @@ function roomTimeLocked(roomId){
   if(idx&&idx.kickoff){const k=new Date(idx.kickoff);if(!isNaN(k)&&Date.now()>=k.getTime())return true;}
   return false;
 }
-// trava manual do admin (status da round_room)
+// trava manual do admin: pool fechada na rodada (round_rooms) OU na partida avulsa (group_rooms)
 function roomAdminLocked(roomId){
   const rr=APP.roundRooms.find(x=>x.room_id===roomId);
-  return !!(rr&&rr.status&&rr.status!=="open");
+  if(rr&&rr.status&&rr.status!=="open")return true;
+  // robustez: se a pool avulsa daquele jogo está fechada, a escalação também trava
+  const gr=(APP.groupRooms||[]).find(x=>x.room_id===roomId);
+  if(gr&&gr.status&&gr.status!=="open")return true;
+  return false;
 }
 // escalação travada para o jogador (qualquer um dos dois)
 function roomLockedInRound(roomId){
@@ -2151,8 +2157,8 @@ function roomHTML(){
       ${!open&&!finished&&hasEntry()?`<button class="btn" onclick="go('build')">👀 Ver meu time escalado</button>`:""}
       ${finished?`<button class="btn" onclick="go('result')">Ver ranking & resultado</button>`:""}
     </div>
-    ${(!finished&&!roomTimeLocked(APP.roomId)&&hasEntry())?othersEnteredHTML():""}
-    ${!finished&&roomTimeLocked(APP.roomId)?peekTeamsHTML():""}
+    ${(!finished&&open&&hasEntry())?othersEnteredHTML():""}
+    ${!finished&&!open?peekTeamsHTML():""}
     ${isAdmin()&&!finished?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
       <div class="tag" style="margin-bottom:6px">ADMIN</div>
       ${open
@@ -2202,15 +2208,30 @@ function peekTeamsHTML(){
   const ents=(APP.entries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
   const byId=APP._byId;
   const TAC=window.ENGINE_TACTICS;
+  // contexto de modo: se estou vendo um jogo dentro de uma rodada, mostro a estratégia revelada
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  const rmode=inRound?modeOf(APP.round):null;
+  const pp=APP.prepool;
+  // total de jogos ordenados por usuário (pra calcular o multiplicador de confiança exibido)
+  let confTot={};
+  if(rmode==="confianca"){(APP.roundAllEntries||[]).forEach(e=>{if(e.conf_rank!=null){confTot[e.username]=(confTot[e.username]||0)+1;}});}
   let html=`<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
     <div class="h2 disp">👀 Times dos membros</div>
-    <p class="p" style="margin:6px 0 10px">O jogo começou — agora dá pra ver o que cada um escalou. As pontuações aparecem quando o jogo acabar.</p>`;
+    <p class="p" style="margin:6px 0 10px">O jogo foi fechado — agora dá pra ver o que cada um escalou${rmode==="confianca"?", e a posição que deram a este jogo na ordem de confiança":rmode==="previsao"?", e o placar que cada um cravou":""}. As pontuações aparecem quando o jogo acabar.</p>`;
   if(!ents.length){html+=`<p class="p">Ninguém montou time neste jogo.</p></div>`;return html;}
   ents.forEach((e,i)=>{
     const open=_openPeek[i];
     const isMe=e.username===APP.user?.username;
+    // tag de estratégia revelada
+    let stratTag="";
+    if(rmode==="confianca"&&e.conf_rank!=null){
+      const tot=confTot[e.username]||1;
+      stratTag=`<span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:#C77DFF;border:1px solid #C77DFF;border-radius:6px;padding:1px 6px">📊 ${e.conf_rank+1}º · ${confMultiplier(e.conf_rank,tot).toFixed(2)}x</span>`;
+    }else if(rmode==="previsao"&&e.pred_home!=null&&e.pred_away!=null){
+      stratTag=`<span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:#54E0A8;border:1px solid #54E0A8;border-radius:6px;padding:1px 6px">🔮 ${esc(pp.home.code)} ${e.pred_home}–${e.pred_away} ${esc(pp.away.code)}</span>`;
+    }
     html+=`<div class="receipt"><div class="rhead" onclick="togglePeek(${i})">
-      <div class="nm">${esc(e.username)}${isMe?" <small>(você)</small>":""}<small>cap ${SLOT_LABEL[e.captain]||"?"} · ${TAC[e.tactic]?.name||e.tactic||"—"}</small></div>
+      <div class="nm">${esc(e.username)}${isMe?" <small>(você)</small>":""}${stratTag}<small>cap ${SLOT_LABEL[e.captain]||"?"} · ${TAC[e.tactic]?.name||e.tactic||"—"}</small></div>
       <div class="tot mono" style="color:var(--dim);font-size:14px">${open?"▲":"▼"}</div></div>`;
     if(open){
       html+=`<div class="rbody">`;
