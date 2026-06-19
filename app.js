@@ -88,6 +88,8 @@ let APP={
   leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay", homeSearch:"", homeDay:"todos",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
+  compArchived:[],      // "kind:id" de competições arquivadas manualmente (mini rodada/rodada/liga)
+  roundRoomsByRound:{}, // round_id → [round_rooms] (pra detectar rodada finalizada)
   profile:null, profileHistory:null, profileTab:"geral", memberProfileTab:"geral",
   devMode:true,         // modo DEV ligado (só afeta quem é dev); alterna admin x jogador comum
   prepool:null, match:null, roomMeta:null,
@@ -96,6 +98,7 @@ let APP={
   entries:[],           // entries da sala (pro ranking)
   avulsaLineup:null, members:null, memberView:null, memberProfile:null, memberHistory:null,
   collapsedModes:{},   // {select:true} = grupo de modo recolhido na home
+  compTab:{round:"live",phase:"live",league:"live"}, // aba "live"(andamento)/"done"(finalizadas) por seção
 };
 
 // ---------- Supabase REST helpers ----------
@@ -198,8 +201,30 @@ async function openRoomInGroup(roomId){
 async function loadArchived(){
   try{const rows=await sb("archived_games?select=room_id");APP.archived=(rows||[]).map(r=>r.room_id);}
   catch(e){APP.archived=[];}
+  // arquivamento manual de competições (mini rodada / rodada / liga)
+  try{const rows=await sb("archived_comps?group_id=eq."+APP.groupId+"&select=comp_kind,comp_id");
+    APP.compArchived=(rows||[]).map(r=>r.comp_kind+":"+r.comp_id);}
+  catch(e){APP.compArchived=APP.compArchived||[];}
 }
 function isArchived(roomId){return APP.archived.includes(roomId);}
+async function archiveComp(kind,id){
+  if(!isAdmin())return;
+  try{
+    await sbInsert("archived_comps",{group_id:APP.groupId,comp_kind:kind,comp_id:id},true,"group_id,comp_kind,comp_id");
+    await loadArchived();
+    toast("Movido para Finalizadas.");
+    render();
+  }catch(e){toast("Erro (verifique a tabela archived_comps): "+e.message);}
+}
+async function unarchiveComp(kind,id){
+  if(!isAdmin())return;
+  try{
+    await sbDelete("archived_comps",`group_id=eq.${APP.groupId}&comp_kind=eq.${kind}&comp_id=eq.${id}`);
+    await loadArchived();
+    toast("Movido para Em andamento.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
 async function archiveGame(roomId){
   if(!isAdmin())return;
   try{
@@ -431,6 +456,47 @@ async function loadRounds(){
   if(!APP.groupId)return;
   try{APP.rounds=await sb("rounds?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
   catch(e){APP.rounds=[];}
+  // carrega os jogos (round_rooms) de TODAS as mini rodadas de uma vez,
+  // pra saber quais rodadas já terminaram (todos os jogos finalizados).
+  try{
+    const ids=(APP.rounds||[]).map(r=>r.id);
+    if(ids.length){
+      const rrs=await sb("round_rooms?round_id=in.("+ids.join(",")+")&select=round_id,room_id,status");
+      const byRound={};
+      for(const rr of (rrs||[])){(byRound[rr.round_id]=byRound[rr.round_id]||[]).push(rr);}
+      APP.roundRoomsByRound=byRound;
+    }else APP.roundRoomsByRound={};
+  }catch(e){APP.roundRoomsByRound=APP.roundRoomsByRound||{};}
+}
+// ── DETECÇÃO DE "FINALIZADA" (todos os jogos com resultado) ──
+// um jogo está finalizado se o match no catálogo está finished
+function roomIsFinished(roomId){const g=window.GAMES.data[roomId];return !!(g&&g.match&&g.match.status==="finished");}
+// mini rodada finalizada: tem jogos E todos finalizados
+function roundIsFinished(roundId){
+  const rrs=(APP.roundRoomsByRound&&APP.roundRoomsByRound[roundId])||null;
+  if(!rrs||!rrs.length)return false;
+  return rrs.every(rr=>roomIsFinished(rr.room_id));
+}
+// rodada (phase) finalizada: tem mini rodadas E todas finalizadas
+function phaseIsFinished(phaseId){
+  const rounds=(APP.rounds||[]).filter(r=>r.phase_id===phaseId);
+  if(!rounds.length)return false;
+  return rounds.every(r=>roundIsFinished(r.id));
+}
+// liga finalizada: tem rodadas E todas finalizadas
+function leagueIsFinished(leagueId){
+  const phases=(APP.phases||[]).filter(p=>p.league_id===leagueId);
+  if(!phases.length)return false;
+  return phases.every(p=>phaseIsFinished(p.id));
+}
+// arquivamento MANUAL do admin (sobrepõe a detecção automática)
+function compIsArchived(kind,id){return (APP.compArchived||[]).includes(kind+":"+id);}
+function compIsFinishedView(kind,id){
+  if(compIsArchived(kind,id))return true; // admin forçou
+  if(kind==="round")return roundIsFinished(id);
+  if(kind==="phase")return phaseIsFinished(id);
+  if(kind==="league")return leagueIsFinished(id);
+  return false;
 }
 // ── LIGAS (nível 1) > RODADAS/phases (nível 2) > MINI RODADAS/rounds (nível 3) ──
 const TABLE_POINTS=[10,7,5,3]; // 1º=10, 2º=7, 3º=5, 4º=3, resto=1
@@ -1335,23 +1401,39 @@ function roundRankingHTML(){
 }
 
 
+// abas Em andamento / Finalizadas reutilizável
+function compTabsHTML(kind,liveN,doneN){
+  const active=APP.compTab[kind]||"live";
+  const tab=(k,label,n)=>`<button class="statuspill ${k===active?"st-open":"st-closed"}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="setCompTab('${kind}','${k}')">${label} (${n})</button>`;
+  return `<div style="display:flex;gap:6px;margin:4px 0 10px">${tab("live","Em andamento",liveN)}${tab("done","Finalizadas",doneN)}</div>`;
+}
+function setCompTab(kind,k){APP.compTab[kind]=k;render();}
 // ----- MINI RODADAS: card na home (só as avulsas, sem phase) -----
 function roundRowHTML(r){
   const mm=modeMeta(r);
-  const pill=r.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>';
+  const fin=compIsFinishedView("round",r.id);
+  const pill=fin?'<span class="statuspill st-finished">FINALIZADA</span>'
+    :(r.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>');
   let metaTxt;
   if(modeOf(r)==="full")metaTxt="joga todos os jogos";
   else if(modeOf(r)==="boost")metaTxt=`todos os jogos · ${r.boost_tokens||0} token(s) de impulso`;
   else metaTxt=`escolha ${r.pick_limit} jogos`;
+  // botão admin de mover entre andamento/finalizada (manual)
+  const arch=compIsArchived("round",r.id);
+  const archBtn=isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:${arch?"var(--green)":"var(--amber)"};border-color:${arch?"var(--green)":"var(--amber)"}" onclick="event.stopPropagation();${arch?`unarchiveComp('round','${r.id}')`:`archiveComp('round','${r.id}')`}" title="${arch?"Reabrir":"Finalizar"}">${arch?"♻️":"📥"}</button>`:"";
   return `<div class="roomrow" style="border-left:3px solid ${mm.color}" onclick="enterRound('${r.id}')">
     <div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">${metaTxt}</div></div>
     ${pill}
-    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameRound('${r.id}')" title="Editar">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameRound('${r.id}')" title="Editar">✏️</button>${archBtn}<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteRound('${r.id}')">🗑</button>`:""}
   </div>`;
 }
 function roundsCardHTML(){
-  const avulsas=APP.rounds.filter(r=>!r.phase_id);
-  if(!avulsas.length&&!isAdmin())return"";
+  const avulsasAll=APP.rounds.filter(r=>!r.phase_id);
+  if(!avulsasAll.length&&!isAdmin())return"";
+  const tab=APP.compTab.round||"live";
+  const liveList=avulsasAll.filter(r=>!compIsFinishedView("round",r.id));
+  const doneList=avulsasAll.filter(r=>compIsFinishedView("round",r.id));
+  const avulsas=tab==="done"?doneList:liveList;
   // agrupar por modo, na ordem select → full → boost
   const order=["select","full","boost"];
   let groupsHTML="";
@@ -1368,10 +1450,12 @@ function roundsCardHTML(){
     ${collapsed?"":`<p class="p" style="font-size:11px;margin-bottom:8px;color:color-mix(in srgb,${mm.color} 70%,var(--dim))">${mm.desc}</p>
     ${list.map(roundRowHTML).join("")}`}`;
   }
+  const emptyMsg=tab==="done"?'<p class="p">Nenhuma mini rodada finalizada ainda.</p>':'<p class="p">Nenhuma mini rodada em andamento.</p>';
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS${helpBtn("minirodada")}</div>
-    ${groupsHTML||'<p class="p">Nenhuma mini rodada avulsa.</p>'}
-    ${isAdmin()?`<button class="btn" style="margin-top:14px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
+    ${compTabsHTML("round",liveList.length,doneList.length)}
+    ${groupsHTML||emptyMsg}
+    ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:14px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
   </div>`;
 }
 function askCreateRound(){APP.confirm={mode:"createRound",newMode:"select",label:"Criar mini rodada"};render();}
@@ -1379,19 +1463,32 @@ function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm
 function toggleModeGroup(mk){APP.collapsedModes[mk]=!APP.collapsedModes[mk];render();}
 
 // ----- RODADAS (phases) avulsas: card na home -----
-function phasesCardHTML(){
-  const avulsas=(APP.phases||[]).filter(p=>!p.league_id);
-  if(!avulsas.length&&!isAdmin())return"";
-  const rows=avulsas.map(p=>`<div class="roomrow" onclick="enterPhase('${p.id}')">
+function phaseRowHTML(p){
+  const fin=compIsFinishedView("phase",p.id);
+  const pill=fin?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-finished" style="border-color:var(--mid);color:var(--mid)">VER</span>';
+  const arch=compIsArchived("phase",p.id);
+  const archBtn=isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:${arch?"var(--green)":"var(--amber)"};border-color:${arch?"var(--green)":"var(--amber)"}" onclick="event.stopPropagation();${arch?`unarchiveComp('phase','${p.id}')`:`archiveComp('phase','${p.id}')`}" title="${arch?"Reabrir":"Finalizar"}">${arch?"♻️":"📥"}</button>`:"";
+  return `<div class="roomrow" onclick="enterPhase('${p.id}')">
     <div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">rodada · toque pra ver mini rodadas</div></div>
-    <span class="statuspill st-finished">VER</span>
-    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenamePhase('${p.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeletePhase('${p.id}')">🗑</button>`:""}
-  </div>`).join("");
+    ${pill}
+    ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenamePhase('${p.id}')" title="Renomear">✏️</button>${archBtn}<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeletePhase('${p.id}')">🗑</button>`:""}
+  </div>`;
+}
+function phasesCardHTML(){
+  const avulsasAll=(APP.phases||[]).filter(p=>!p.league_id);
+  if(!avulsasAll.length&&!isAdmin())return"";
+  const tab=APP.compTab.phase||"live";
+  const liveList=avulsasAll.filter(p=>!compIsFinishedView("phase",p.id));
+  const doneList=avulsasAll.filter(p=>compIsFinishedView("phase",p.id));
+  const list=tab==="done"?doneList:liveList;
+  const rows=list.map(phaseRowHTML).join("");
+  const emptyMsg=tab==="done"?'<p class="p">Nenhuma rodada finalizada ainda.</p>':'<p class="p">Nenhuma rodada em andamento.</p>';
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--mid)">RODADAS AVULSAS${helpBtn("rodada")}</div>
     <p class="p" style="margin-bottom:10px">Uma rodada (ex: "Fase de Grupos") agrupa várias mini rodadas. Fora de liga.</p>
-    ${rows||'<p class="p">Nenhuma rodada avulsa.</p>'}
-    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreatePhase(null)">+ Criar rodada avulsa</button>`:""}
+    ${compTabsHTML("phase",liveList.length,doneList.length)}
+    ${rows||emptyMsg}
+    ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:10px" onclick="askCreatePhase(null)">+ Criar rodada avulsa</button>`:""}
   </div>`;
 }
 function askDeletePhase(id){
@@ -1402,21 +1499,33 @@ function askDeletePhase(id){
 }
 
 // ----- LIGAS: card na home -----
-function leaguesCardHTML(){
-  const rows=(APP.leagues||[]).map(l=>{
-    const nPh=(APP.phases||[]).filter(p=>p.league_id===l.id).length;
-    return `<div class="roomrow" onclick="enterLeague('${l.id}')">
+function leagueRowHTML(l){
+  const nPh=(APP.phases||[]).filter(p=>p.league_id===l.id).length;
+  const fin=compIsFinishedView("league",l.id);
+  const pill=fin?'<span class="statuspill st-finished">FINALIZADA</span>':'<span class="statuspill st-finished" style="border-color:var(--mid);color:var(--mid)">VER</span>';
+  const arch=compIsArchived("league",l.id);
+  const archBtn=isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:${arch?"var(--green)":"var(--amber)"};border-color:${arch?"var(--green)":"var(--amber)"}" onclick="event.stopPropagation();${arch?`unarchiveComp('league','${l.id}')`:`archiveComp('league','${l.id}')`}" title="${arch?"Reabrir":"Finalizar"}">${arch?"♻️":"📥"}</button>`:"";
+  return `<div class="roomrow" onclick="enterLeague('${l.id}')">
       <div class="info"><div class="nm">🏆 ${esc(l.name)}</div><div class="meta">${nPh} rodada${nPh!==1?"s":""} · classificação geral</div></div>
-      <span class="statuspill st-finished">VER</span>
-      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameLeague('${l.id}')" title="Renomear">✏️</button><button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteLeague('${l.id}')">🗑</button>`:""}
+      ${pill}
+      ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameLeague('${l.id}')" title="Renomear">✏️</button>${archBtn}<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteLeague('${l.id}')">🗑</button>`:""}
     </div>`;
-  }).join("");
-  if(!(APP.leagues||[]).length&&!isAdmin())return"";
+}
+function leaguesCardHTML(){
+  const all=(APP.leagues||[]);
+  if(!all.length&&!isAdmin())return"";
+  const tab=APP.compTab.league||"live";
+  const liveList=all.filter(l=>!compIsFinishedView("league",l.id));
+  const doneList=all.filter(l=>compIsFinishedView("league",l.id));
+  const list=tab==="done"?doneList:liveList;
+  const rows=list.map(leagueRowHTML).join("");
+  const emptyMsg=tab==="done"?'<p class="p">Nenhuma liga finalizada ainda.</p>':'<p class="p">Nenhuma liga em andamento.</p>';
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA${helpBtn("liga")}</div>
     <p class="p" style="margin-bottom:10px">Uma liga junta várias rodadas numa classificação geral. Dois rankings: pontos de tabela (10/7/5/3/1 por colocação) e pontuação clássica acumulada.</p>
-    ${rows||'<p class="p">Nenhuma liga ainda.</p>'}
-    ${isAdmin()?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
+    ${compTabsHTML("league",liveList.length,doneList.length)}
+    ${rows||emptyMsg}
+    ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
   </div>`;
 }
 function askCreateLeague(){APP.confirm={mode:"createLeague",label:"Criar liga"};render();}
