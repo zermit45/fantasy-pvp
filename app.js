@@ -1273,10 +1273,20 @@ function loginModalHTML(){
     <div class="h2 disp" style="color:var(--amber)">Entrar</div>
     <p class="p" style="margin-bottom:12px">Escolha um apelido e uma senha. Se já existe, valida a senha; se é novo, cria a conta.</p>
     <input class="input" id="li-user" placeholder="Apelido" autocomplete="off">
-    <input class="input" id="li-pass" type="password" placeholder="Senha" autocomplete="off">
+    <div style="position:relative">
+      <input class="input" id="li-pass" type="password" placeholder="Senha" autocomplete="off" style="padding-right:44px">
+      <span id="li-eye" onclick="togglePassVisib('li-pass','li-eye')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8" title="Mostrar/ocultar senha">👁️</span>
+    </div>
     <div class="warn" id="li-warn" style="display:none"></div>
     <button class="btn" onclick="doLogin()">Entrar / Criar conta</button>
   </div></div>`;
+}
+// alterna mostrar/ocultar senha (olhinho)
+function togglePassVisib(inputId,eyeId){
+  const inp=$(inputId),eye=$(eyeId);
+  if(!inp)return;
+  if(inp.type==="password"){inp.type="text";if(eye)eye.textContent="🙈";}
+  else{inp.type="password";if(eye)eye.textContent="👁️";}
 }
 async function doLogin(){
   const u=$("li-user").value.trim(), p=$("li-pass").value;
@@ -3558,12 +3568,14 @@ function topbarHTML(){
     <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
+      <div class="userchip" onclick="toggleManual()" style="padding:5px 11px;font-weight:700;cursor:pointer" title="Manual completo">📖 MANUAL</div>
       ${isDev()?`<div class="userchip" onclick="toggleDevMode()" style="cursor:pointer;border-color:${APP.devMode?"var(--amber)":"var(--line)"};color:${APP.devMode?"var(--amber)":"var(--dim)"}" title="Alternar modo DEV / jogador">${APP.devMode?"🛠 DEV":"🎮 jogador"}</div>`:""}
       ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
-  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}`;
+  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}`;
 }
 function toggleRules(){APP.showRules=!APP.showRules;render();}
+function toggleManual(){APP.showManual=!APP.showManual;render();}
 // ---- mini-ajudas contextuais (botão ? pequeno em vários lugares) ----
 const HELP={
   minirodada:["Mini rodada","Você recebe um número de fichas (tokens) de entrada. Cada jogo que você escolher gasta 1 ficha e garante sua vaga naquele jogo. Você não precisa usar todas. Escolher os jogos certos (onde você acha que vai pontuar mais) é a estratégia. A escalação de cada jogo é montada depois e pode ser ajustada até a partida começar."],
@@ -3624,6 +3636,56 @@ function rulesModalHTML(){
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Ranking:</b> quando o jogo acaba, todos os times da sala são pontuados e o ranking aparece, com a apuração detalhada de cada jogador.</p>
     <button class="btn" style="margin-top:8px" onclick="toggleRules()">Entendi</button>
+  </div></div>`;
+}
+function superManualHTML(){
+  const sec=(titulo,corpo)=>`<div style="margin:14px 0 4px"><div style="font-family:'Saira Condensed';font-weight:800;font-size:15px;letter-spacing:.03em;text-transform:uppercase;color:var(--amber)">${titulo}</div></div>${corpo}`;
+  const p=(t)=>`<p class="p" style="margin:6px 0;font-size:13px;line-height:1.5">${t}</p>`;
+  const b=(t)=>`<b style="color:var(--chalk)">${t}</b>`;
+  return `<div class="modal" onclick="toggleManual()"><div class="box" onclick="event.stopPropagation()" style="max-height:85vh;overflow:auto">
+    <div class="h2 disp" style="color:var(--amber)">📖 Manual completo</div>
+    <p class="p" style="margin:4px 0 2px;font-size:11px;color:var(--dim)">Tudo que você precisa saber pra jogar e pra administrar. Toque fora ou no botão no fim pra fechar.</p>
+
+    ${sec("1. A ideia do jogo",
+      p(`Antes de cada partida real, abre uma ${b("pool")}. Você monta um time de 6 jogadores escolhidos entre os elencos dos ${b("dois")} times que vão se enfrentar. Quando o jogo acontece de verdade, seus jogadores pontuam pelo que fizerem em campo (gols, assistências, defesas, desarmes etc.).`))}
+
+    ${sec("2. Montar seu time",
+      p(`${b("Orçamento:")} 100 moedas. Cada jogador tem um preço que reflete a qualidade dele. O banco também conta no orçamento.`)+
+      p(`${b("Os 6 slots:")} 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (pode ser def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.`)+
+      p(`${b("Capitão (×1.20):")} escolha 1 jogador (menos o banco) pra render 20% a mais.`)+
+      p(`${b("Banco:")} se um titular de linha for mal, o reserva entra no lugar — mas rende 80% da nota (pedágio). Só entra se, já com o desconto, superar o titular. O goleiro reserva só entra se o titular não jogar nenhum minuto.`)+
+      p(`${b("Tática:")} escolha 1. Cada uma tem um estilo. Fica completa (bônus) se aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele. Senão fica incompleta (ônus menor que o bônus).`))}
+
+    ${sec("3. Pontuação",
+      p(`Gols, assistências, defesas, desarmes, dribles etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`))}
+
+    ${sec("4. Mini rodadas e os modos",
+      p(`Uma ${b("mini rodada")} junta vários jogos. O modo dela define a estratégia. São 4:`)+
+      p(`🏆 ${b("Completo:")} escale todos os jogos. Sua pontuação é a soma de todos. A escalação de cada jogo trava quando aquela partida é fechada.`)+
+      p(`⚡ ${b("Impulso:")} escale todos e distribua as fichas de impulso nas partidas (cada ficha aplica um % nos pontos daquele jogo). O dev define os valores e as regras das fichas (pode ter fichas negativas obrigatórias). A distribuição trava quando a 1ª partida é fechada.`)+
+      p(`📊 ${b("Confiança:")} escale todos e ordene os jogos do que você mais confia (1º) ao que menos confia. O 1º multiplica os pontos pra cima, o último pra baixo. Quanto mais jogos, maior a diferença. A ordem trava quando a 1ª partida é fechada.`)+
+      p(`🔮 ${b("Previsão:")} escale todos e crave o placar de cada jogo. Além dos pontos da escalação, ganha bônus por acertar o resultado e um bônus maior por cravar o placar exato. Aqui o palpite trava POR JOGO, junto com a escalação daquela partida (cada jogo é independente).`))}
+
+    ${sec("5. Como as travas funcionam",
+      p(`Não há horário automático: ${b("tudo é manual")}. Quem trava é o dev, pelo botão "🔒 Fechar pool (trava as escalações)" na partida avulsa.`)+
+      p(`${b("Escalação (todos os modos):")} a escalação de cada jogo pode ser editada até o dev fechar a pool daquela partida específica. Fechar uma não trava as outras.`)+
+      p(`${b("Impulso e Confiança:")} a parte estratégica (fichas / ordem) trava quando QUALQUER jogo da rodada é fechado — porque é uma decisão sobre a rodada toda. O dev também pode fechar/reabrir essa distribuição manualmente no bloco ADMIN da rodada. Depois de travado, o jogador não reabre sozinho — só o dev.`)+
+      p(`${b("Previsão:")} o palpite trava por jogo, junto com a escalação daquela partida (como no Completo).`))}
+
+    ${sec("6. Espiar os adversários",
+      p(`Na aba ${b("\"Quem está disputando\"")}, assim que a pool de uma partida é travada, aquele jogo vira clicável e você pode espiar o que cada um fez NELE:`)+
+      p(`No Completo/Avulsa: a escalação. No Previsão: a escalação + o palpite. No Confiança: a escalação + a ordem de confiança completa do adversário. No Impulso: a escalação + onde ele gastou os impulsos. Só revela os jogos já travados.`))}
+
+    ${sec("7. Classificação",
+      p(`Quando os jogos terminam e são apurados, a ${b("Classificação da mini rodada")} soma os pontos de cada um (já com multiplicadores de confiança / bônus de previsão / impulsos aplicados) e mostra o ranking.`))}
+
+    ${isAdmin()?sec("8. Para o admin (você)",
+      p(`${b("Criar:")} use "Criar mini rodada", escolha o modo e adicione os jogos (há abas Em aberto / Finalizadas).`)+
+      p(`${b("Durante:")} quando cada partida real começar, vá na partida avulsa e clique "Fechar pool". Isso trava a escalação daquele jogo em todas as rodadas, e — no Impulso/Confiança — trava a estratégia da rodada inteira.`)+
+      p(`${b("Apurar:")} suba o resultado do jogo (scraping). A classificação se atualiza sozinha conforme os jogos são apurados.`)+
+      p(`${b("Reabrir:")} se precisar, dá pra reabrir a pool de uma partida ou a distribuição estratégica — mas combine com o grupo, porque reabrir depois de um jogo começar dá vantagem de informação.`)):""}
+
+    <button class="btn" style="margin-top:14px" onclick="toggleManual()">Fechar manual</button>
   </div></div>`;
 }
 function footHTML(){
