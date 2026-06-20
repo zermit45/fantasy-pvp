@@ -2848,11 +2848,19 @@ function hasEntry(){return APP.slots&&Object.values(APP.slots).some(Boolean);}
 // ============================================================
 // TELA: BUILD (montar time) — reaproveitada do chalkboard
 // ============================================================
+// teto de preço do banco = preço do jogador MAIS BARATO do jogo inteiro.
+// O banco é grátis (não conta no orçamento) e só aceita quem custa <= esse teto.
+function benchCap(pp){
+  if(!pp||!pp.players||!pp.players.length)return 0;
+  return pp.players.reduce((m,p)=>Math.min(m,p.price||0),Infinity);
+}
 function buildHTML(){
   const pp=APP.prepool, byId=APP._byId, s=APP.slots;
   const used=Object.values(s).filter(Boolean);
-  const spent=used.reduce((a,id)=>a+(byId[id]?byId[id].price:0),0);
+  // orçamento NÃO conta o banco (banco é grátis, estilo Cartola)
+  const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:(byId[id]?byId[id].price:0)),0);
   const left=100-spent;
+  const bcap=benchCap(pp); // teto de preço do banco
   const TAC=window.ENGINE_TACTICS;
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   const poolClosedOutOfRound = !inRound && APP.roomMeta && APP.roomMeta.status!=="open" && !(APP.match&&APP.match.status==="finished");
@@ -2868,9 +2876,9 @@ function buildHTML(){
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
     return `<div class="slot${pl?` filled s-${posKey}`:" empty"}${pl&&APP.captain===sl?" cap":""}" onclick="${pl?`clearSlot('${sl}')`:""}">
-      <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}</div>
+      <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}${sl==="BENCH"?` ·grátis ≤${bcap}`:""}</div>
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
-      ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${pl.price}</div>`:""}
+      ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
@@ -2902,7 +2910,23 @@ function buildHTML(){
     return `<div class="ptab${on?" on":""}" ${style} onclick="setTabPos('${t}')">${t==="ALL"?"TODAS":SLOT_LABEL[t]}</div>`;
   }).join("");
   const tabsHTML=`<div class="postabs">${teamTabsHTML}</div><div class="postabs">${posTabsHTML}</div>`;
-  const poolHTML=filt.map(p=>{const sel=used.includes(p.id);const dis=!sel&&left-p.price<0;return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}</div><div class="pr mono">${p.price}</div></div>`;}).join("");
+  // destino que um jogador teria, dado o estado atual dos slots (mesma lógica do place)
+  function destSlot(p){
+    if(p.pos==="GK")return !s.GK?"GK":(!s.BENCH?"BENCH":null);
+    if(!s[p.pos])return p.pos; if(!s.FLEX)return "FLEX"; if(!s.BENCH)return "BENCH"; return null;
+  }
+  const poolHTML=filt.map(p=>{
+    const sel=used.includes(p.id);
+    const dest=destSlot(p);
+    let dis=false,reason="";
+    if(!sel){
+      if(!dest){dis=true;reason="";}
+      else if(dest==="BENCH"){ if((p.price||0)>bcap){dis=true;reason="banco";} } // banco: só <= teto
+      else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
+    }
+    const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
+    return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
+  }).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){
     const tac=TAC[APP.tactic];
@@ -2911,7 +2935,7 @@ function buildHTML(){
       if(!pl)return"";
       const isCap=APP.captain===sl;
       const posKey=sl==="BENCH"&&pl?pl.pos:sl;
-      return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div><div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div><div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div><div class="pr mono" style="color:var(--dim)">${pl.price}</div></div>`;
+      return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div><div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div><div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div><div class="pr mono" style="color:var(--dim)">${sl==="BENCH"?"grátis":pl.price}</div></div>`;
     };
     return `<div class="scorebar"><div class="tag">${esc(pp.comp)} · ⚽ EM ANDAMENTO</div>
       <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">×</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>
@@ -3013,12 +3037,20 @@ async function applyLineupEverywhere(){
 function place(pid){
   const byId=APP._byId,p=byId[pid],s=APP.slots,used=Object.values(s).filter(Boolean);APP.warn="";
   if(used.includes(pid)){const sl=Object.keys(s).find(k=>s[k]===pid);s[sl]=null;if(APP.captain===sl)APP.captain=null;render();return;}
-  const spent=used.reduce((a,id)=>a+byId[id].price,0);
-  if(100-spent-p.price<0){APP.warn="Orçamento estourado.";render();return;}
+  // descobre o slot de destino
   let t=null;
   if(p.pos==="GK")t=!s.GK?"GK":!s.BENCH?"BENCH":null;
   else{if(!s[p.pos])t=p.pos;else if(!s.FLEX)t="FLEX";else if(!s.BENCH)t="BENCH";}
   if(!t){APP.warn="Sem slot compatível livre.";render();return;}
+  if(t==="BENCH"){
+    // banco: GRÁTIS, mas só aceita quem custa <= o teto (mais barato do jogo)
+    const bcap=benchCap(APP.prepool);
+    if((p.price||0)>bcap){APP.warn=`No banco só entra quem custa até ${bcap} (o mais barato do jogo). Esse custa ${p.price}.`;render();return;}
+  }else{
+    // titular: paga e respeita o orçamento (banco não conta)
+    const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:byId[id].price),0);
+    if(100-spent-p.price<0){APP.warn="Orçamento estourado.";render();return;}
+  }
   s[t]=pid;render();
 }
 function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;render();}
