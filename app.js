@@ -883,6 +883,7 @@ function peekLineupHTML(entry,roomId){
       }
       html+=predLine;
       html+=`<div class="line" style="padding:5px 0 0;border-top:1px solid var(--line);margin-top:4px"><span style="font-weight:700">Total</span><span class="mono" style="color:var(--amber);font-weight:700">${(sc.total+predB).toFixed(1)}</span></div>`;
+      if(predB>0)html+=`<div class="line" style="padding:1px 0 0"><span style="font-size:10px;color:var(--dim)">só a escalação (sem palpite)</span><span class="mono" style="font-size:10px;color:var(--dim)">${sc.total.toFixed(1)}</span></div>`;
     }
   }else{
     // jogo começou mas não apurou: mostra só os jogadores escalados (sem pontos)
