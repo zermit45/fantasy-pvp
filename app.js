@@ -5,8 +5,8 @@ const SLOT_LABEL={GK:"GOL",DEF:"DEF",MID:"MEI",ATT:"ATA",FLEX:"FLEX",BENCH:"BANC
 // modos de mini rodada (agrupamento + cores na home). Rodadas antigas (sem mode) = 'select'.
 const MODE_META={
   full:{label:"COMPLETO",icon:"🏆",color:"#5CA8FF",desc:"Jogue TODOS os jogos da mini rodada. Vale a soma de tudo."},
-  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: escale todos os jogos e distribua suas fichas de impulso nas partidas. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
-  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Escale todos os jogos e coloque-os em ordem: do que você MAIS confia (1º) pro que menos confia (último). Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
+  boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: distribua suas fichas de impulso nas partidas (pode fazer isso antes mesmo de escalar) e monte o time de cada jogo. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
+  confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Coloque os jogos em ordem: do que você MAIS confia (1º) pro que menos confia (último) — dá pra ordenar antes mesmo de escalar. Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo é livre e trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
   previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação e o palpite de cada jogo travam quando aquela partida for fechada (cada jogo é independente)."},
 };
 // modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
@@ -683,12 +683,14 @@ async function computeRoundRanking(roundId){
         if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)poolN=r.boost_chips.length;
         else if(r&&r.boost_tokens)poolN=r.boost_tokens;
       }
+      const totalRoomsRound=(APP.roundRooms||[]).length;
       for(const u of usuarios){
         const minhas=all.filter(e=>e.username===u&&e.slots&&Object.values(e.slots).some(Boolean));
         if(isConf){
-          // ordenou todos os jogos em que montou time?
-          const ordenados=minhas.filter(e=>e.conf_rank!=null).length;
-          if(minhas.length>0&&ordenados<minhas.length)eliminado[u]=true;
+          // CONFIANÇA: a estratégia exige ter ordenado TODOS os jogos da rodada.
+          // (escalar é livre jogo a jogo; quem não escalou um jogo só não pontua nele)
+          const ordenados=all.filter(e=>e.username===u&&e.conf_rank!=null).length;
+          if(minhas.length>0&&totalRoomsRound>0&&ordenados<totalRoomsRound)eliminado[u]=true;
         }else if(isBoostMode&&poolN>0){
           // QUANTAS fichas o usuário gastou no total, somando os DOIS modelos por entry:
           //  - novo: boost_chips (array de valores) → conta o length
@@ -1102,11 +1104,11 @@ async function toggleBoostConfirm(){
         if(jogosComFicha<mg){toast(`Distribua suas fichas em pelo menos ${mg} partidas diferentes (hoje em ${jogosComFicha}).`);return;}
       }
     }else if(mode==="confianca"){
-      // todos os jogos escalados devem estar na ordem
-      const montados=(APP.roundEntries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
-      const semOrdem=montados.filter(e=>e.conf_rank==null);
-      if(montados.length<APP.roundRooms.length){toast("Escale todos os jogos antes de confirmar a ordem.");return;}
-      if(semOrdem.length){toast(`Coloque todos os jogos na sua ordem de confiança (faltam ${semOrdem.length}).`);return;}
+      // a ORDEM independe da escalação: basta ter todos os jogos da rodada na ordem de confiança.
+      // (a escalação de cada jogo é livre até aquela partida começar)
+      const ordenados=(APP.roundEntries||[]).filter(e=>e.conf_rank!=null).length;
+      const faltam=APP.roundRooms.length-ordenados;
+      if(faltam>0){toast(`Coloque todos os jogos na sua ordem de confiança (faltam ${faltam}).`);return;}
     }else if(mode==="previsao"){
       const montados=(APP.roundEntries||[]).filter(e=>e.slots&&Object.values(e.slots).some(Boolean));
       const semPalpite=montados.filter(e=>e.pred_home==null||e.pred_away==null);
@@ -2228,7 +2230,7 @@ function roundHTML(){
     // mini resumo da ordem atual
     const ordList=ord.map((e,i)=>{const g=window.GAMES.data[e.room_id];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Confiança.</b> Escale TODOS os jogos e coloque-os em ordem de confiança: do 1º (mais confia) ao último. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
+      ${mm.icon} <b>Modo Confiança.</b> Coloque os jogos em ordem de confiança: do 1º (mais confia) ao último — dá pra ordenar antes de escalar. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. A escalação de cada jogo é livre até aquela partida começar. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
       ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}
       ${(!bLocked&&ranked<totalGames)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ordenou só <b>${ranked}/${totalGames}</b> jogos. Se a 1ª partida for fechada antes de você ordenar TODOS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Ordene todos os jogos!</div>`:""}`;
