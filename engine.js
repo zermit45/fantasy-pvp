@@ -19,7 +19,7 @@ const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
 // Correção SUAVE: defensor pontua um pouco mais fácil, então leva leve desconto; atacante e goleiro ganham leve empurrão.
 // Conservador de propósito (amostra de jogos ainda pequena). Reavaliar com mais jogos apurados.
 // Só vale pros jogos NOVOS; jogos v1 usam 1.0 (ficam intactos).
-const POS_MULT = { GK:1.05, DEF:0.95, MID:1.0, ATT:1.15 };
+const POS_MULT = { GK:1.02, DEF:1.077, MID:1.005, ATT:1.032 };
 const TIER_EMO = {1:0,2:.4,3:.9,4:1.6};
 const r1 = x => Math.round(x*10)/10;
 const tierXG = v => v>0.5?{b:0,t:1} : v>=0.2?{b:1.2,t:2} : v>=0.08?{b:2.6,t:3} : {b:4.2,t:4};
@@ -61,7 +61,7 @@ const TACT_BONUS_PTS = 3.5;
 const TACT_ONUS_PTS  = -1.4;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:1.3, pressaototal:1.8, cerebro:11.1, tridente:3.7, aereo:1.7, contra:1.6 };
+const TACT_PTSREF = { muralha:1.3, pressaototal:1.8, cerebro:11.2, tridente:3.7, aereo:1.7, contra:1.6 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
     desc:"Defesa em bloco no próprio campo. Ativa se segurar o jogo (cortes, bloqueios e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
@@ -100,13 +100,13 @@ const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20
 // ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
 // tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
 // Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
-const TACT_MEAN={ muralha:12.3, pressaototal:24.7, cerebro:61.2, tridente:2, aereo:11.9, contra:10.2 };
-const TACT_SD={ muralha:7, pressaototal:8.4, cerebro:27.9, tridente:2.5, aereo:5.7, contra:6.6 };
+const TACT_MEAN={ muralha:12.3, pressaototal:24.6, cerebro:61.4, tridente:2, aereo:11.9, contra:10.3 };
+const TACT_SD={ muralha:7, pressaototal:8.3, cerebro:27.9, tridente:2.5, aereo:5.7, contra:6.7 };
 // z-score mínimo por tática pra a família contar como "estilo do time".
 // Ajustado por tática (não global) pra equilibrar a frequência de ativação entre as 6
 // (todas ~16-24% nos 8 jogos limpos). Régua por-tática: menos elegante que um valor único,
 // porém empareia a viabilidade estratégica. Revisar quando houver mais jogos.
-const TACT_ZTHRESH={ muralha:0.53, pressaototal:0.81, cerebro:0.82, tridente:0, aereo:0.73, contra:0.58 };
+const TACT_ZTHRESH={ muralha:0.59, pressaototal:0.89, cerebro:0.77, tridente:0, aereo:0.72, contra:0.55 };
 const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no mapa
 // REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
@@ -408,8 +408,8 @@ function makeEngine(match){
       wasFouled:r1(p.wasFouled*mf)*B.wasFouled,longBall:r1(p.longBall*mf)*B.longBall,prgCarry:r1(p.prgCarry*mf)*B.prgCarry,
       penaltyWon:(p.penaltyWon||0)*B.penaltyWon,
     };
-    let cs=0;const csEl=p.gk||(p.pos==="DEF"&&p.min>=60);
-    if(csEl){const c=cleanSheetHalves(p.team);const gkCS=(match.tacticRules==="v1")?1.5:4.5;const csv=p.gk?gkCS:1.5;if(c.h1)cs+=csv;if(c.h2)cs+=csv;}
+    let cs=0,csHalves=0;const csEl=p.gk||(p.pos==="DEF"&&p.min>=60);
+    if(csEl){const c=cleanSheetHalves(p.team);const gkCS=(match.tacticRules==="v1")?1.5:3.0;const csv=p.gk?gkCS:1.5;if(c.h1){cs+=csv;csHalves++;}if(c.h2){cs+=csv;csHalves++;}}
     let gkB=0,conc=0;
     if(p.gk){gkB=p.gk.saves.length*B.save+p.gk.opa*B.opa+p.gk.crossStop*B.crossStop+p.gk.penSave*B.penSave;conc=p.gk.conceded*B.concededGk;}
     const negRed=redPenalty(p.red);
@@ -419,7 +419,7 @@ function makeEngine(match){
     const posPart=(Object.values(comp).reduce((a,b)=>a+b,0)+gkB+cs)*posMult;
     const baseTot=posPart+conc+neg;
     if(mf<1)push(`Stats escalonados (${p.min}', fator ${mf.toFixed(2)})`,0);
-    if(cs>0)push(`Clean sheet ${cs===3?"completo":"(1 metade)"}`,cs);
+    if(cs>0)push(`Sem sofrer gol ${csHalves===2?"(jogo todo)":"(só 1 tempo)"}`,cs);
     if(p.red)push(`Vermelho${p.red.doubleYellow?" 2º amarelo":""} ${p.red.m<=50?"(1ºT)":"(2ºT)"}`,negRed);
     const sl=statLines(p);
     let dif=0,ctx=0,clutch=0;const ev=[];
