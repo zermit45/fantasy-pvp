@@ -826,7 +826,19 @@ function peekLineupHTML(entry,roomId){
   html+=`<div style="font-size:11px;color:var(--dim);margin-bottom:4px">Tática: ${esc(tacName)}${tkPct?` · <span style="color:${tkPct<0?"#FF6B6B":"#FFC247"}">⚡ ${tkPct<0?"":"+"}${tkPct}%</span>`:""}</div>`;
   // ── estratégia revelada por modo ──
   if(mode==="previsao"&&entry.pred_home!=null&&entry.pred_away!=null&&g){
-    html+=`<div style="font-size:12px;font-weight:800;color:#54E0A8;margin-bottom:6px">🔮 Palpite: ${esc(g.prepool.home.code)} ${entry.pred_home} × ${entry.pred_away} ${esc(g.prepool.away.code)}</div>`;
+    let selo="";
+    if(finished&&Array.isArray(g.match.score)){
+      const pct=predBonusPct(entry,g.match);
+      if(pct===PRED_EXACT_PCT){
+        selo=` <span style="display:inline-block;font-size:10px;font-weight:900;color:#0A0E1C;background:#54E0A8;border-radius:6px;padding:2px 7px;margin-left:4px">🎯 CRAVOU! +${PRED_EXACT_PCT}%</span>`;
+      }else if(pct===PRED_RESULT_PCT){
+        selo=` <span style="display:inline-block;font-size:10px;font-weight:800;color:#54E0A8;border:1px solid #54E0A8;border-radius:6px;padding:2px 7px;margin-left:4px">✓ acertou o resultado · +${PRED_RESULT_PCT}%</span>`;
+      }else{
+        selo=` <span style="display:inline-block;font-size:10px;font-weight:700;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-left:4px">errou o palpite</span>`;
+      }
+    }
+    const realStr=finished&&Array.isArray(g.match.score)?` <span style="color:var(--dim);font-weight:600">(real: ${g.match.score[0]}×${g.match.score[1]})</span>`:"";
+    html+=`<div style="font-size:12px;font-weight:800;color:#54E0A8;margin-bottom:6px">🔮 Palpite: ${esc(g.prepool.home.code)} ${entry.pred_home} × ${entry.pred_away} ${esc(g.prepool.away.code)}${realStr}${selo}</div>`;
   }
   if(mode==="confianca"){
     // ordem COMPLETA de confiança do amigo (todos os jogos que ele ordenou)
@@ -860,7 +872,17 @@ function peekLineupHTML(entry,roomId){
         const subTag=v.subIn?' <span style="color:var(--blue);font-size:10px">entrou</span>':"";
         html+=`<div class="line" style="padding:3px 0"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[v.slot]}</span> ${esc(meta.name)}${capTag}${subTag}${isBench?' <span style="font-size:9px;color:var(--dim)">banco</span>':""}</span><span class="mono" style="color:${isBench?"var(--dim)":(v.pts>=0?"var(--green)":"var(--red)")}">${isBench?"—":(v.pts>=0?"+":"")+v.pts.toFixed(1)}</span></div>`;
       });
-      html+=`<div class="line" style="padding:5px 0 0;border-top:1px solid var(--line);margin-top:4px"><span style="font-weight:700">Total</span><span class="mono" style="color:var(--amber);font-weight:700">${sc.total.toFixed(1)}</span></div>`;
+      let predLine="",predB=0;
+      if(mode==="previsao"&&entry.pred_home!=null&&entry.pred_away!=null&&Array.isArray(g.match.score)){
+        const pct=predBonusPct(entry,g.match);
+        if(pct>0){
+          predB=Math.round(sc.total*(pct/100)*10)/10;
+          const lbl=pct===PRED_EXACT_PCT?"🎯 Bônus cravou placar":"✓ Bônus acertou resultado";
+          predLine=`<div class="line" style="padding:3px 0"><span style="color:#54E0A8">${lbl} (+${pct}%)</span><span class="mono" style="color:#54E0A8">+${predB.toFixed(1)}</span></div>`;
+        }
+      }
+      html+=predLine;
+      html+=`<div class="line" style="padding:5px 0 0;border-top:1px solid var(--line);margin-top:4px"><span style="font-weight:700">Total</span><span class="mono" style="color:var(--amber);font-weight:700">${(sc.total+predB).toFixed(1)}</span></div>`;
     }
   }else{
     // jogo começou mas não apurou: mostra só os jogadores escalados (sem pontos)
