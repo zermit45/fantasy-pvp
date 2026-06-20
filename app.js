@@ -2848,11 +2848,14 @@ function hasEntry(){return APP.slots&&Object.values(APP.slots).some(Boolean);}
 // ============================================================
 // TELA: BUILD (montar time) — reaproveitada do chalkboard
 // ============================================================
-// teto de preço do banco = preço do jogador MAIS BARATO do jogo inteiro.
+// teto de preço do banco = preço do TITULAR MAIS BARATO que o usuário escalou.
 // O banco é grátis (não conta no orçamento) e só aceita quem custa <= esse teto.
-function benchCap(pp){
-  if(!pp||!pp.players||!pp.players.length)return 0;
-  return pp.players.reduce((m,p)=>Math.min(m,p.price||0),Infinity);
+// Enquanto não houver nenhum titular escalado, não há teto (banco fica bloqueado).
+function benchCap(s,byId){
+  const TIT=["GK","DEF","MID","ATT","FLEX"];
+  let cap=null;
+  for(const sl of TIT){const pid=s[sl];if(!pid)continue;const pr=byId[pid]?byId[pid].price:null;if(pr==null)continue;cap=cap==null?pr:Math.min(cap,pr);}
+  return cap; // null = nenhum titular ainda
 }
 function buildHTML(){
   const pp=APP.prepool, byId=APP._byId, s=APP.slots;
@@ -2860,7 +2863,7 @@ function buildHTML(){
   // orçamento NÃO conta o banco (banco é grátis, estilo Cartola)
   const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:(byId[id]?byId[id].price:0)),0);
   const left=100-spent;
-  const bcap=benchCap(pp); // teto de preço do banco
+  const bcap=benchCap(s,byId); // teto de preço do banco = titular mais barato escalado (null se nenhum)
   const TAC=window.ENGINE_TACTICS;
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   const poolClosedOutOfRound = !inRound && APP.roomMeta && APP.roomMeta.status!=="open" && !(APP.match&&APP.match.status==="finished");
@@ -2876,7 +2879,7 @@ function buildHTML(){
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
     return `<div class="slot${pl?` filled s-${posKey}`:" empty"}${pl&&APP.captain===sl?" cap":""}" onclick="${pl?`clearSlot('${sl}')`:""}">
-      <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}${sl==="BENCH"?` ·grátis ≤${bcap}`:""}</div>
+      <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}${sl==="BENCH"?(bcap!=null?` ·grátis ≤${bcap}`:" ·grátis"):""}</div>
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
       ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
@@ -2921,7 +2924,7 @@ function buildHTML(){
     let dis=false,reason="";
     if(!sel){
       if(!dest){dis=true;reason="";}
-      else if(dest==="BENCH"){ if((p.price||0)>bcap){dis=true;reason="banco";} } // banco: só <= teto
+      else if(dest==="BENCH"){ if(bcap==null||(p.price||0)>bcap){dis=true;reason="banco";} } // banco: precisa ter titular e custar <= o teto
       else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
     }
     const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
@@ -2952,7 +2955,7 @@ function buildHTML(){
   return `<div class="card">
     <div class="budget"><div class="h2 disp">Seu time${helpBtn("slots")}</div><div><span class="tag">RESTANTE${helpBtn("orcamento")} </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
-    <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita jogador barato: até <b class="mono">${bcap}</b> (o mais barato do jogo), de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
+    <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
     <div class="tag" style="margin-bottom:4px">ESCOLHA 1 TÁTICA${helpBtn("tatica")}</div>
     <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
     <div class="tacts">${tactsHTML}</div>
@@ -3044,17 +3047,29 @@ function place(pid){
   else{if(!s[p.pos])t=p.pos;else if(!s.FLEX)t="FLEX";else if(!s.BENCH)t="BENCH";}
   if(!t){APP.warn="Sem slot compatível livre.";render();return;}
   if(t==="BENCH"){
-    // banco: GRÁTIS, mas só aceita quem custa <= o teto (mais barato do jogo)
-    const bcap=benchCap(APP.prepool);
-    if((p.price||0)>bcap){APP.warn=`No banco só entra quem custa até ${bcap} (o mais barato do jogo). Esse custa ${p.price}.`;render();return;}
+    // banco: GRÁTIS, mas só aceita quem custa <= o titular mais barato que você escalou
+    const bcap=benchCap(s,byId);
+    if(bcap==null){APP.warn="Escale ao menos um titular antes de escolher o banco (o teto do banco é o seu titular mais barato).";render();return;}
+    if((p.price||0)>bcap){APP.warn=`No banco só entra quem custa até ${bcap} (seu titular mais barato). Esse custa ${p.price}.`;render();return;}
   }else{
     // titular: paga e respeita o orçamento (banco não conta)
     const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:byId[id].price),0);
     if(100-spent-p.price<0){APP.warn="Orçamento estourado.";render();return;}
   }
-  s[t]=pid;render();
+  s[t]=pid;enforceBenchCap();render();
 }
-function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;render();}
+// se o reserva do banco ficou acima do novo teto (titular mais barato), remove e avisa
+function enforceBenchCap(){
+  const s=APP.slots,byId=APP._byId;const bp=s.BENCH;if(!bp)return;
+  const cap=benchCap(s,byId);
+  const pr=byId[bp]?byId[bp].price:null;
+  if(cap==null||(pr!=null&&pr>cap)){
+    s.BENCH=null;
+    if(APP.captain==="BENCH")APP.captain=null;
+    APP.warn=cap==null?"Banco liberado: ele depende de ter um titular escalado.":`Banco liberado: o reserva (${pr}) ficou acima do novo teto (${cap}, seu titular mais barato).`;
+  }
+}
+function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;if(sl!=="BENCH")enforceBenchCap();render();}
 function toggleCap(sl){APP.captain=APP.captain===sl?null:sl;render();}
 function setTactic(k){APP.tactic=k;render();}
 function setTabTeam(t){APP.tabTeam=t;render();}
@@ -3846,7 +3861,7 @@ const HELP={
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
   slots:["Os slots do time","Você monta 5 TITULARES — 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante e 1 FLEX (curinga de linha) — que gastam do seu orçamento. Mais o BANCO, que é grátis (regra à parte, toque no '?' do banco). Cada slot só aceita a posição certa; o FLEX é mais livre. Quem você escalar mas não entrar em campo fica com 0."],
-  banco:["Banco (reserva grátis)","O banco é GRÁTIS — não gasta moeda do seu orçamento. Em troca, ele só aceita um jogador BARATO: o limite é o preço do jogador mais barato do jogo inteiro (ex: se o mais barato custa 6, o banco aceita qualquer um que custe até 6, de qualquer posição). Os mais caros que esse limite ficam bloqueados pro banco. Na partida, se um titular de linha for mal, o reserva pode entrar no lugar — mas rende só 80% da nota (pedágio por começar fora) e só substitui se, já com o desconto, superar o titular. Goleiro reserva só conta se o titular não jogar nenhum minuto."],
+  banco:["Banco (reserva grátis)","O banco é GRÁTIS — não gasta moeda do seu orçamento. Em troca, ele só aceita um jogador BARATO: o limite é o preço do SEU TITULAR MAIS BARATO (entre os 5 que você escalou). Ex: se seu titular mais barato custa 15, o banco aceita qualquer um que custe até 15, de qualquer posição. Conforme você troca os titulares, esse teto muda. Se o reserva ficar acima do novo teto, ele é liberado. Na partida, se um titular de linha for mal, o reserva pode entrar no lugar — mas rende só 80% da nota (pedágio por começar fora) e só substitui se, já com o desconto, superar o titular. Goleiro reserva só conta se o titular não jogar nenhum minuto."],
   flex:["FLEX (curinga)","O slot FLEX aceita um jogador de defesa, meio OU ataque (não goleiro). Serve pra você reforçar a posição que quiser — um 2º atacante, um meia a mais, etc. Ele conta na composição do time pra valer."],
   ranking:["Classificação","Quando o jogo acaba, todos os times da sala são pontuados e ordenados. Toque num nome pra ver a escalação e a apuração de cada jogador. Em mini rodadas/ligas, os pontos vão somando."],
   apuracao:["Apuração do jogador","Mostra de onde veio cada ponto: estatísticas (gols, defesas, desarmes...), modificadores (dificuldade, contexto de placar, clutch, tática), o bônus de capitão e o arquétipo. É a 'conta' completa da nota."],
