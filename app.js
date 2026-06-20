@@ -23,8 +23,8 @@ function confMultiplier(rank,total){
   return Math.max(0.5, Math.round(m*100)/100);
 }
 // bônus de previsão em PORCENTAGEM (escala com os pontos do time naquele jogo)
-const PRED_EXACT_PCT=28;   // cravou o placar exato → +28%
-const PRED_RESULT_PCT=12;  // acertou só o resultado (V/E/D) → +12%
+const PRED_EXACT_PCT=40;   // cravou o placar exato → +40%
+const PRED_RESULT_PCT=10;  // acertou só o resultado (V/E/D) → +10%
 // Catálogo dos 33 arquétipos: categoria, raridade típica e como conseguir.
 // (a raridade real varia por atuação; aqui é a faixa típica de quem ativa o arquétipo)
 const ARCH_CATALOG=[
