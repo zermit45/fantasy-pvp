@@ -1742,9 +1742,8 @@ function roundRankingHTML(){
   html+=`</div>`;
   // ── PARTICIPANTES: quem escolheu cada jogo / quem já montou ──
   const mode=modeOf(APP.round);
-  const bLockedNow=boostLocked(); // impulsos revelados só depois do 1º jogo
   html+=`<div class="card"><div class="h2 disp">👥 Quem está disputando</div>`;
-  if(mode==="boost")html+=`<p class="p" style="font-size:11px;margin:4px 0 0">${bLockedNow?"Impulsos travados — onde cada um gastou já está revelado.":"⚡ Os impulsos de cada um só aparecem depois que a 1ª partida ser fechada."}</p>`;
+  if(mode==="boost")html+=`<p class="p" style="font-size:11px;margin:4px 0 0">⚡ O impulso de cada partida só é revelado quando aquela partida começa. Antes disso, fica oculto (só você vê os seus).</p>`;
   if(!all.length){
     html+=`<p class="p" style="margin-top:6px">Ninguém entrou nesta rodada ainda.</p></div>`;
     return html;
@@ -1771,7 +1770,7 @@ function roundRankingHTML(){
       }else if(mode==="boost"){
         const _ch=Array.isArray(e.boost_chips)?e.boost_chips:null;
         const tkPct=_ch&&_ch.length?_ch.reduce((s,v)=>s+(Number(v)||0),0):(parseInt(e.boost,10)||0)*BOOST_PCT;
-        const showTokens=me||bLockedNow;
+        const showTokens=me||started; // so revela o impulso DESTE jogo quando ELE trava (nao todos de uma vez)
         const tkTag=(showTokens&&tkPct)?` · <span style="color:${tkPct<0?"#FF6B6B":"#FFC247"}">⚡ ${tkPct<0?"":"+"}${tkPct}%</span>`:(showTokens?"":` · <span style="color:var(--dim)">⚡ ?</span>`);
         status=montou
           ? `<span style="color:var(--green);font-size:10px">✓ escalado${tkTag}</span>`
@@ -3563,7 +3562,7 @@ function baseAllHTML(eng){
   const rows=pp.players.map(meta=>{
     const st=m.players[String(meta.id)];
     if(!st||!st.min)return null; // só quem jogou
-    const r=eng.scorePlayer(Object.assign({pos:meta.pos},st),null,null);
+    const r=eng.scorePlayer(Object.assign({pos:meta.pos,team:meta.team},st),null,null);
     return {meta,r,name:meta.name,team:meta.team,pos:meta.pos,pts:r.total,min:r.minutes};
   }).filter(Boolean).sort((a,b)=>b.pts-a.pts);
   if(!rows.length)return `<p class="p">Sem dados de jogadores.</p>`;
