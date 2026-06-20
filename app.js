@@ -666,28 +666,35 @@ async function computeRoundRanking(roundId){
     if(isConf||isBoostMode){
       // usuários que têm pelo menos um time montado na rodada
       const usuarios=[...new Set(all.filter(e=>e.slots&&Object.values(e.slots).some(Boolean)).map(e=>e.username))];
-      // pool de fichas do impulso (valores)
+      // pool de fichas do impulso (mesma fonte que o banner: poolChips)
       let poolChipsArr=[];
       if(isBoostMode){
         const r=APP.round;
         if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)poolChipsArr=r.boost_chips.map(v=>Number(v)||0);
-        else if(r&&r.boost_tokens){poolChipsArr=Array(r.boost_tokens).fill(BOOST_PCT);}
+        else if(r&&r.boost_tokens)poolChipsArr=Array(r.boost_tokens).fill(BOOST_PCT);
       }
       for(const u of usuarios){
         const minhas=all.filter(e=>e.username===u&&e.slots&&Object.values(e.slots).some(Boolean));
         if(isConf){
-          // ordenou todos os jogos em que montou time? (conf_rank != null em cada um deles)
-          // robusto: compara com quantos times o usuário montou, não com o total da rodada
+          // ordenou todos os jogos em que montou time? (robusto: compara com o que ele montou)
           const ordenados=minhas.filter(e=>e.conf_rank!=null).length;
           if(minhas.length>0&&ordenados<minhas.length)eliminado[u]=true;
-        }else if(isBoostMode){
-          // completou a distribuição? Conta a QUANTIDADE de fichas gastas vs a quantidade da pool.
-          // (comparar por quantidade é robusto; comparar valor exato falha se a pool foi salva como tokens)
-          let usadasN=0;
-          for(const e of all){if(e.username===u&&Array.isArray(e.boost_chips))usadasN+=e.boost_chips.length;}
-          const poolN=poolChipsArr.length;
-          // só elimina se a pool tem fichas definidas E o jogador deixou de gastar alguma
-          if(poolN>0&&usadasN<poolN)eliminado[u]=true;
+        }else if(isBoostMode&&poolChipsArr.length>0){
+          // CONSISTENTE COM O BANNER: replica chipsAvailable (pool menos as gastas, casando por valor).
+          // Se sobrar ficha na pool após remover as gastas, está incompleto.
+          // Robustez: aceita boost_chips como array OU string JSON (jsonb do Supabase pode vir string).
+          const usadas=[];
+          for(const e of all){
+            if(e.username!==u)continue;
+            let c=e.boost_chips;
+            if(typeof c==="string"){try{c=JSON.parse(c);}catch(_){c=null;}}
+            if(Array.isArray(c))for(const v of c)usadas.push(Number(v)||0);
+          }
+          const restantes=poolChipsArr.slice();
+          for(const v of usadas){const i=restantes.indexOf(v);if(i>=0)restantes.splice(i,1);}
+          // só elimina se sobrou ficha E o jogador gastou MENOS fichas que a pool tem
+          // (a 2ª condição evita falso-positivo por divergência de valor quando a contagem está completa)
+          if(restantes.length>0&&usadas.length<poolChipsArr.length)eliminado[u]=true;
         }
       }
     }
