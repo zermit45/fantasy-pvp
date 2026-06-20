@@ -10,10 +10,10 @@
 const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.13, pib:0, tib:0, sca:.75, gca:2.0,
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
   save:1.35, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
-  wasFouled:.08, longBall:.12, prgCarry:.10,
-  yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2, ownGoal:-6 };
+  wasFouled:.08, longBall:.12, prgCarry:.10, penaltyWon:2.5,
+  yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, dispossessed:-.25, foul:-.45, concededGk:-2, ownGoal:-6 };
 // pesos ANTIGOS — CONGELADOS (jogos já apurados / tacticRules v1). NÃO herdam da BASE pra não alterar jogos finalizados.
-const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
+const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, penaltyWon:0, dispossessed:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
 const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
 // multiplicador de equilíbrio por posição (só nos pontos POSITIVOS) — normaliza médias entre GK/DEF/MID/ATT.
 // Correção SUAVE: defensor pontua um pouco mais fácil, então leva leve desconto; atacante e goleiro ganham leve empurrão.
@@ -61,7 +61,7 @@ const TACT_BONUS_PTS = 3.5;
 const TACT_ONUS_PTS  = -1.4;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:1.3, pressaototal:1.8, cerebro:11, tridente:3.7, aereo:1.5, contra:1.6 };
+const TACT_PTSREF = { muralha:1.3, pressaototal:1.8, cerebro:11.1, tridente:3.7, aereo:1.7, contra:1.6 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
     desc:"Defesa em bloco no próprio campo. Ativa se segurar o jogo (cortes, bloqueios e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
@@ -100,13 +100,13 @@ const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20
 // ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
 // tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
 // Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
-const TACT_MEAN={ muralha:12.3, pressaototal:24.6, cerebro:61.2, tridente:1.9, aereo:10.7, contra:9.3 };
-const TACT_SD={ muralha:7, pressaototal:8.4, cerebro:27.9, tridente:2.4, aereo:5.3, contra:6.6 };
+const TACT_MEAN={ muralha:12.3, pressaototal:24.7, cerebro:61.2, tridente:2, aereo:11.9, contra:10.2 };
+const TACT_SD={ muralha:7, pressaototal:8.4, cerebro:27.9, tridente:2.5, aereo:5.7, contra:6.6 };
 // z-score mínimo por tática pra a família contar como "estilo do time".
 // Ajustado por tática (não global) pra equilibrar a frequência de ativação entre as 6
 // (todas ~16-24% nos 8 jogos limpos). Régua por-tática: menos elegante que um valor único,
 // porém empareia a viabilidade estratégica. Revisar quando houver mais jogos.
-const TACT_ZTHRESH={ muralha:0.53, pressaototal:0.88, cerebro:0.79, tridente:0.04, aereo:0.81, contra:0.4 };
+const TACT_ZTHRESH={ muralha:0.53, pressaototal:0.81, cerebro:0.82, tridente:0, aereo:0.73, contra:0.58 };
 const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no mapa
 // REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
@@ -137,7 +137,7 @@ function normP(raw){
     min:0, started:false, goals:[], assists:[], sots:[], dribbles:0, prgp:0, pib:0, tib:0,
     sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
     yellow:0, red:null, errGoal:0, errShot:0, penCom:0, accCross:0, inaccCross:0, gk:null, ownGoal:0,
-    wasFouled:0, longBall:0, prgCarry:0,
+    wasFouled:0, longBall:0, prgCarry:0, dispossessed:0, penaltyWon:0,
     // dados de finalização (capturados do shotmap): bola parada e chute de fora
     setPieceSot:0, setPieceGoals:0, longSot:0, longGoals:0
   }, raw||{});
@@ -380,14 +380,14 @@ function makeEngine(match){
     ["Finalizações no gol",B.sot,p=>p.sots.length],["Dribles certos",B.dribble,p=>p.dribbles],
     ["Construção ofensiva",B.prgp,p=>p.prgp],["Cruzamentos certos",B.accCross,p=>p.accCross],
     ["Lançamentos certos",B.longBall,p=>p.longBall||0],["Conduções progressivas",B.prgCarry,p=>p.prgCarry||0],
-    ["Faltas sofridas",B.wasFouled,p=>p.wasFouled||0],
+    ["Faltas sofridas",B.wasFouled,p=>p.wasFouled||0],["Pênalti sofrido",B.penaltyWon,p=>p.penaltyWon||0],
     ["Cruzamentos errados",B.inaccCross,p=>p.inaccCross],["Desarmes + interceptações",B.tklint,p=>p.tklint],
     ["Bloqueios",B.block,p=>p.block],["Recuperações de bola",B.recovery,p=>p.recovery],
     ["Duelos aéreos vencidos",B.aerial,p=>p.aerial],["Cortes",B.clearance,p=>p.clearance],
     ["Defesas",B.save,p=>p.gk?p.gk.saves.length:0],["Defesa de pênalti",B.penSave,p=>p.gk?p.gk.penSave:0],
     ["Saídas (sweeper)",B.opa,p=>p.gk?p.gk.opa:0],["Cruzamentos cortados",B.crossStop,p=>p.gk?p.gk.crossStop:0],
     ["Gols sofridos",B.concededGk,p=>p.gk?p.gk.conceded:0],["Cartão amarelo",B.yellow,p=>p.yellow],
-    ["Faltas",B.foul,p=>p.fouls],["Vezes driblado",B.dribbledPast,p=>p.dribbledPast],
+    ["Faltas",B.foul,p=>p.fouls],["Vezes driblado",B.dribbledPast,p=>p.dribbledPast],["Perda de posse",B.dispossessed,p=>p.dispossessed||0],
     ["Erro → gol",B.errGoal,p=>p.errGoal],["Erro → finalização",B.errShot,p=>p.errShot||0],["Pênalti cometido",B.penCom,p=>p.penCom],
     ["Gol contra",B.ownGoal,p=>p.ownGoal||0],
   ];
@@ -406,13 +406,14 @@ function makeEngine(match){
       recovery:r1(p.recovery*mf)*B.recovery,aerial:r1(p.aerial*mf)*B.aerial,clearance:r1(p.clearance*mf)*B.clearance,
       accCross:r1(p.accCross*mf)*B.accCross,inaccCross:r1(p.inaccCross*mf)*B.inaccCross,
       wasFouled:r1(p.wasFouled*mf)*B.wasFouled,longBall:r1(p.longBall*mf)*B.longBall,prgCarry:r1(p.prgCarry*mf)*B.prgCarry,
+      penaltyWon:(p.penaltyWon||0)*B.penaltyWon,
     };
     let cs=0;const csEl=p.gk||(p.pos==="DEF"&&p.min>=60);
     if(csEl){const c=cleanSheetHalves(p.team);const gkCS=(match.tacticRules==="v1")?1.5:4.5;const csv=p.gk?gkCS:1.5;if(c.h1)cs+=csv;if(c.h2)cs+=csv;}
     let gkB=0,conc=0;
     if(p.gk){gkB=p.gk.saves.length*B.save+p.gk.opa*B.opa+p.gk.crossStop*B.crossStop+p.gk.penSave*B.penSave;conc=p.gk.conceded*B.concededGk;}
     const negRed=redPenalty(p.red);
-    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+(p.errShot||0)*B.errShot+p.penCom*B.penCom+(p.ownGoal||0)*B.ownGoal+r1(p.dribbledPast*mf)*B.dribbledPast+r1(p.fouls*mf)*B.foul;
+    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+(p.errShot||0)*B.errShot+p.penCom*B.penCom+(p.ownGoal||0)*B.ownGoal+r1(p.dribbledPast*mf)*B.dribbledPast+(p.dispossessed||0)*B.dispossessed+r1(p.fouls*mf)*B.foul;
     // multiplicador de equilíbrio por posição: só nos POSITIVOS, e só em jogos novos (v1 = 1.0)
     const posMult=(match.tacticRules==="v1")?1:((POS_MULT[p.pos])||1);
     const posPart=(Object.values(comp).reduce((a,b)=>a+b,0)+gkB+cs)*posMult;
