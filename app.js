@@ -872,18 +872,40 @@ function peekLineupHTML(entry,roomId){
         const subTag=v.subIn?' <span style="color:var(--blue);font-size:10px">entrou</span>':"";
         html+=`<div class="line" style="padding:3px 0"><span><span style="color:var(--dim);font-size:10px">${SLOT_LABEL[v.slot]}</span> ${esc(meta.name)}${capTag}${subTag}${isBench?' <span style="font-size:9px;color:var(--dim)">banco</span>':""}</span><span class="mono" style="color:${isBench?"var(--dim)":(v.pts>=0?"var(--green)":"var(--red)")}">${isBench?"—":(v.pts>=0?"+":"")+v.pts.toFixed(1)}</span></div>`;
       });
-      let predLine="",predB=0;
+      // ── decomposição base → ajuste → total (mesmo layout nos 3 modos) ──
+      // sc.total já vem COM impulso aplicado (boostMult). A base sem impulso é sc.total/boostMult.
+      const baseSemBoost=sc.boostMult&&sc.boostMult!==1?Math.round((sc.total/sc.boostMult)*10)/10:sc.total;
+      let ajusteLinhas="",base=sc.total,total=sc.total,baseLabel="";
       if(mode==="previsao"&&entry.pred_home!=null&&entry.pred_away!=null&&Array.isArray(g.match.score)){
         const pct=predBonusPct(entry,g.match);
+        base=sc.total; total=sc.total;
         if(pct>0){
-          predB=Math.round(sc.total*(pct/100)*10)/10;
+          const predB=Math.round(sc.total*(pct/100)*10)/10;
+          total=Math.round((sc.total+predB)*10)/10;
           const lbl=pct===PRED_EXACT_PCT?"🎯 Bônus cravou placar":"✓ Bônus acertou resultado";
-          predLine=`<div class="line" style="padding:3px 0"><span style="color:#54E0A8">${lbl} (+${pct}%)</span><span class="mono" style="color:#54E0A8">+${predB.toFixed(1)}</span></div>`;
+          ajusteLinhas=`<div class="line" style="padding:3px 0"><span style="color:#54E0A8">${lbl} (+${pct}%)</span><span class="mono" style="color:#54E0A8">+${predB.toFixed(1)}</span></div>`;
+          baseLabel="só a escalação (sem palpite)";
         }
+      }else if(mode==="boost"&&sc.boostPct){
+        // impulso: base (sem impulso) → ajuste ± % → total impulsionado (sc.total)
+        base=baseSemBoost; total=sc.total;
+        const dif=Math.round((sc.total-baseSemBoost)*10)/10;
+        const pos=sc.boostPct>=0;
+        ajusteLinhas=`<div class="line" style="padding:3px 0"><span style="color:${pos?"#FFC247":"#FF6B6B"}">⚡ Impulso (${pos?"+":""}${sc.boostPct}%)</span><span class="mono" style="color:${pos?"#FFC247":"#FF6B6B"}">${pos?"+":""}${dif.toFixed(1)}</span></div>`;
+        baseLabel="só a escalação (sem impulso)";
+      }else if(mode==="confianca"&&entry.conf_rank!=null){
+        // confiança: base → ×multiplicador da posição → total
+        const tot=(APP.roundAllEntries||[]).filter(e=>e.username===entry.username&&e.conf_rank!=null).length||1;
+        const mult=confMultiplier(entry.conf_rank,tot);
+        base=sc.total; total=Math.round(sc.total*mult*10)/10;
+        const dif=Math.round((total-sc.total)*10)/10;
+        const pos=dif>=0;
+        ajusteLinhas=`<div class="line" style="padding:3px 0"><span style="color:#C77DFF">📊 Confiança ${entry.conf_rank+1}º (${mult.toFixed(2)}x)</span><span class="mono" style="color:${pos?"#54E0A8":"#FF6B6B"}">${pos?"+":""}${dif.toFixed(1)}</span></div>`;
+        baseLabel="só a escalação (sem confiança)";
       }
-      html+=predLine;
-      html+=`<div class="line" style="padding:5px 0 0;border-top:1px solid var(--line);margin-top:4px"><span style="font-weight:700">Total</span><span class="mono" style="color:var(--amber);font-weight:700">${(sc.total+predB).toFixed(1)}</span></div>`;
-      if(predB>0)html+=`<div class="line" style="padding:1px 0 0"><span style="font-size:10px;color:var(--dim)">só a escalação (sem palpite)</span><span class="mono" style="font-size:10px;color:var(--dim)">${sc.total.toFixed(1)}</span></div>`;
+      html+=ajusteLinhas;
+      html+=`<div class="line" style="padding:5px 0 0;border-top:1px solid var(--line);margin-top:4px"><span style="font-weight:700">Total</span><span class="mono" style="color:var(--amber);font-weight:700">${total.toFixed(1)}</span></div>`;
+      if(ajusteLinhas&&baseLabel)html+=`<div class="line" style="padding:1px 0 0"><span style="font-size:10px;color:var(--dim)">${baseLabel}</span><span class="mono" style="font-size:10px;color:var(--dim)">${base.toFixed(1)}</span></div>`;
     }
   }else{
     // jogo começou mas não apurou: mostra só os jogadores escalados (sem pontos)
