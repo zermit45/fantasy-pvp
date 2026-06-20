@@ -661,6 +661,7 @@ async function computeRoundRanking(roundId){
     // Confiança: tem que ter ordenado TODOS os jogos da rodada.
     // Impulso: tem que ter gastado TODAS as fichas da pool.
     const eliminado={};
+    APP._elimDebug=[];
     const totalGamesRound=(APP.roundRooms||[]).length;
     const isBoostMode=mode==="boost";
     if(isConf||isBoostMode){
@@ -692,8 +693,13 @@ async function computeRoundRanking(roundId){
           }
           const restantes=poolChipsArr.slice();
           for(const v of usadas){const i=restantes.indexOf(v);if(i>=0)restantes.splice(i,1);}
+          // DIAGNÓSTICO (temporário): guarda o que foi lido pra mostrar pro dev
+          try{
+            APP._elimDebug=APP._elimDebug||[];
+            APP._elimDebug.push({u,pool:poolChipsArr.slice(),gastou:usadas.slice(),sobrou:restantes.slice(),
+              entries:all.filter(e=>e.username===u).map(e=>({room:e.room_id,chips:e.boost_chips,tipo:typeof e.boost_chips}))});
+          }catch(_){}
           // só elimina se sobrou ficha E o jogador gastou MENOS fichas que a pool tem
-          // (a 2ª condição evita falso-positivo por divergência de valor quando a contagem está completa)
           if(restantes.length>0&&usadas.length<poolChipsArr.length)eliminado[u]=true;
         }
       }
@@ -1717,6 +1723,14 @@ function roundRankingHTML(){
       html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${posN}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
       if(open)html+=roundUserTeamsHTML(u.username);
     });
+    // PAINEL DE DIAGNÓSTICO (só dev) — mostra por que alguém foi eliminado
+    if(isAdmin()&&Array.isArray(APP._elimDebug)&&APP._elimDebug.length){
+      html+=`<div class="prebox" style="border-color:#FFC247;background:rgba(255,194,71,.08);margin-top:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all">🔧 DEBUG ELIMINAÇÃO (só você vê):\n`;
+      for(const d of APP._elimDebug){
+        html+=`\n${d.u}\n  pool (${d.pool.length}): ${JSON.stringify(d.pool)}\n  gastou (${d.gastou.length}): ${JSON.stringify(d.gastou)}\n  sobrou: ${JSON.stringify(d.sobrou)}\n  entries: ${JSON.stringify(d.entries)}\n`;
+      }
+      html+=`</div>`;
+    }
   }else{
     html+=`<p class="p">⏳ Aguardando os jogos escolhidos terminarem. A classificação aparece aqui conforme as partidas forem sendo apuradas.</p>`;
   }
