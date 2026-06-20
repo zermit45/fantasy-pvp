@@ -143,6 +143,16 @@ function entryFilter(roomId,roundId){
   const base=`room_id=eq.${roomId}&group_id=eq.${APP.groupId}&username=eq.${encodeURIComponent(APP.user.username)}`;
   return base+(rid?`&round_id=eq.${rid}`:`&round_id=is.null`);
 }
+// Garante que existe uma entry (mesmo vazia, sem escalação) pra este jogo na rodada.
+// Permite ordenar (confiança) ou gastar fichas (impulso) ANTES de montar o time.
+// Retorna a entry local após recarregar; cria no banco se ainda não existir.
+async function ensureEntry(roomId){
+  let e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
+  if(e)return e;
+  await sbInsert("entries",{room_id:roomId,group_id:APP.groupId,round_id:APP.roundId,username:APP.user.username,slots:{GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},captain:null,tactic:null,confirmed:false,updated_at:new Date().toISOString()});
+  await loadRound(APP.roundId);
+  return (APP.roundEntries||[]).find(x=>x.room_id===roomId);
+}
 
 // ---------- GRUPOS ----------
 async function loadGroups(){
@@ -661,49 +671,38 @@ async function computeRoundRanking(roundId){
     // Confiança: tem que ter ordenado TODOS os jogos da rodada.
     // Impulso: tem que ter gastado TODAS as fichas da pool.
     const eliminado={};
-    APP._elimDebug=[];
     const totalGamesRound=(APP.roundRooms||[]).length;
     const isBoostMode=mode==="boost";
     if(isConf||isBoostMode){
       // usuários que têm pelo menos um time montado na rodada
       const usuarios=[...new Set(all.filter(e=>e.slots&&Object.values(e.slots).some(Boolean)).map(e=>e.username))];
-      // pool de fichas do impulso (mesma fonte que o banner: poolChips)
-      let poolChipsArr=[];
+      // QUANTAS fichas a pool tem (modelo novo: boost_chips; antigo: boost_tokens)
+      let poolN=0;
       if(isBoostMode){
         const r=APP.round;
-        if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)poolChipsArr=r.boost_chips.map(v=>Number(v)||0);
-        else if(r&&r.boost_tokens)poolChipsArr=Array(r.boost_tokens).fill(BOOST_PCT);
+        if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)poolN=r.boost_chips.length;
+        else if(r&&r.boost_tokens)poolN=r.boost_tokens;
       }
       for(const u of usuarios){
         const minhas=all.filter(e=>e.username===u&&e.slots&&Object.values(e.slots).some(Boolean));
         if(isConf){
-          // ordenou todos os jogos em que montou time? (robusto: compara com o que ele montou)
+          // ordenou todos os jogos em que montou time?
           const ordenados=minhas.filter(e=>e.conf_rank!=null).length;
           if(minhas.length>0&&ordenados<minhas.length)eliminado[u]=true;
-        }else if(isBoostMode&&poolChipsArr.length>0){
-          // CONSISTENTE COM O BANNER: replica chipsAvailable (pool menos as gastas, casando por valor).
-          // Se sobrar ficha na pool após remover as gastas, está incompleto.
-          // Robustez: aceita boost_chips como array OU string JSON (jsonb do Supabase pode vir string).
-          const usadas=[];
+        }else if(isBoostMode&&poolN>0){
+          // QUANTAS fichas o usuário gastou no total, somando os DOIS modelos por entry:
+          //  - novo: boost_chips (array de valores) → conta o length
+          //  - antigo: boost (número de fichas naquele jogo) → conta o número
+          let usadasN=0;
           for(const e of all){
             if(e.username!==u)continue;
             let c=e.boost_chips;
             if(typeof c==="string"){try{c=JSON.parse(c);}catch(_){c=null;}}
-            if(Array.isArray(c))for(const v of c)usadas.push(Number(v)||0);
+            if(Array.isArray(c)&&c.length)usadasN+=c.length;
+            else usadasN+=Math.max(0,parseInt(e.boost,10)||0); // fallback modelo antigo
           }
-          const restantes=poolChipsArr.slice();
-          for(const v of usadas){const i=restantes.indexOf(v);if(i>=0)restantes.splice(i,1);}
-          // DIAGNÓSTICO (temporário): guarda o que foi lido pra mostrar pro dev
-          try{
-            APP._elimDebug=APP._elimDebug||[];
-            APP._elimDebug.push({u,pool:poolChipsArr.slice(),poolLen:poolChipsArr.length,
-              roundChips:APP.round?APP.round.boost_chips:"(sem APP.round)",
-              roundTokens:APP.round?APP.round.boost_tokens:"?",
-              gastou:usadas.slice(),sobrou:restantes.slice(),
-              entries:all.filter(e=>e.username===u).map(e=>({room:e.room_id,chips:e.boost_chips,tipo:typeof e.boost_chips}))});
-          }catch(_){}
-          // só elimina se sobrou ficha E o jogador gastou MENOS fichas que a pool tem
-          if(restantes.length>0&&usadas.length<poolChipsArr.length)eliminado[u]=true;
+          // elimina só se gastou MENOS fichas que a pool tem
+          if(usadasN<poolN)eliminado[u]=true;
         }
       }
     }
@@ -959,13 +958,13 @@ function boostNoMix(){const r=APP.round;return !!(r&&r.boost_no_mix);}
 // ===== CONFIANÇA =====
 // conf_rank é 0-based: 0 = mais confia. Guardado na entry de cada jogo.
 function confRankOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);return e&&e.conf_rank!=null?e.conf_rank:null;}
-function confRankedCount(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null&&e.slots&&Object.values(e.slots).some(Boolean)).length;}
+function confRankedCount(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).length;}
 // lista de entries rankeadas, em ordem
 function confOrdered(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).slice().sort((a,b)=>a.conf_rank-b.conf_rank);}
 async function confAdd(roomId){
   if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
-  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
-  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  let e=await ensureEntry(roomId);
+  if(!e){toast("Erro ao preparar este jogo.");return;}
   if(e.conf_rank!=null)return;
   const next=confRankedCount(); // entra no fim
   try{await sbUpdate("entries",{conf_rank:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));await loadRound(APP.roundId);render();}
@@ -1027,8 +1026,8 @@ function chipsOn(roomId){
 // atribui uma ficha (de um valor) a um jogo; ou remove (signRemove=valor a tirar)
 async function assignChip(roomId,value){
   if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
-  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
-  if(!e){toast("Monte o time deste jogo primeiro.");return;}
+  let e=await ensureEntry(roomId);
+  if(!e){toast("Erro ao preparar este jogo.");return;}
   // tem essa ficha disponível?
   const avail=chipsAvailable();
   if(avail.indexOf(value)<0){toast("Você não tem mais uma ficha de "+(value<0?value:"+"+value)+"%.");return;}
@@ -1065,9 +1064,9 @@ function boostOn(roomId){return chipsOn(roomId).length;}
 // ajusta tokens de impulso num jogo (retrocompat para pools antigas: +1/−1 com fichas iguais)
 async function changeBoost(roomId,delta){
   if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
-  const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);
-  if(!e){toast("Monte o time deste jogo primeiro.");return;}
   if(delta>0){
+    let e=await ensureEntry(roomId);
+    if(!e){toast("Erro ao preparar este jogo.");return;}
     const avail=chipsAvailable();if(!avail.length){toast("Você já gastou todas as suas fichas.");return;}
     // pega a ficha de maior valor disponível (comportamento antigo: todas iguais)
     return assignChip(roomId,avail.sort((a,b)=>b-a)[0]);
@@ -1726,14 +1725,6 @@ function roundRankingHTML(){
       html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${posN}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
       if(open)html+=roundUserTeamsHTML(u.username);
     });
-    // PAINEL DE DIAGNÓSTICO (dev) — mostra por que alguém foi eliminado
-    if(isDev()&&Array.isArray(APP._elimDebug)&&APP._elimDebug.length){
-      html+=`<div class="prebox" style="border-color:#FFC247;background:rgba(255,194,71,.08);margin-top:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all">🔧 DEBUG ELIMINAÇÃO (só você vê):\n`;
-      for(const d of APP._elimDebug){
-        html+=`\n${d.u}\n  pool lida (${d.poolLen}): ${JSON.stringify(d.pool)}\n  round.boost_chips: ${JSON.stringify(d.roundChips)}\n  round.boost_tokens: ${JSON.stringify(d.roundTokens)}\n  gastou (${d.gastou.length}): ${JSON.stringify(d.gastou)}\n  sobrou: ${JSON.stringify(d.sobrou)}\n  entries: ${JSON.stringify(d.entries)}\n`;
-      }
-      html+=`</div>`;
-    }
   }else{
     html+=`<p class="p">⏳ Aguardando os jogos escolhidos terminarem. A classificação aparece aqui conforme as partidas forem sendo apuradas.</p>`;
   }
@@ -2115,7 +2106,7 @@ function roundHTML(){
       const chipPill=v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:3px 8px;height:26px;box-sizing:border-box;background:color-mix(in srgb,${col} 16%,transparent)">⚡${neg?v:"+"+v}%</span>`;};
       if(bLocked){
         boostCtrl=myChips.length?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${myChips.map(chipPill).join("")}<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:13px;margin-left:2px">=${sumPct<0?"":"+"}${sumPct}%</span></div>`:"";
-      }else if(team){
+      }else{
         const avail=chipsAvailable();
         // fichas já neste jogo: clicáveis pra remover
         const here=myChips.map(v=>`<span onclick="event.stopPropagation();unassignChip('${rid}',${v})" style="cursor:pointer" title="Remover">${chipPill(v)}</span>`).join("");
@@ -2124,12 +2115,12 @@ function roundHTML(){
         const addBtns=distinct.map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;const n=avail.filter(x=>x===v).length;
           const label=neg?`${v}%`:`+${v}%`;
           return `<button style="display:inline-flex;align-items:center;gap:2px;border-radius:8px;border:1px dashed ${col};background:transparent;color:${col};font-size:10px;font-weight:800;padding:3px 8px;height:26px;cursor:pointer" title="Pôr ficha ${label} (${n} disponível(is))" onclick="event.stopPropagation();assignChip('${rid}',${v})">+ ⚡${label}</button>`;}).join("");
+        const dica=team?"":`<span style="font-size:10px;color:var(--dim);margin-left:2px" title="Você pode gastar fichas antes de escalar; lembre de montar o time depois">escale depois</span>`;
         boostCtrl=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${here}${here&&addBtns?'<span style="opacity:.3">|</span>':""}${addBtns}
           ${myChips.length?`<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:13px;margin-left:2px">=${sumPct<0?"":"+"}${sumPct}%</span>`:""}
+          ${dica}
         </div>`;
-      }else{
-        boostCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ impulsionar</span>`;
       }
     }
     // controle de CONFIANÇA: ordenar jogos por confiança (setas ↑/↓), mostra multiplicador
@@ -2140,7 +2131,7 @@ function roundHTML(){
       const total=confRankedCount();
       if(bLocked){
         extraCtrl=myRank!=null?`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:${mm.color}">📊 ${myRank+1}º confiança · <span>${confMultiplier(myRank,total).toFixed(2)}x</span></span>`:`<span style="font-size:11px;color:var(--dim)">sem ordem</span>`;
-      }else if(team){
+      }else{
         if(myRank==null){
           extraCtrl=`<button style="border-radius:8px;border:1px dashed ${mm.color};background:transparent;color:${mm.color};font-size:11px;font-weight:800;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();confAdd('${rid}')">+ pôr na minha ordem de confiança</button>`;
         }else{
@@ -2152,8 +2143,6 @@ function roundHTML(){
             <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
           </div>`;
         }
-      }else{
-        extraCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ ordenar</span>`;
       }
     }
     if(isPred&&!finished){
