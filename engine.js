@@ -11,7 +11,7 @@ const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.08, pib:.3, tib:
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
   save:1.35, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
   wasFouled:.08, longBall:.12, prgCarry:.10,
-  yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2, ownGoal:-5 };
+  yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, foul:-.45, concededGk:-2, ownGoal:-6 };
 // pesos ANTIGOS — CONGELADOS (jogos já apurados / tacticRules v1). NÃO herdam da BASE pra não alterar jogos finalizados.
 const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
 const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
