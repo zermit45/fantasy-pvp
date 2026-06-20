@@ -7,7 +7,7 @@
 // Pesos de pontuação. BASE = rebalanceado (gol/assist valem mais, passe/desarme menos).
 // BASE_V1 = pesos antigos, usados SÓ pelos jogos já apurados (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram.
-const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.08, pib:.3, tib:.05, sca:.75, gca:2.0,
+const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.13, pib:0, tib:0, sca:.75, gca:2.0,
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
   save:1.35, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
   wasFouled:.08, longBall:.12, prgCarry:.10,
@@ -61,7 +61,7 @@ const TACT_BONUS_PTS = 3.5;
 const TACT_ONUS_PTS  = -1.4;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:5.5, pressaototal:6.0, cerebro:10.6, tridente:5.1, aereo:3.0, contra:5.8 };
+const TACT_PTSREF = { muralha:1.3, pressaototal:1.8, cerebro:11, tridente:3.7, aereo:1.5, contra:1.6 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
     desc:"Defesa em bloco no próprio campo. Ativa se segurar o jogo (cortes, bloqueios e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
@@ -84,25 +84,30 @@ const TACTICS = {
     fam:["aerial","accCross","longBall"], minPlayers:2,
     metric:p=>p.aerial+p.accCross+p.longBall, partMin:2},
   contra:{name:"Contra-Ataque",
-    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções progressivas, dribles e passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
-    fam:["prgCarry","dribbles","pib"], minPlayers:3,
-    metric:p=>p.prgCarry+p.dribbles+p.pib, partMin:2},
+    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções progressivas e dribles) for o forte do seu time e 3+ jogadores conduzirem.",
+    fam:["prgCarry","dribbles"], minPlayers:3,
+    metric:p=>p.prgCarry*2+p.dribbles, partMin:2},
 };
 // famílias de referência pra calcular a DOMINÂNCIA (proporção interna do time).
 // IMPORTANTE: cada ação tem volume natural muito diferente (passes >> dribles >>
 // cruzamentos). Por isso normalizamos cada família por um divisor de referência,
 // para que "dominante" signifique "o time se destacou NAQUILO relativo ao normal
 // daquela ação", e não simplesmente a ação de maior volume bruto (passe sempre venceria).
-const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20, contra:37 };
+const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20, contra:12 };
 // MINI REBOOT do balanceamento de táticas (z-score):
 // cada família tem distribuição muito diferente (passe >> finalização). Em vez de
 // comparar famílias entre si (o que sempre favorecia as de ação comum), medimos quão
 // ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
 // tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
 // Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
-const TACT_MEAN={ muralha:12.5, pressaototal:25.5, cerebro:44.3, tridente:0.8, aereo:15.5, contra:12.6 };
-const TACT_SD={ muralha:5.2, pressaototal:7.6, cerebro:17.3, tridente:1.2, aereo:4.1, contra:4.9 };
-const TACT_ZTHRESH=0.5; // z-score mínimo pra a família contar como "estilo do time"
+const TACT_MEAN={ muralha:12.3, pressaototal:24.6, cerebro:61.2, tridente:1.9, aereo:10.7, contra:9.3 };
+const TACT_SD={ muralha:7, pressaototal:8.4, cerebro:27.9, tridente:2.4, aereo:5.3, contra:6.6 };
+// z-score mínimo por tática pra a família contar como "estilo do time".
+// Ajustado por tática (não global) pra equilibrar a frequência de ativação entre as 6
+// (todas ~16-24% nos 8 jogos limpos). Régua por-tática: menos elegante que um valor único,
+// porém empareia a viabilidade estratégica. Revisar quando houver mais jogos.
+const TACT_ZTHRESH={ muralha:0.53, pressaototal:0.88, cerebro:0.79, tridente:0.04, aereo:0.81, contra:0.4 };
+const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no mapa
 // REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
 // v1 = top-3 famílias dominantes + NORM antigo + participação antiga (tridente/aereo pediam 3 jogadores).
@@ -114,7 +119,7 @@ const TACT_FAMILIES={
   cerebro:p=>p.prgp+p.sca+p.gca*2+(p.assists?p.assists.length:0),
   tridente:p=>(p.sots?p.sots.length:0)+(p.goals?p.goals.length:0)*2,
   aereo:p=>p.aerial+p.accCross+p.longBall,
-  contra:p=>p.prgCarry+p.dribbles+p.pib,
+  contra:p=>p.prgCarry*2+p.dribbles,
 };
 // FAMÍLIAS CONGELADAS dos jogos v1 (já apurados) — idênticas às antigas, pra não recalcular táticas finalizadas.
 const TACT_FAMILIES_V1={
@@ -164,7 +169,7 @@ function makeEngine(match){
     recovery : p.recovery,
     aerial   : p.aerial,
     sot      : p.sots.length,
-    dribPib  : p.dribbles + p.pib*0.5,                 // contra-ataque: dribles + passes na área
+    dribPib  : p.dribbles + p.prgCarry*0.5,            // contra-ataque: dribles + condução
     setPiece : (p.setPieceSot||0) + (p.setPieceGoals||0)*2 + p.aerial*0.5, // bola parada
     longShot : (p.longSot||0) + (p.longGoals||0)*2,    // meia-lua: chutes de fora
   };}
@@ -245,7 +250,7 @@ function makeEngine(match){
     const per90=v=>v/p.min*90;const pct=(v,c)=>Math.max(0,Math.min(100,v/c*100));
     let iui,tw;
     if(p.gk){const g=p.gk;iui=pct(per90(g.opa+g.crossStop*0.7),2.5);tw=pct(per90(g.opa*1.2+g.crossStop+g.saves.length*0.3),5);}
-    else{iui=pct(per90(p.sots.length+p.goals.length+p.sca*1.2+p.gca*2+p.prgp*.5+p.pib*.7+p.tib*.25+p.dribbles*.6),{DEF:5,MID:8,ATT:9}[p.pos]||8);
+    else{iui=pct(per90(p.sots.length+p.goals.length+p.sca*1.2+p.gca*2+p.prgp*.85+p.dribbles*.6),{DEF:5,MID:8,ATT:9}[p.pos]||8);
          tw=pct(per90(p.tklint+p.block+p.recovery*.5+p.aerial*.5+p.clearance*.3+p.prgp*.35+p.sca*.35),{DEF:10,MID:9,ATT:5}[p.pos]||9);}
     const ev=[...p.goals.map(g=>tierXG(g.xg).b),...p.assists.map(a=>tierXG(a.xag).b),...(p.gk?p.gk.saves.map(s=>tierSV(s.psxg).b):[])];
     let eff=ev.length?ev.reduce((a,b)=>a+b,0)/ev.length/4.2*100:50;
@@ -301,8 +306,8 @@ function makeEngine(match){
     else if(A>=3) arch="Rei das Assistências";                             // 3+ assists
     else if(A>=2) arch="Garçom";
     // ---- criação (específicos primeiro, limiares altos) ----
-    else if((p.sca+p.gca*2)>=9&&p.pib>=5) arch="Cérebro do Time";          // criação excepcional
-    else if((p.sca+p.gca*2)>=7&&p.pib>=3) arch="Maestro Criador";
+    else if((p.sca+p.gca*2)>=9&&p.prgp>=30) arch="Cérebro do Time";          // criação excepcional
+    else if((p.sca+p.gca*2)>=7&&p.prgp>=18) arch="Maestro Criador";
     // ---- ataque ----
     else if(p.pos==="ATT"&&p.dribbles>=6) arch="Driblador";                // drible em série
     else if(p.pos==="ATT"&&p.sots.length>=4) arch="Lobo Solitário";        // muito chute
@@ -313,7 +318,7 @@ function makeEngine(match){
     else if(p.pos==="DEF"&&(p.tklint+p.clearance+p.block)>=16) arch="Xerife";  // defensor dominante
     else if(p.pos==="DEF"&&(p.aerial+p.block+p.clearance)>=12) arch="Muralha Aérea";
     else if(p.pos==="DEF"&&p.dribbles>=4&&ix.iui>=72) arch="Ala Moderno";   // lateral ofensivo
-    else if(p.pos==="DEF"&&p.prgp>=9&&p.pib>=2&&ix.sec>=72) arch="Zagueiro Construtor"; // muita saída de bola
+    else if(p.pos==="DEF"&&p.prgp>=12&&ix.sec>=72) arch="Zagueiro Construtor"; // muita saída de bola
     else if(p.pos==="DEF"&&ix.iui>=78&&p.prgp>=4) arch="Lateral de Corredor";
     // ---- meio-campo (Box-to-Box agora exige contribuição REAL nas duas fases) ----
     else if(p.pos==="MID"&&(p.tklint+p.recovery)>=7&&(p.sca+p.gca*2+p.dribbles+p.prgp*0.3)>=6&&ix.tw>=78) arch="Box-to-Box"; // defende E cria
@@ -373,8 +378,7 @@ function makeEngine(match){
   const STAT_DEFS=[
     ["Gols",B.goal,p=>p.goals.length],["Assistências",B.assist,p=>p.assists.length],
     ["Finalizações no gol",B.sot,p=>p.sots.length],["Dribles certos",B.dribble,p=>p.dribbles],
-    ["Passes progressivos",B.prgp,p=>p.prgp],["Passes na área",B.pib,p=>p.pib],
-    ["Toques na área",B.tib,p=>p.tib],["Cruzamentos certos",B.accCross,p=>p.accCross],
+    ["Construção ofensiva",B.prgp,p=>p.prgp],["Cruzamentos certos",B.accCross,p=>p.accCross],
     ["Lançamentos certos",B.longBall,p=>p.longBall||0],["Conduções progressivas",B.prgCarry,p=>p.prgCarry||0],
     ["Faltas sofridas",B.wasFouled,p=>p.wasFouled||0],
     ["Cruzamentos errados",B.inaccCross,p=>p.inaccCross],["Desarmes + interceptações",B.tklint,p=>p.tklint],
@@ -397,7 +401,7 @@ function makeEngine(match){
     const mf=minFactor(p);
     const comp={
       goal:p.goals.length*B.goal,assist:p.assists.length*B.assist,sotPts:p.sots.length*B.sot,
-      dribbles:r1(p.dribbles*mf)*B.dribble,prgp:r1(p.prgp*mf)*B.prgp,pib:r1(p.pib*mf)*B.pib,tib:r1(p.tib*mf)*B.tib,
+      dribbles:r1(p.dribbles*mf)*B.dribble,prgp:r1(p.prgp*mf)*B.prgp,
       sca:r1(p.sca*mf)*B.sca,gca:p.gca*B.gca,tklint:r1(p.tklint*mf)*B.tklint,block:r1(p.block*mf)*B.block,
       recovery:r1(p.recovery*mf)*B.recovery,aerial:r1(p.aerial*mf)*B.aerial,clearance:r1(p.clearance*mf)*B.clearance,
       accCross:r1(p.accCross*mf)*B.accCross,inaccCross:r1(p.inaccCross*mf)*B.inaccCross,
@@ -423,7 +427,7 @@ function makeEngine(match){
     for(const s of p.sots){const d=diffAt(s.m);ctx+=B.sot*(ctxDecisive(d)-1);if(s.m>=85&&d<=1)clutch+=0.6;}
     if(p.gk)for(const s of p.gk.saves){const t=tierSV(s.psxg),d=diffAt(s.m);dif+=t.b;ctx+=(B.save+t.b)*(ctxDefEvt(d)-1);if(s.m>=85&&d<=1){clutch+=t.b*0.25+0.6+TIER_EMO[t.t];ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t}) clutch`);}else if(t.t>=3)ev.push(`🧤 Defesa ${s.m}' PSxG ${s.psxg.toFixed(2)} (T${t.t})`);}
     const defAgg=comp.tklint+comp.block+comp.recovery+comp.aerial+comp.clearance;
-    const smallAgg=comp.prgp+comp.pib+comp.tib+comp.sca+comp.dribbles+comp.accCross;
+    const smallAgg=comp.prgp+comp.sca+comp.dribbles+comp.accCross;
     ctx+=defAgg*(ctxDefAgg-1)+smallAgg*(ctxSmallAgg-1);
     clutch=Math.min(clutch,CAPS.CLUTCH);
     push("Dificuldade (xG·xAG·PSxG)",r1(dif));
@@ -492,7 +496,7 @@ function makeEngine(match){
         const pv=TACT_PART_V1[key]; if(pv){minP=pv.minPlayers;partMin=pv.partMin;}
       }else{
         // regra nova: z-score acima do limiar (régua justa entre todas)
-        dominant = (famZ[key]||0)>=TACT_ZTHRESH;
+        dominant = (famZ[key]||0)>=(TACT_ZTHRESH[key]!=null?TACT_ZTHRESH[key]:TACT_ZTHRESH_DEFAULT);
       }
       let part=0; for(const p of ps){ if(T.metric(p)>=partMin) part++; }
       const enough = part>=minP;
