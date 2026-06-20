@@ -922,10 +922,24 @@ function picksLocked(){
 }
 // jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
 // trava por HORÁRIO (jogo começou) ou jogo finalizado — não inclui trava manual do admin
+// EXCEÇÃO: se o admin REABRIU a pool daquele jogo (status "open" mesmo após o kickoff),
+// a trava por horário é vencida — vale pra TODOS os modos (avulso, previsão, etc.),
+// liberando só AQUELE jogo (escalação e palpite). Jogo finalizado nunca reabre.
+function roomReopened(roomId){
+  // só "reaberto de propósito" vence a trava por horário. A flag reopened é setada
+  // pelo admin ao reabrir a pool (setPoolStatus). Um jogo que nunca foi fechado NÃO
+  // conta como reaberto — ele ainda trava no kickoff (pra ninguém editar sabendo o rumo do jogo).
+  const gr=(APP.groupRooms||[]).find(x=>x.room_id===roomId);
+  if(gr&&gr.reopened===true&&gr.status==="open")return true;
+  const rr=(APP.roundRooms||[]).find(x=>x.room_id===roomId);
+  if(rr&&rr.reopened===true&&rr.status==="open")return true;
+  return false;
+}
 function roomTimeLocked(roomId){
   const g=window.GAMES.data[roomId];
-  if(g&&g.match&&g.match.status==="finished")return true;
-  // sem kickoff automático: a trava por horário não se aplica (tudo é manual via "Fechar pool")
+  if(g&&g.match&&g.match.status==="finished")return true; // finalizado nunca reabre
+  // se o admin reabriu/manteve a pool aberta, a trava por horário não se aplica a este jogo
+  if(roomReopened(roomId))return false;
   const idx=(APP.jogos||[]).find(j=>j.room_id===roomId);
   if(idx&&idx.kickoff){const k=new Date(idx.kickoff);if(!isNaN(k)&&Date.now()>=k.getTime())return true;}
   return false;
@@ -2349,7 +2363,10 @@ function roomHTML(){
 async function setPoolStatus(status){
   if(!isAdmin())return;
   try{
-    await sbUpdate("group_rooms",{status},`group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}`);
+    // reopened=true só quando o admin REABRE de propósito (vence a trava por horário em todos os modos).
+    // ao fechar, reopened volta a false.
+    const reopened = status==="open";
+    await sbUpdate("group_rooms",{status,reopened},`group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}`);
     APP.roomMeta.status=status;
     // PROPAGA: travar/destravar a pool avulsa também trava/destrava o MESMO jogo nas mini rodadas DESTE grupo
     const rrStatus=status==="closed"?"locked":"open";
@@ -2359,7 +2376,7 @@ async function setPoolStatus(status){
       const myRoundIds=(APP.rounds||[]).map(r=>r.id);
       if(myRoundIds.length){
         const inList="("+myRoundIds.join(",")+")";
-        const res=await sbUpdate("round_rooms",{status:rrStatus},`room_id=eq.${encodeURIComponent(APP.roomId)}&round_id=in.${inList}`);
+        const res=await sbUpdate("round_rooms",{status:rrStatus,reopened},`room_id=eq.${encodeURIComponent(APP.roomId)}&round_id=in.${inList}`);
         propagou=(res&&res.length)||0;
       }
     }catch(e){/* se round_rooms não permitir, segue só com a avulsa */}
