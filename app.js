@@ -696,7 +696,10 @@ async function computeRoundRanking(roundId){
           // DIAGNÓSTICO (temporário): guarda o que foi lido pra mostrar pro dev
           try{
             APP._elimDebug=APP._elimDebug||[];
-            APP._elimDebug.push({u,pool:poolChipsArr.slice(),gastou:usadas.slice(),sobrou:restantes.slice(),
+            APP._elimDebug.push({u,pool:poolChipsArr.slice(),poolLen:poolChipsArr.length,
+              roundChips:APP.round?APP.round.boost_chips:"(sem APP.round)",
+              roundTokens:APP.round?APP.round.boost_tokens:"?",
+              gastou:usadas.slice(),sobrou:restantes.slice(),
               entries:all.filter(e=>e.username===u).map(e=>({room:e.room_id,chips:e.boost_chips,tipo:typeof e.boost_chips}))});
           }catch(_){}
           // só elimina se sobrou ficha E o jogador gastou MENOS fichas que a pool tem
@@ -1723,11 +1726,11 @@ function roundRankingHTML(){
       html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${posN}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
       if(open)html+=roundUserTeamsHTML(u.username);
     });
-    // PAINEL DE DIAGNÓSTICO (só dev) — mostra por que alguém foi eliminado
-    if(isAdmin()&&Array.isArray(APP._elimDebug)&&APP._elimDebug.length){
+    // PAINEL DE DIAGNÓSTICO (dev) — mostra por que alguém foi eliminado
+    if(isDev()&&Array.isArray(APP._elimDebug)&&APP._elimDebug.length){
       html+=`<div class="prebox" style="border-color:#FFC247;background:rgba(255,194,71,.08);margin-top:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all">🔧 DEBUG ELIMINAÇÃO (só você vê):\n`;
       for(const d of APP._elimDebug){
-        html+=`\n${d.u}\n  pool (${d.pool.length}): ${JSON.stringify(d.pool)}\n  gastou (${d.gastou.length}): ${JSON.stringify(d.gastou)}\n  sobrou: ${JSON.stringify(d.sobrou)}\n  entries: ${JSON.stringify(d.entries)}\n`;
+        html+=`\n${d.u}\n  pool lida (${d.poolLen}): ${JSON.stringify(d.pool)}\n  round.boost_chips: ${JSON.stringify(d.roundChips)}\n  round.boost_tokens: ${JSON.stringify(d.roundTokens)}\n  gastou (${d.gastou.length}): ${JSON.stringify(d.gastou)}\n  sobrou: ${JSON.stringify(d.sobrou)}\n  entries: ${JSON.stringify(d.entries)}\n`;
       }
       html+=`</div>`;
     }
