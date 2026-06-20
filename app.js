@@ -676,19 +676,18 @@ async function computeRoundRanking(roundId){
       for(const u of usuarios){
         const minhas=all.filter(e=>e.username===u&&e.slots&&Object.values(e.slots).some(Boolean));
         if(isConf){
-          // ordenou todos os jogos da rodada? (conf_rank != null em cada jogo)
-          const ordenados=all.filter(e=>e.username===u&&e.conf_rank!=null).length;
-          if(ordenados<totalGamesRound)eliminado[u]=true;
+          // ordenou todos os jogos em que montou time? (conf_rank != null em cada um deles)
+          // robusto: compara com quantos times o usuário montou, não com o total da rodada
+          const ordenados=minhas.filter(e=>e.conf_rank!=null).length;
+          if(minhas.length>0&&ordenados<minhas.length)eliminado[u]=true;
         }else if(isBoostMode){
-          // gastou todas as fichas da pool? (soma das fichas atribuídas == pool)
-          const usadas=[];
-          for(const e of all){if(e.username===u&&Array.isArray(e.boost_chips))for(const v of e.boost_chips)usadas.push(Number(v)||0);}
-          // confere que todas as fichas da pool foram usadas (mesma quantidade)
-          if(poolChipsArr.length>0){
-            const restantes=poolChipsArr.slice();
-            for(const v of usadas){const i=restantes.indexOf(v);if(i>=0)restantes.splice(i,1);}
-            if(restantes.length>0)eliminado[u]=true; // sobrou ficha sem gastar
-          }
+          // completou a distribuição? Conta a QUANTIDADE de fichas gastas vs a quantidade da pool.
+          // (comparar por quantidade é robusto; comparar valor exato falha se a pool foi salva como tokens)
+          let usadasN=0;
+          for(const e of all){if(e.username===u&&Array.isArray(e.boost_chips))usadasN+=e.boost_chips.length;}
+          const poolN=poolChipsArr.length;
+          // só elimina se a pool tem fichas definidas E o jogador deixou de gastar alguma
+          if(poolN>0&&usadasN<poolN)eliminado[u]=true;
         }
       }
     }
