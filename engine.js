@@ -61,7 +61,7 @@ const TACT_BONUS_PTS = 3.5;
 const TACT_ONUS_PTS  = -1.4;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:1.3, pressaototal:1.8, cerebro:11.2, tridente:3.7, aereo:1.7, contra:1.6 };
+const TACT_PTSREF = { muralha:1.7, pressaototal:2.2, cerebro:7.6, tridente:12.3, aereo:1.3, contra:2.4 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
     desc:"Defesa em bloco no próprio campo. Ativa se segurar o jogo (cortes, bloqueios e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
@@ -438,17 +438,25 @@ function makeEngine(match){
     const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
     if(dvg>0.05)push(`DvG underdog ×${dm.toFixed(3)}`,r1(dvg));
     let tact=0;const T=TACTICS[tacticKey];
-    // squadSum.status[tacticKey] diz se a tática ficou completa ('full') ou não ('fail').
-    // O efeito é NORMALIZADO: cada tática rende o mesmo em pontos no time todo,
-    // independente de quantas/quais ações a família tem. TACT_PTSREF = soma de pontos
-    // TÍPICA daquela família num time (medida nos jogos reais). O bônus-alvo é dividido
-    // entre os jogadores conforme a fatia de cada um na família.
+    // TÁTICA — assimetria proposital entre ACERTAR e ERRAR:
+    //  • COMPLETA (full): cada jogador ganha um bônus PROPORCIONAL à própria
+    //    contribuição na família. Quem produziu muito ganha bastante.
+    //      famPts = pontos do jogador nas ações da família (T.fam, em comp)
+    //      ref    = TACT_PTSREF (produção de referência de quem "rende bem")
+    //      bônus  = TACT_BONUS_PTS × (famPts/ref)   — total do time pode passar de 3.5
+    //  • INCOMPLETA (fail): punição COLETIVA e igual. O time todo escolheu a tática
+    //    errada, então o ônus (TACT_ONUS_PTS) é dividido em partes iguais entre os
+    //    5 titulares (−0.28 cada). Assim a punição SEMPRE acontece quando se erra a
+    //    tática (no modelo proporcional ela sumia: quem errava mais era punido menos).
     if(T&&squadSum&&squadSum.status){
       const st=squadSum.status[tacticKey];
-      const alvo=st==="full"?TACT_BONUS_PTS:TACT_ONUS_PTS; // +3.5 completa / -1.4 incompleta (no time todo) — meio-termo: sensível mas não dominante, dividido entre quem produziu
-      let famPts=0; for(const k of T.fam){famPts+=(comp[k]??0);}
-      const ref=TACT_PTSREF[tacticKey]||10;
-      tact=alvo*(famPts/ref); // a fatia deste jogador no bônus do time
+      if(st==="full"){
+        let famPts=0; for(const k of T.fam){famPts+=(comp[k]??0);}
+        const ref=TACT_PTSREF[tacticKey]||10;
+        tact=TACT_BONUS_PTS*(famPts/ref); // proporcional à contribuição
+      }else{
+        tact=TACT_ONUS_PTS/5; // ônus coletivo: parte igual do alvo entre os 5 titulares
+      }
       tact=Math.max(-CAPS.TACT,Math.min(CAPS.TACT,tact));
       if(Math.abs(tact)>=0.05)push(`Tática ${T.name} ${st==="full"?"completa":"incompleta"}`,r1(tact));
     }

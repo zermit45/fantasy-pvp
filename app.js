@@ -3751,7 +3751,7 @@ function render(){
 function topbarHTML(){
   const inGroup=APP.groupId&&APP.user;
   return `<div class="topbar">
-    <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.4.0 · PvP</small></div>
+    <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.5.0 · PvP</small></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
       <div class="userchip" onclick="toggleManual()" style="padding:5px 11px;font-weight:700;cursor:pointer" title="Manual completo">📖 MANUAL</div>
@@ -3879,7 +3879,7 @@ function superManualHTML(){
   </div></div>`;
 }
 function footHTML(){
-  return `<div class="foot">Motor v2.4.0 · ELO eloratings + FootballDatabase<br>Dados FotMob + SofaScore · ${SUPA.ready()?"Supabase conectado":"⚠ configure o config.js"}</div>`;
+  return `<div class="foot">Motor v2.5.0 · ELO eloratings + FootballDatabase<br>Dados FotMob + SofaScore · ${SUPA.ready()?"Supabase conectado":"⚠ configure o config.js"}</div>`;
 }
 
 // ============================================================
