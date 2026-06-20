@@ -2846,7 +2846,7 @@ function buildHTML(){
     const uniq=[...new Set(fam)];
     return `<div class="teff"><div class="up">▲ completa = bônus</div><div class="down">▼ incompleta = ônus menor</div><div class="foco">foco em <b>${uniq.join(", ")}</b></div></div>`;
   }
-  const tactsHTML=Object.entries(TAC).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`;}).join("");
+  const tactsHTML=Object.entries(TAC).filter(([k,t])=>!t.legacy).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`;}).join("");
   // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
   const teamTabs=["ALL",pp.home.code,pp.away.code];
   const teamTabsHTML=teamTabs.map(t=>{
@@ -3122,7 +3122,7 @@ function computeDreamTeam(roomId){
     if(cand[p.pos])cand[p.pos].push(item);
   }
   if(!cand.GK.length||!cand.DEF.length||!cand.MID.length||!cand.ATT.length)return null;
-  const tactics=Object.keys(eng.TACTICS);
+  const tactics=Object.keys(eng.TACTICS).filter(t=>!eng.TACTICS[t].legacy);
   // PRÉ-COMPUTA pontos de cada jogador por tática nos 2 cenários (full/fail) — evita recalcular no loop
   const fakeFull={},fakeFail={};
   for(const t of tactics){fakeFull[t]="full";fakeFail[t]="fail";}
@@ -3751,7 +3751,7 @@ function render(){
 function topbarHTML(){
   const inGroup=APP.groupId&&APP.user;
   return `<div class="topbar">
-    <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.5.0 · PvP</small></div>
+    <div class="logo" onclick="go('groups')" style="cursor:pointer">FANTASY PvP<br><small>v2.6.0 · PvP</small></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="userchip" onclick="toggleRules()" style="padding:5px 11px;font-weight:700" title="Como funciona">?</div>
       <div class="userchip" onclick="toggleManual()" style="padding:5px 11px;font-weight:700;cursor:pointer" title="Manual completo">📖 MANUAL</div>
@@ -3879,7 +3879,7 @@ function superManualHTML(){
   </div></div>`;
 }
 function footHTML(){
-  return `<div class="foot">Motor v2.5.0 · ELO eloratings + FootballDatabase<br>Dados FotMob + SofaScore · ${SUPA.ready()?"Supabase conectado":"⚠ configure o config.js"}</div>`;
+  return `<div class="foot">Motor v2.6.0 · ELO eloratings + FootballDatabase<br>Dados FotMob + SofaScore · ${SUPA.ready()?"Supabase conectado":"⚠ configure o config.js"}</div>`;
 }
 
 // ============================================================

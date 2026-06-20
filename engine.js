@@ -61,32 +61,32 @@ const TACT_BONUS_PTS = 3.5;
 const TACT_ONUS_PTS  = -1.4;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
-const TACT_PTSREF = { muralha:1.7, pressaototal:2.2, cerebro:7.6, tridente:12.3, aereo:1.3, contra:2.4 };
+const TACT_PTSREF = { muralha:1.21, pressaototal:1.95, cerebro:6.47, tridente:12.3, aereo:1.04, contra:1.4 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
-    desc:"Defesa em bloco no próprio campo. Ativa se segurar o jogo (cortes, bloqueios e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
-    fam:["clearance","block","aerial"], minPlayers:3,
-    metric:p=>p.clearance+p.block+p.aerial, partMin:2},
+    desc:"Defesa raçuda no próprio campo. Ativa se travar o jogo (bloqueios, cortes e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
+    fam:["block","clearance","aerial"], minPlayers:3,
+    metric:p=>p.block*3+p.clearance+p.aerial, partMin:1},
   pressaototal:{name:"Gegenpress",
     desc:"Pressão alta pra roubar a bola. Ativa se recuperar a posse (recuperações, desarmes e faltas táticas) for o ponto forte do seu time e 3+ jogadores pressionarem.",
     fam:["recovery","tklint"], minPlayers:3,
-    metric:p=>p.recovery+p.tklint+p.fouls, partMin:2},
+    metric:p=>p.recovery+p.tklint+p.fouls, partMin:1.5},
   cerebro:{name:"Tiki-Taka",
-    desc:"Posse e troca de passes curtos. Ativa se a construção (passes progressivos, criação de chances e assistências) for o forte do seu time e 3+ jogadores criarem.",
+    desc:"Criação e troca de passes. Ativa se gerar chances (criação de finalizações, passes decisivos e assistências) for o forte do seu time e 3+ jogadores criarem.",
     fam:["prgp","sca","gca","assist"], minPlayers:3,
-    metric:p=>p.prgp+p.sca+p.gca*2, partMin:2},
-  tridente:{name:"Ataque Total",
-    desc:"Bombardeio ao gol. Ativa se finalizar (chutes no gol + gols) for o forte do seu time e 2+ jogadores finalizarem.",
+    metric:p=>p.prgp*0.15+p.sca*2+p.gca*2+(p.assists?p.assists.length:0)*2, partMin:1},
+  tridente:{name:"Ataque Total", legacy:true,
+    desc:"(tática descontinuada — mantida só para jogos antigos)",
     fam:["goal","sotPts"], minPlayers:2,
     metric:p=>p.sots.length+p.goals.length*2, partMin:1},
   aereo:{name:"Jogo Aéreo",
     desc:"Bola alta e jogo direto. Ativa se o jogo pelo alto (duelos aéreos, cruzamentos certos e lançamentos longos) for o forte do seu time e 2+ jogadores explorarem o alto.",
     fam:["aerial","accCross","longBall"], minPlayers:2,
-    metric:p=>p.aerial+p.accCross+p.longBall, partMin:2},
+    metric:p=>p.aerial*2+p.accCross*3+p.longBall, partMin:1},
   contra:{name:"Contra-Ataque",
-    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções progressivas e dribles) for o forte do seu time e 3+ jogadores conduzirem.",
-    fam:["prgCarry","dribbles"], minPlayers:3,
-    metric:p=>p.prgCarry*2+p.dribbles, partMin:2},
+    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções, dribles e passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
+    fam:["prgCarry","dribbles","pib"], minPlayers:3,
+    metric:p=>p.prgCarry*2+p.dribbles*2+p.pib, partMin:1},
 };
 // famílias de referência pra calcular a DOMINÂNCIA (proporção interna do time).
 // IMPORTANTE: cada ação tem volume natural muito diferente (passes >> dribles >>
@@ -100,13 +100,13 @@ const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20
 // ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
 // tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
 // Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
-const TACT_MEAN={ muralha:12.3, pressaototal:24.6, cerebro:61.4, tridente:2, aereo:11.9, contra:10.3 };
-const TACT_SD={ muralha:7, pressaototal:8.3, cerebro:27.9, tridente:2.5, aereo:5.7, contra:6.7 };
+const TACT_MEAN={ muralha:14.16, pressaototal:28.26, cerebro:16.34, tridente:2, aereo:17.92, contra:22.28 };
+const TACT_SD={ muralha:8.37, pressaototal:9.86, cerebro:8.48, tridente:2.5, aereo:8.32, contra:10.21 };
 // z-score mínimo por tática pra a família contar como "estilo do time".
 // Ajustado por tática (não global) pra equilibrar a frequência de ativação entre as 6
 // (todas ~16-24% nos 8 jogos limpos). Régua por-tática: menos elegante que um valor único,
 // porém empareia a viabilidade estratégica. Revisar quando houver mais jogos.
-const TACT_ZTHRESH={ muralha:0.59, pressaototal:0.89, cerebro:0.77, tridente:0, aereo:0.72, contra:0.55 };
+const TACT_ZTHRESH={ muralha:1.6, pressaototal:0.28, cerebro:0.35, tridente:0, aereo:0, contra:-0.3 };
 const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no mapa
 // REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
@@ -114,12 +114,12 @@ const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no ma
 const TACT_NORM_V1={ muralha:45, pressaototal:70, cerebro:113, tridente:11, aereo:26, contra:28 };
 const TACT_PART_V1={ tridente:{minPlayers:3,partMin:2}, aereo:{minPlayers:3,partMin:2} }; // antes do afrouxamento
 const TACT_FAMILIES={
-  muralha:p=>p.clearance+p.block+p.aerial,
-  pressaototal:p=>p.recovery+p.tklint+p.fouls,
-  cerebro:p=>p.prgp+p.sca+p.gca*2+(p.assists?p.assists.length:0),
+  muralha:p=>p.block*3+p.clearance+p.aerial,
+  pressaototal:p=>p.recovery+p.tklint*1.5+p.fouls,
+  cerebro:p=>p.prgp*0.15+p.sca*2+p.gca*3+(p.assists?p.assists.length:0)*3,
   tridente:p=>(p.sots?p.sots.length:0)+(p.goals?p.goals.length:0)*2,
-  aereo:p=>p.aerial+p.accCross+p.longBall,
-  contra:p=>p.prgCarry*2+p.dribbles,
+  aereo:p=>p.aerial*2+p.accCross*3+p.longBall,
+  contra:p=>p.prgCarry*2+p.dribbles*2+p.pib,
 };
 // FAMÍLIAS CONGELADAS dos jogos v1 (já apurados) — idênticas às antigas, pra não recalcular táticas finalizadas.
 const TACT_FAMILIES_V1={
