@@ -985,12 +985,12 @@ function roomLockedInRound(roomId){
 // 1º kickoff da rodada (ISO mais cedo entre os jogos da rodada). Impulsos travam aqui.
 // 1ª partida da rodada (a primeira que foi adicionada / ordem dos round_rooms)
 // trava da parte ESTRATÉGICA (ordem de confiança / fichas de impulso / palpites globais):
-// trava assim que QUALQUER partida da rodada for fechada manualmente (pool fechada) ou finalizada.
+// trava assim que QUALQUER partida da rodada for fechada MANUALMENTE (pool fechada pelo dev).
 // (a 1ª partida a começar já dá vantagem de informação pra quem ajustaria depois.)
 // ─────────────────────────────────────────────────────────────
 // TRAVA DA DISTRIBUIÇÃO (fichas de impulso / ordem de confiança / palpites de previsão)
 // Regras (valem igual pros 3 modos):
-//  • Trava AUTOMÁTICA: assim que QUALQUER partida da rodada é fechada (pool) ou finalizada.
+//  • Trava: assim que QUALQUER partida da rodada é fechada MANUALMENTE (pool). Jogo só finalizado NÃO trava.
 //  • Trava MANUAL: o dev pode forçar o fechamento a qualquer momento (boost_forced_lock).
 //  • REABERTURA: só o dev reabre (boost_reopened). Vale tanto contra a trava automática
 //    quanto contra a manual. Enquanto não há trava nenhuma, o player edita/confirma livremente.
@@ -998,7 +998,9 @@ function roomLockedInRound(roomId){
 // ─────────────────────────────────────────────────────────────
 function anyGameLockedInRound(){
   const rrs=APP.roundRooms||[];
-  return rrs.some(rr=>roomAdminLocked(rr.room_id)||roomIsFinished(rr.room_id));
+  // SÓ fechamento manual do dev trava a parte estratégica (palpite/confiança/impulso).
+  // Um jogo apenas finalizado NÃO trava — a trava é sempre uma ação manual.
+  return rrs.some(rr=>roomAdminLocked(rr.room_id));
 }
 function boostLocked(){
   const r=APP.round; if(!r)return false;
