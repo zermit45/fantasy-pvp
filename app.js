@@ -937,12 +937,12 @@ function isConfirmed(roomId){const e=roundEntryOf(roomId);return e&&e.confirmed=
 // no modo select, "usado" = quantos jogos o usuário travou (confirmed) — não quantas entries existem
 function picksUsed(){return (APP.roundEntries||[]).filter(e=>e.confirmed===true).length;}
 function picksLeft(){return APP.round?Math.max(0,APP.round.pick_limit-picksUsed()):0;}
-// SELEÇÃO travada? Trava se o admin fechou manualmente OU o 1º jogo da pool começou (automático).
+// SELEÇÃO travada? Só trava se o admin fechou a pool manualmente (nada por horário).
 // EXCEÇÃO admin: se o dev reabriu manualmente (picks_reopened), destrava mesmo após o kickoff.
 function picksLocked(){
   if(APP.round&&APP.round.status&&APP.round.status!=="open")return true; // admin fechou manualmente
   if(APP.round&&APP.round.picks_reopened===true)return false;            // admin reabriu (vence o tempo)
-  return boostLocked(); // 1º jogo da pool começou (trava automática por tempo)
+  return boostLocked(); // só trava se o dev fechou alguma pool manualmente
 }
 // jogo travado individualmente? (dev forçou OU usuário confirmou OU jogo começou/finalizou)
 // trava por HORÁRIO (jogo começou) ou jogo finalizado — não inclui trava manual do admin
@@ -960,12 +960,10 @@ function roomReopened(roomId){
   return false;
 }
 function roomTimeLocked(roomId){
+  // NÃO trava mais por horário/kickoff. Só o fechamento manual do dev trava (roomAdminLocked).
+  // Um jogo finalizado mantém a escalação travada (o resultado já é conhecido).
   const g=window.GAMES.data[roomId];
-  if(g&&g.match&&g.match.status==="finished")return true; // finalizado nunca reabre
-  // se o admin reabriu/manteve a pool aberta, a trava por horário não se aplica a este jogo
-  if(roomReopened(roomId))return false;
-  const idx=(APP.jogos||[]).find(j=>j.room_id===roomId);
-  if(idx&&idx.kickoff){const k=new Date(idx.kickoff);if(!isNaN(k)&&Date.now()>=k.getTime())return true;}
+  if(g&&g.match&&g.match.status==="finished")return true;
   return false;
 }
 // trava manual do admin: pool fechada na rodada (round_rooms) OU na partida avulsa (group_rooms)
