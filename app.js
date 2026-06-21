@@ -1873,7 +1873,7 @@ function roundRankingHTML(){
 // abas Em andamento / Finalizadas reutilizável
 function compTabsHTML(kind,liveN,doneN){
   const active=APP.compTab[kind]||"live";
-  const tab=(k,label,n)=>`<button class="statuspill ${k===active?"st-open":"st-closed"}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="setCompTab('${kind}','${k}')">${label} (${n})</button>`;
+  const tab=(k,label,n)=>`<button class="statuspill ${k===active?"st-open":"st-closed"}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="setCompTab('${kind}','${k}')">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin:4px 0 10px">${tab("live","Em andamento",liveN)}${tab("done","Finalizadas",doneN)}</div>`;
 }
 function setCompTab(kind,k){APP.compTab[kind]=k;render();}
@@ -1924,6 +1924,7 @@ function roundsCardHTML(){
   const emptyMsg=tab==="done"?'<p class="p">Nenhuma mini rodada finalizada ainda.</p>':'<p class="p">Nenhuma mini rodada em andamento.</p>';
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px">MINI RODADAS AVULSAS · ESCOLHA SEUS JOGOS${helpBtn("minirodada")}</div>
+    <p class="p" style="margin-bottom:10px">Gaste fichas nos jogos que quiser e monte o time de cada um.${helpBtn("token")}</p>
     ${compTabsHTML("round",liveList.length,doneList.length)}
     ${groupsHTML||emptyMsg}
     ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:14px" onclick="askCreateRound()">+ Criar mini rodada avulsa</button>`:""}
@@ -1993,7 +1994,7 @@ function leaguesCardHTML(){
   const emptyMsg=tab==="done"?'<p class="p">Nenhuma liga finalizada ainda.</p>':'<p class="p">Nenhuma liga em andamento.</p>';
   return `<div class="card">
     <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA${helpBtn("liga")}</div>
-    <p class="p" style="margin-bottom:10px">Uma liga junta várias rodadas numa classificação geral. Dois rankings: pontos de tabela (10/7/5/3/1 por colocação) e pontuação clássica acumulada.</p>
+    <p class="p" style="margin-bottom:10px">Junta várias rodadas numa classificação geral da temporada.${helpBtn("liga")}</p>
     ${compTabsHTML("league",liveList.length,doneList.length)}
     ${rows||emptyMsg}
     ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
@@ -3937,39 +3938,54 @@ function superManualHTML(){
     ${sec("1. A ideia do jogo",
       p(`Antes de cada partida real, abre uma ${b("pool")}. Você monta um time de 6 jogadores escolhidos entre os elencos dos ${b("dois")} times que vão se enfrentar. Quando o jogo acontece de verdade, seus jogadores pontuam pelo que fizerem em campo (gols, assistências, defesas, desarmes etc.).`))}
 
-    ${sec("2. Montar seu time",
+    ${sec("2. Como navegar",
+      p(`A tela inicial tem 4 abas no topo:`)+
+      p(`⚽ ${b("Partidas:")} os jogos avulsos. Monte time jogo a jogo, sem estar numa competição.`)+
+      p(`🎯 ${b("Mini-rodadas:")} grupos de jogos com um modo (Completo, Impulso, Confiança ou Previsão). É onde mora a estratégia.`)+
+      p(`📅 ${b("Rodadas:")} agrupam várias mini rodadas (ex: "Fase de Grupos"). Fora de liga.`)+
+      p(`🏆 ${b("Ligas:")} juntam várias rodadas numa classificação geral da temporada.`)+
+      p(`Toque numa aba pra abrir. O ${b("?")} ao lado de cada bloco explica os detalhes daquela parte.`))}
+
+    ${sec("3. Montar seu time",
       p(`${b("Orçamento:")} 100 moedas. Cada jogador tem um preço que reflete a qualidade dele. O banco também conta no orçamento.`)+
       p(`${b("Os 6 slots:")} 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (pode ser def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.`)+
       p(`${b("Capitão (×1.20):")} escolha 1 jogador (menos o banco) pra render 20% a mais.`)+
       p(`${b("Banco:")} se um titular de linha for mal, o reserva entra no lugar — mas rende 80% da nota (pedágio). Só entra se, já com o desconto, superar o titular. O goleiro reserva só entra se o titular não jogar nenhum minuto.`)+
       p(`${b("Tática:")} escolha 1. Cada uma tem um estilo. Fica completa (bônus) se aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele. Senão fica incompleta (ônus menor que o bônus).`))}
 
-    ${sec("3. Pontuação",
-      p(`Gols, assistências, defesas, desarmes, dribles etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
-      p(`${b("Penalidades")} tiram pontos: cartão amarelo (-2), vermelho (-10 no 1º tempo / -6 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-5), faltas e ser driblado. O gol contra pesa como um gol ao contrário: conta no placar e desconta 5 pontos de quem o fez.`)+
-      p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`))}
+    ${sec("4. De onde vêm os preços",
+      p(`O preço de cada jogador reflete ${b("quantos pontos ele tende a fazer na engine")} — calculado pelo histórico recente dele (gols, assistências, defesas, desarmes...) combinado com o valor de mercado, corrigido por idade e posição.`)+
+      p(`Quem jogou pouco não despenca nem dispara: o mercado segura a estimativa até ele ter minutos suficientes. Cada partida é equilibrada sozinha pra que montar um time bom custe escolhas — não dá pra encher de craques.`)+
+      p(`${b("Por posição:")} o mesmo critério vale pra goleiro, defensor, meia e atacante, então um zagueiro caro tende a valer tanto quanto um atacante caro.`))}
 
-    ${sec("4. Mini rodadas e os modos",
+    ${sec("5. Pontuação",
+      p(`${b("Ações que somam:")} gol (+4,2), assistência (+3,3), finalização no gol (+1,7), defesa do goleiro (+1,35), pênalti defendido (+6), desarme/interceptação, drible, corte, bola recuperada. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch, até +8). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
+      p(`${b("Clean sheet (não sofrer gol):")} goleiro ganha +3,0 por tempo sem levar gol; defensores +1,5 por tempo.`)+
+      p(`${b("Penalidades")} tiram pontos: amarelo (-2), vermelho (-7 no 1º tempo / -5 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-6), faltas e ser driblado. O gol contra conta no placar e ainda desconta de quem o fez.`)+
+      p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`)+
+      p(`${b("Tetos por jogo:")} a nota de um jogador na partida vai de -9 (piso) a +28 (teto), pra ninguém disparar sozinho.`))}
+
+    ${sec("6. Mini rodadas e os modos",
       p(`Uma ${b("mini rodada")} junta vários jogos. O modo dela define a estratégia. São 4:`)+
       p(`🏆 ${b("Completo:")} escale todos os jogos. Sua pontuação é a soma de todos. A escalação de cada jogo trava quando aquela partida é fechada.`)+
       p(`⚡ ${b("Impulso:")} escale todos e distribua as fichas de impulso nas partidas (cada ficha aplica um % nos pontos daquele jogo). O dev define os valores e as regras das fichas (pode ter fichas negativas obrigatórias). A distribuição trava quando a 1ª partida é fechada. ${b("Atenção:")} se você não gastar TODAS as fichas antes da trava, é eliminado e zera a mini rodada.`)+
       p(`📊 ${b("Confiança:")} escale todos e ordene os jogos do que você mais confia (1º) ao que menos confia. O 1º multiplica os pontos pra cima, o último pra baixo. Quanto mais jogos, maior a diferença. A ordem trava quando a 1ª partida é fechada. ${b("Atenção:")} se você não ordenar TODOS os jogos antes da trava, é eliminado e zera a mini rodada.`)+
       p(`🔮 ${b("Previsão:")} escale todos e crave o placar de cada jogo. Além dos pontos da escalação, ganha bônus por acertar o resultado e um bônus maior por cravar o placar exato. Aqui o palpite trava POR JOGO, junto com a escalação daquela partida (cada jogo é independente).`))}
 
-    ${sec("5. Como as travas funcionam",
+    ${sec("7. Como as travas funcionam",
       p(`Não há horário automático: ${b("tudo é manual")}. Quem trava é o dev, pelo botão "🔒 Fechar pool (trava as escalações)" na partida avulsa.`)+
       p(`${b("Escalação (todos os modos):")} a escalação de cada jogo pode ser editada até o dev fechar a pool daquela partida específica. Fechar uma não trava as outras.`)+
       p(`${b("Impulso e Confiança:")} a parte estratégica (fichas / ordem) trava quando QUALQUER jogo da rodada é fechado — porque é uma decisão sobre a rodada toda. O dev também pode fechar/reabrir essa distribuição manualmente no bloco ADMIN da rodada. Depois de travado, o jogador não reabre sozinho — só o dev.`)+
       p(`${b("Previsão:")} o palpite trava por jogo, junto com a escalação daquela partida (como no Completo).`))}
 
-    ${sec("6. Espiar os adversários",
+    ${sec("8. Espiar os adversários",
       p(`Na aba ${b("\"Quem está disputando\"")}, assim que a pool de uma partida é travada, aquele jogo vira clicável e você pode espiar o que cada um fez NELE:`)+
       p(`No Completo/Avulsa: a escalação. No Previsão: a escalação + o palpite. No Confiança: a escalação + a ordem de confiança completa do adversário. No Impulso: a escalação + onde ele gastou os impulsos. Só revela os jogos já travados.`))}
 
-    ${sec("7. Classificação",
+    ${sec("9. Classificação",
       p(`Quando os jogos terminam e são apurados, a ${b("Classificação da mini rodada")} soma os pontos de cada um (já com multiplicadores de confiança / bônus de previsão / impulsos aplicados) e mostra o ranking.`))}
 
-    ${isAdmin()?sec("8. Para o admin (você)",
+    ${isAdmin()?sec("10. Para o admin (você)",
       p(`${b("Criar:")} use "Criar mini rodada", escolha o modo e adicione os jogos (há abas Em aberto / Finalizadas).`)+
       p(`${b("Durante:")} quando cada partida real começar, vá na partida avulsa e clique "Fechar pool". Isso trava a escalação daquele jogo em todas as rodadas, e — no Impulso/Confiança — trava a estratégia da rodada inteira.`)+
       p(`${b("Apurar:")} suba o resultado do jogo (scraping). A classificação se atualiza sozinha conforme os jogos são apurados.`)+
