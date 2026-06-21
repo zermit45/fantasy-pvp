@@ -1,0 +1,587 @@
+================================================================================
+        FANTASY PvP — MANUAL DE OPERAÇÃO COMPLETO (v2.6.0)
+================================================================================
+Manual pra LEMBRAR como tocar o projeto depois de um tempo sem mexer.
+Lê do começo se faz muito tempo. Se é só apurar um jogo, vai direto na seção 5.
+
+Atualizado em: junho/2026 — app na versão v2.6.0.
+
+SUMÁRIO
+  1.  Visão geral do ambiente (onde mora o quê)
+  2.  Regras fixas do fluxo (ler sempre)
+  3.  Como fazer deploy pelo iPhone
+  4.  EXTRAIR O PRÉ-JOGO (Proxyman + SofaScore)  ← NOVO
+  5.  APURAR UM JOGO NOVO — passo a passo principal
+  6.  Quais arquivos extrair de cada partida
+  7.  Armadilhas conhecidas (bugs que já aconteceram)
+  8.  Ordem dos scripts no index.html
+  9.  Lista de jogos e pendências (atualizada)
+  10. As 5 TÁTICAS (reforma v2.6.0) — como funcionam
+  11. Sistema de TRAVA/DESTRAVA de partidas (reabrir pool)  ← NOVO
+  12. Tabela de pontuação atual (referência)
+  13. SQLs e scripts úteis (referência)
+  14. Histórico de versões (o que mudou em cada uma)
+
+
+================================================================================
+1. VISÃO GERAL DO AMBIENTE
+================================================================================
+  App:        web fantasy PvP, multiusuário, otimizado pra iPhone.
+  Você:       Lucchini — admin/dev (único na lista ADMINS).
+  Código:     GitHub  → github.com/zermit45/fantasy-pvp (branch main, na RAIZ)
+  Deploy:     Netlify → fantasysoccerpvp.netlify.app (puxa do GitHub sozinho)
+  Banco:      Supabase (projeto opyegiugrwdfgzxehakd)
+              group_id padrão: 00cd10db-9e95-416a-bd12-e0cf781c0f9b
+
+  IMPORTANTE — o Claude NÃO tem internet: não acessa GitHub, Supabase nem sites.
+  VOCÊ é a ponte: cola dados de scraping como .txt, sobe arquivos pelo iPhone,
+  roda os SQLs que o Claude te passa como texto.
+
+  ARQUIVOS DO APP (sobem pro GitHub):
+    config.js       → credenciais Supabase. NUNCA é mexido/entregue pelo Claude.
+    games-part1..6.js → os jogos (pré-pool + apuração de cada partida)
+    engine.js       → motor de pontuação (tabela, táticas, multiplicadores)
+    app.js          → interface + lógica de rodadas/modos/ranking/trava
+    index.html      → carrega tudo na ordem certa
+
+
+================================================================================
+2. REGRAS FIXAS DO FLUXO (LER SEMPRE)
+================================================================================
+  - SQL é SEMPRE entregue como TEXTO no chat. Você copia e cola no Supabase.
+    Nunca como arquivo. (regra fixa)
+  - config.js NÃO é alterado nem entregue pelo Claude (tem credenciais reais).
+  - A "verdade" dos arquivos é o que está na pasta de OUTPUTS do Claude. No começo
+    de cada sessão nova, o Claude precisa que você suba os arquivos atuais (o
+    ambiente dele RESETA entre sessões e ele não lembra do código de antes).
+  - Antes de entregar qualquer .js: o Claude roda node --check (sintaxe).
+  - Testar deploy SEMPRE em ABA ANÔNIMA + F5 (evita cache velho).
+  - Suba só os arquivos que mudaram.
+
+
+================================================================================
+3. COMO FAZER DEPLOY PELO IPHONE
+================================================================================
+  1. Abra o repositório no GitHub (app ou navegador).
+  2. Navegue até a RAIZ do projeto.
+  3. Add file → Upload files.
+  4. Selecione o(s) arquivo(s) que o Claude te entregou.
+  5. Commit (confirma).
+  6. Espere o Netlify publicar (~1 min).
+  7. Abra fantasysoccerpvp.netlify.app em ABA ANÔNIMA e dê F5.
+
+  Se um SQL acompanhar a mudança (ex: coluna nova): rode o SQL no Supabase ANTES
+  de subir o .js, senão a função nova quebra.
+
+
+================================================================================
+4. EXTRAIR O PRÉ-JOGO (Proxyman + SofaScore)   ← parte nova
+================================================================================
+O "pré-jogo" é a lista de jogadores convocados/prováveis de cada seleção, com
+posição e número — o que vira o "prepool" de cada partida (a pool de onde os
+usuários montam o time ANTES da bola rolar).
+
+COMO CAPTURAR (no iPhone, com o app Proxyman):
+  1. Abra o PROXYMAN e ative a captura (HTTPS/SSL proxy ligado pro domínio
+     api.sofascore.com — precisa do certificado do Proxyman instalado e confiável
+     em Ajustes > Geral > Sobre > Confiança de Certificado).
+  2. Abra o app/site da SofaScore e vá na partida que você quer.
+  3. No Proxyman, filtre por:  api.sofascore
+  4. Procure as requisições que terminam em:
+        last0     → traz dados recentes / escalação base do time
+        players   → traz a lista de jogadores (lineup/squad) com posição e número
+     (ou seja: filtra "api.sofascore" e olha os endpoints "last0" e "players".)
+  5. Toque na requisição, copie o corpo da RESPOSTA (JSON) e salve como .txt.
+  6. Manda esse(s) .txt pro Claude dizendo de qual jogo é e que é PRÉ-JOGO
+     (não confundir com a apuração, que é pós-jogo — ver seção 5).
+
+O QUE O CLAUDE FAZ COM ISSO:
+  - Monta o prepool daquele jogo (lista de players com id, nome, team, pos, e
+    preço se a fórmula de preço estiver disponível).
+  - Insere/atualiza o bloco do jogo no games-partX.js com status "pending"
+    (ainda não apurado) e o match.players vazio {}.
+
+⚠️ DOIS PASSOS PRA UM JOGO APARECER (não esquecer o 2º!):
+  PASSO A — CATÁLOGO: o Claude adiciona o jogo no games-partX.js e você sobe o
+            arquivo (+ a 1ª vez de um part novo, conferir o index.html — seção 8).
+            Isso só coloca o jogo no CATÁLOGO; ele ainda NÃO aparece pra galera.
+  PASSO B — ABRIR NO GRUPO (no app, como admin): entre no grupo, role até o fim,
+            no card "ADMIN · ABRIR JOGO NESTE GRUPO" ("Jogos do catálogo ainda não
+            abertos aqui"). Toque em cada jogo novo (selo "+ ABRIR"). Só aí ele
+            passa pra aba "A jogar" e o pessoal consegue montar time.
+  (Por que 2 passos: o catálogo é compartilhado, mas cada GRUPO escolhe quais
+   jogos abrir. Por isso adicionar no .js não basta — tem que abrir no grupo.)
+
+OBS: o pré-jogo é SÓ a lista de quem pode jogar (pra montar o fantasy). A APURAÇÃO
+(pontos de verdade) vem depois que a partida acaba, com OUTROS 4 arquivos (seção 5/6).
+
+
+================================================================================
+4B. PREÇO DOS JOGADORES — FÓRMULA v6.1 (híbrida: engine + mercado + idade)
+================================================================================
+O PREÇO de cada jogador combina TRÊS coisas:
+
+1) PREÇO-POR-ENGINE (base): "quantos pontos o jogador tende a fazer na NOSSA
+   engine" — gols, assists, desarmes, defesas, clean sheet etc., a mesma régua
+   que vale na pontuação. Justo entre posições (zagueiro que desarma vale tanto
+   quanto atacante que finaliza).
+
+2) MERCADO (60%): o valor de mercado (SofaScore) ancora a qualidade real, porque
+   amostra de seleção é curta e engana. Craque que jogou pouco não despenca.
+   O peso do mercado sobe até 88% pra quem jogou pouquíssimos minutos (pra uma
+   nota de 13 min não virar teto). Confiança plena no desempenho a partir de
+   ~270 min (3 jogos completos).
+
+3) CURVA DE IDADE (correção do viés de mercado): o mercado INFLA jovens (paga
+   fortuna por potencial) e SUBVALORIZA veteranos (desconta por idade mesmo
+   jogando bem). A fórmula corrige na direção oposta, multiplicando o mv por
+   idade individual:
+     • jovem 16-24: multiplicador < 1 (16a ×0.35, 20a ×0.53, 23a ×0.80) →
+       fica mais barato, pois o mv já vinha inflado pelo hype.
+     • pico 25-27: ×1.00 (mv é justo).
+     • veterano 28-40: multiplicador > 1 e crescente (32a ×2.55, 35a ×4.05,
+       40a ×6.00) → resgata o consagrado descontado por idade.
+   IMPORTANTE: o resgate só infla quem AINDA tem mv razoável. Veterano de mv
+   miúdo (ex: 1.4M) sobe pouco — a régua é "craque subvalorizado", não "idoso".
+   Efeito visível: Messi/Salah (veteranos de elite) batem o teto; promessas
+   adolescentes caras ficam mais acessíveis.
+
+NORMALIZAÇÃO DO JOGO: depois de tudo, cada partida é fechada num "bolo" fixo —
+soma do time dos sonhos ~140, teto de linha 35, teto de goleiro 22. Por isso,
+quando os veteranos sobem, os jovens cedem espaço (o total é constante). Os
+tetos e o dream NÃO mudam com a curva de idade — só a distribuição interna muda.
+
+POR QUE É HÍBRIDA: só desempenho (v5) punia craque que jogou pouco; só mercado
+inflava jovem e premiava fama. A mistura + curva de idade equilibra qualidade
+real, volume de minutos e a correção do viés etário do mercado.
+
+REGRA DE OURO AO MEXER NA FÓRMULA: se ajustar e for RECALCULAR preços de jogos
+já montados, recalcule SOMENTE jogos pending que ainda NÃO começaram. Jogo que
+já começou ou terminou NÃO deve ter preço alterado — quem já montou veria os
+custos mudarem no meio. (Exceção: se ninguém montou ainda, tanto faz.)
+
+COMO CAPTURAR O PREÇO (API-Football, no navegador do iPhone) — PASSO A PASSO DETALHADO:
+
+  Pré-requisito: conta paga em dashboard.api-football.com (plano ~US$20, dá acesso
+  à temporada atual e a todos os endpoints; 7500 req/dia). A chave fica no dashboard.
+  Tudo é feito no TESTADOR embutido do dashboard (a página tem campos pra preencher
+  e um botão verde "Call"; o resultado JSON aparece na própria página, dá pra copiar
+  ou tirar print).
+
+  ┌─ PASSO 1 — DESCOBRIR O ID DO TIME ──────────────────────────────────────┐
+  │  No testador do dashboard, preencha:                                    │
+  │    • Endpoint:  teams                                                    │
+  │    • search:    nome do país EM INGLÊS (ex: japan, tunisia, france)      │
+  │    • id:        VAZIO                                                    │
+  │    • team:      VAZIO                                                    │
+  │    • (demais campos vazios)                                             │
+  │  Clique em "Call".                                                      │
+  │  Na resposta, procure o time com  "national": true  e anote o "id".     │
+  │  (ex: Japão = 12, Tunísia = 28, França = 2)                             │
+  │                                                                         │
+  │  ⚠️ DICA: o resultado da busca SOME da tela quando você muda o endpoint  │
+  │     ou os campos pra fazer a próxima chamada. Isso é normal — o id não  │
+  │     "sumiu", é só refazer a busca pra vê-lo de novo. Anote o id antes   │
+  │     de trocar os campos!                                                │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─ PASSO 2 — PEGAR OS JOGADORES COM RATING ───────────────────────────────┐
+  │  Agora preencha:                                                        │
+  │    • Endpoint:  players/statistics  (esse é o nome no dropdown; a URL       │
+  │                 final aparece encurtada como /players?... mas é o certo)    │
+  │    • id:        VAZIO                                                    │
+  │    • search:    VAZIO                                                    │
+  │    • team:      o ID do passo 1 (ex: 12)                                 │
+  │    • season:    2026                                                     │
+  │    • page:      vazio (= página 1)                                       │
+  │  Clique em "Call".                                                      │
+  │  URL equivalente: https://v3.football.api-sports.io/players?team=12&season=2026 │
+  │                                                                         │
+  │  ⚠️ PAGINAÇÃO: a resposta vem ≈20 jogadores por página. Olhe o campo     │
+  │     "paging": { "total": N }. Se total for 2, 3 ou 4, faça a chamada    │
+  │     de novo trocando só o campo  page  (=2, depois =3, etc.) e mande    │
+  │     TODAS as páginas. Seleções grandes (que jogaram Eliminatórias) têm  │
+  │     muitas páginas; seleções pequenas têm 1-2.                          │
+  │                                                                         │
+  │  ✅ CONFERÊNCIA: se o elenco vier com os craques conhecidos do time, o   │
+  │     id estava certo. Se vier gente estranha, o id estava errado —       │
+  │     volte ao passo 1.                                                   │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─ PASSO 3 — MANDAR PRO CLAUDE ───────────────────────────────────────────┐
+  │  Envie os JSONs (todas as páginas dos DOIS times do jogo) dizendo de    │
+  │  qual jogo e time são. Pode copiar o texto e colar, ou mandar print.    │
+  │  O Claude roda a fórmula e gera os preços.                              │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+SISTEMA HÍBRIDO (como o preço é decidido — fórmula formula-preco-hibrida.js):
+  Duas fontes se combinam:
+    • SofaScore (endpoint players do jogo) = a LISTA OFICIAL de quem está no jogo
+      (define quem entra na pool) + o valor de mercado de cada um.
+    • API-Football = o RATING/desempenho (define o preço principal, fórmula v5).
+  Para cada jogador da lista da SofaScore:
+    - tem rating na API-Football?  → preço pela v5 (desempenho real).
+    - é estreante / sem histórico? → preço pelo valor de mercado da SofaScore
+      (curva raiz, teto 18; reserva sem jogo não fica caro).
+  O casamento entre as duas fontes é por NOME APROXIMADO (ignora acento, casa
+  "T. Kubo" com "Takefusa Kubo", etc.).
+  Por isso, para um jogo novo o ideal é mandar AS DUAS fontes:
+    1) API-Football (rating) — passos 1-3 acima, dos dois times.
+    2) SofaScore players (lista oficial + valor de mercado) — via Proxyman (seção 4).
+
+CALIBRAGEM DE DIFICULDADE (dream team):
+  A "dificuldade" do jogo é medida pelo DREAM TEAM = soma dos 5 melhores titulares
+  (1 por posição + 1 flex). Com orçamento de 100, um dream team de ~140 significa
+  que NÃO dá pra montar o time ideal — você corta ~40 e encaixa 1 bagre barato.
+  Calibragem atual: dream team ≈ 140 (difícil na medida). Parâmetros no rodapé.
+
+
+================================================================================
+5. APURAR UM JOGO NOVO — PASSO A PASSO PRINCIPAL
+================================================================================
+Quando a partida real TERMINA, você transforma o scraping dela em pontos.
+
+  PASSO 1 — Extrair os 4 arquivos de scraping do jogo (ver seção 6).
+            São 4 .txt: stats, shotmap, incidents, lineups.
+            ⚠️ A ORDEM dos 4 arquivos VARIA de jogo pra jogo. SEMPRE confira
+            qual é qual pelo CONTEÚDO, nunca pela ordem do jogo anterior.
+
+  PASSO 2 — Mandar os 4 .txt pro Claude, dizendo qual jogo é (ex: "tur-par").
+
+  PASSO 3 — O Claude recria o PARSER a partir do molde mais recente (hoje os
+            parsers v2 — ex: parse-sui-bih-v2.js, parse-ned-swe-v2.js). O parser
+            já inclui: os stats novos (ver seção 7), xAG real (expectedAssists),
+            penaltyWon, dispossessed, e o desempate de homônimos por posição.
+            Gera match.players (todas as ações de cada jogador), score, goals_tl,
+            team_stats, endMin.
+
+  PASSO 4 — O Claude injeta esse match no games-partX.js certo (substitui o bloco
+            "pending" daquele jogo) e marca status:"finished".
+            ⚠️ Jogo novo NÃO leva tacticRules:"v1" (pra recalcular com a tabela
+            nova e as 5 táticas reformuladas).
+            ⚠️ Jogo novo LEVA tactCapV2:true (teto do bônus tático = 4; ver seção
+            das táticas). O molde do parser já adiciona essa flag.
+
+  PASSO 5 — node --check no games-partX.js + sanity check: conferir o placar,
+            o número de jogadores, e que NÃO há NaN. Conferir prgp "sadio"
+            (sem valores absurdos) e os GKs certos do jogo.
+
+  PASSO 6 — Claude entrega o games-partX.js. Você sobe pelo iPhone (seção 3).
+
+  PASSO 7 — Testar em aba anônima: abrir o jogo, ver se as pontuações fazem
+            sentido (top jogadores, clean sheet, gols, etc.).
+
+OBS: não precisa mexer no Supabase pra apurar um jogo. A apuração vive no .js.
+Os times dos usuários (entries) já estão no banco e são pontuados contra o
+match.players quando a página carrega.
+
+
+================================================================================
+6. QUAIS ARQUIVOS EXTRAIR DE CADA PARTIDA (apuração / pós-jogo)
+================================================================================
+São 4 arquivos por jogo (do site de scraping). O que cada um carrega:
+
+  STATS     — estatísticas por jogador (passes, desarmes, dribles, cruzamentos,
+              recuperações, aéreos, minutos, etc.). O arquivo mais "gordo".
+  SHOTMAP   — mapa de finalizações: cada chute com xG, minuto, autor, se foi no
+              alvo, e xAG (expectedAssists) das assistências. Daqui saem
+              gols/assists/SOTs.
+  INCIDENTS — eventos do jogo: gols (e gol contra), cartões, expulsões, pênaltis,
+              substituições, minutos. Daqui sai a timeline (goals_tl) e quem
+              entrou/saiu.
+  LINEUPS   — escalações: quem começou, posição, número, titular x reserva.
+              Usado pra posição e pra casar nomes (resolver homônimos).
+              É por aqui que o Claude confirma os GKs de cada lado.
+
+  ⚠️ ORDEM VARIÁVEL: SEMPRE identifique cada arquivo pelo CONTEÚDO (o Claude faz
+     isso lendo as chaves do JSON: "statistics", "shotmap", "incidents", e
+     "home/away com players"). Não confie na posição/numeração do arquivo.
+
+
+================================================================================
+7. ARMADILHAS CONHECIDAS (bugs que já aconteceram)
+================================================================================
+HOMÔNIMOS (mesmo nome, jogadores diferentes):
+  Ex: Ederson (GK) e Éderson (MID) no Brasil. A normalização tira acento e pode
+  trocar minutos/ações de um pelo outro.
+  FIX: desempatar por POSIÇÃO. Sempre que houver dois nomes parecidos, conferir.
+
+STATS QUE PRECISAM ESTAR NO PARSER (não existiam no molde antigo):
+  ownGoal    → gol contra, creditando o autor (quem fez contra)
+  errShot    → erro que levou a finalização do adversário
+  wasFouled  → sofreu falta
+  longBall   → lançamento longo certo (= accurateLongBalls)
+  prgCarry   → conduções progressivas (= progressiveBallCarriesCount)
+  penaltyWon → pênalti sofrido/ganho (+2.5 na tabela nova)
+  dispossessed → perdeu a posse em duelo (-0.25)
+
+MOLDE v2 (use o parser v2 mais recente, NÃO o antigo):
+  - xAG REAL via expectedAssists do shotmap (não estimado).
+  - longGoals foi REMOVIDO do molde novo (não usar).
+  - prgp tem que sair "sadio" (sem valores inflados). Se vier um prgp gigante
+    (tipo >70 num jogador), tem algo errado no parse.
+
+CAMPOS QUEBRADOS (jogos antigos eng-cro / por-cod):
+  Já tiveram homeCode/awayCode undefined → viravam NaN. Foram REAPURADOS no molde
+  v2 nesta fase, então hoje estão OK. Jogos novos sempre com homeCode/awayCode.
+
+BUG CLEAN SHEET (já corrigido):
+  Faltava passar "team" ao scorePlayer na tela de NOTA BASE → o goleiro contava
+  todos os gols como sofridos e a nota divergia da "Sua Apuração". Corrigido.
+  Hoje o rótulo é "Sem sofrer gol (jogo todo)" / "(só 1 tempo)".
+
+GAMES-PART DESATUALIZADO:
+  Já aconteceu de subir um games-partX.js com jogo "pending" quando outputs já
+  tinha apurado. SEMPRE parta da versão de OUTPUTS (a verdade).
+
+ESTRUTURA ESPERADA de um jogador apurado (conferência) — campos do objeto:
+  min, started, goals[{xg,m,team}], assists[], sots[{m}], setPieceGoals,
+  sca, gca, prgp, pib, tib, tklint, block, recovery, aerial, clearance,
+  dribbles, accCross, inaccCross, fouls, dribbledPast, yellow, red, errGoal,
+  penCom, ownGoal, errShot, wasFouled, longBall, prgCarry, dispossessed,
+  penaltyWon
+  (goleiros também têm bloco gk: saves[{psxg,m}], penSave, opa, crossStop, conceded)
+  Top-level do match: status, neutral, homeCode, awayCode, homeElo, awayElo,
+  score[], goals_tl, team_stats, endMin, players{}
+
+
+================================================================================
+8. ORDEM DOS SCRIPTS NO index.html (NÃO TROCAR!)
+================================================================================
+  config.js
+  games-part1.js
+  games-part2.js
+  games-part3.js
+  games-part4.js
+  games-part5.js
+  games-part6.js   (quando existir)
+  engine.js
+  app.js
+
+  config primeiro (credenciais), depois os jogos, depois o motor, e o app por
+  último (ele usa tudo que veio antes).
+
+
+================================================================================
+9. LISTA DE JOGOS E PENDÊNCIAS (atualizada — 19 jogos no banco)
+================================================================================
+JÁ FINALIZADOS (14, todos no molde v2 / regra nova de táticas):
+  part1: eng-cro, gha-pan, uzb-col, por-cod   (reapurados no molde v2)
+  part2: aut-jor, cze-rsa
+  part3: mex-kor, sui-bih, can-qat
+  part4: usa-aus 2×0, sco-mar 0×1, bra-hai 3×0, tur-par 0×1
+  part5: ned-swe 5×1
+
+  GKs dos últimos apurados (referência):
+    usa-aus: Freese | sco-mar: Gunn | bra-hai: Alisson
+    tur-par: Çakır  | ned-swe: Verbruggen (NED) / Nordfeldt (SWE)
+
+PENDENTES (apurar conforme terminam):
+  part5: equ-cur, ger-civ, tun-jpn, bel-irn, nzl-egy
+  part6: esp-sau, uru-cpv   (part6 ainda não existe em disco — criar quando for)
+
+OBS: ned-jpn foi REMOVIDO numa sessão anterior (não consta mais).
+
+CALIBRAÇÃO: as táticas/posições foram calibradas sobre os 14 jogos atuais.
+Revisar quando houver bem mais jogos (a amostra cresce e os números mudam pouco,
+mas vale reconferir).
+
+
+================================================================================
+10. AS 5 TÁTICAS (reforma v2.6.0) — COMO FUNCIONAM
+================================================================================
+O jogo tem 5 TÁTICAS (o "Ataque Total" foi descontinuado — ver no fim).
+
+  MURALHA (Estacionar o Ônibus) — defesa: bloqueios(x3) + cortes + duelos aéreos
+  GEGENPRESS                    — pressão: recuperações + desarmes(x1.5) + faltas
+  TIKI-TAKA                     — criação: criação de chance + assist + passe(peso baixo)
+  JOGO AÉREO                    — bola alta: aéreos + cruzamentos(x3) + lançamentos
+  CONTRA-ATAQUE                 — transição: conduções(x2) + dribles(x2) + passe na área
+
+COMO ATIVA (regra nova, jogos sem tacticRules:"v1"):
+  Uma tática ativa ("full") quando passa em DOIS testes:
+   1) DOMINÂNCIA (z-score): o time se destacou NAQUELA família além de um limiar
+      próprio da tática (TACT_ZTHRESH). Não é mais "estar no top-3" como na v1.
+   2) PARTICIPAÇÃO: nº mínimo de jogadores contribuindo (geralmente 3; aéreo 2).
+  Passou nos dois → bônus. Falhou → ônus.
+
+BÔNUS / ÔNUS:
+  - Acertou (full): cada jogador ganha PROPORCIONAL à própria contribuição
+    (bônus = 3.5 × produção-dele-na-família ÷ ref). Quem produz mais ganha mais.
+    ⚠️ TETO POR JOGADOR = 4 (regra nova, ver abaixo). A tática é TEMPERO, não motor:
+    antes o teto era 13 (quase não limitava) e o bônus estourava pra +5.6, +10...
+    injusto, porque premiava de novo quem o índice de Performance já premiava.
+    Medição real: média do bônus = 1.37, 90% dos casos abaixo de 3.2 — o teto 4
+    só apara a cauda de exageros, sem mexer no normal.
+  - Errou (fail): ônus COLETIVO igual = -1.4 dividido por 5 = -0.28 por titular.
+
+  ⚠️ REGRA DO TETO 4 — QUANDO VALE (flag match.tactCapV2):
+    - Jogos JÁ APURADOS antes dessa mudança (16 jogos): SEM a flag → mantêm o teto
+      antigo (13). Pontuações publicadas NÃO mudam (decisão: preservar o passado).
+    - Jogos PENDING e FUTUROS: COM "tactCapV2": true no match → usam o teto 4.
+      Os 11 pending atuais (tun-jpn, bel-irn, etc.) já foram marcados. O molde do
+      parser de apuração (parse-*-v2.js) já adiciona a flag, então todo jogo novo
+      nasce com o teto 4 automaticamente.
+
+EQUILÍBRIO (o que ficou decidido, depois de MUITA medição):
+  - Cada tática é "a melhor escolha" em ~17-23% dos times. Bom equilíbrio.
+  - A Muralha aparece um pouco mais como "melhor" porque a defesa é um nicho
+    isolado (zagueiros não dividem ações com atacantes) — é estrutural do futebol,
+    não um bug. Tentar forçar igualdade perfeita descaracteriza as táticas.
+  - O que importa: montando o time PRA uma tática, ela funciona (todas 57-93% de
+    virar a melhor quando você monta pra ela). E na maioria dos jogos há 2-3
+    táticas quase empatadas → dúvida real na escolha. É o objetivo.
+  - FORMAÇÃO: 1 GK, 1 DEF, 1 MID, 1 ATT, 1 FLEX (DEF/MID/ATT) + 1 BANCO.
+    Máximo de 2 defensores (DEF + FLEX). A escolha da tática emerge de QUEM você
+    escala e do estilo dos jogadores, não só da posição.
+
+ATAQUE TOTAL (tridente) — DESCONTINUADO:
+  Saiu porque, ao reformar, virava clone do Contra-Ataque (correlação 0.70).
+  Está marcado como legacy:true no engine: NÃO aparece como opção pros jogos
+  novos, mas o motor ainda sabe pontuá-lo caso exista em algum dado antigo
+  (não quebra histórico). Não reativar sem necessidade.
+
+
+================================================================================
+11. SISTEMA DE TRAVA / DESTRAVA DE PARTIDAS (reabrir pool)   ← parte nova
+================================================================================
+QUANDO UMA PARTIDA TRAVA (não dá mais pra editar escalação/palpite):
+  - Admin FECHA a pool manualmente (botão "🔒 Fechar pool"), OU
+  - O HORÁRIO de início (kickoff) passa, OU
+  - A partida está FINALIZADA.
+
+REABRIR (destravar) — comportamento novo (v2.6.0):
+  - Botão "🔓 Reabrir pool" (admin, na tela da partida avulsa).
+  - Reabrir um jogo VENCE a trava por horário: mesmo com o jogo já começado, dá
+    pra editar a escalação daquele jogo DE NOVO.
+  - Vale em TODOS OS MODOS: como a reabertura propaga pras mini rodadas, libera o
+    MESMO jogo no avulso, na previsão, etc. Só AQUELE jogo (os outros seguem como
+    estavam).
+  - No MODO PREVISÃO: ao reabrir, o PALPITE do placar daquele jogo também reabre.
+    Quando você FECHAR a pool de novo, o palpite volta a travar.
+
+PROTEÇÕES (de propósito, não mexer sem pensar):
+  - Um jogo que NUNCA foi fechado e cujo horário passou continua travando sozinho
+    (ninguém edita sabendo o rumo do jogo). Só a reabertura EXPLÍCITA vence o horário.
+  - Jogo FINALIZADO nunca reabre, mesmo clicando reabrir (evita palpitar/escalar
+    sabendo o resultado).
+
+⚠️ DEPENDE DE COLUNA NO BANCO:
+  O reabrir usa uma coluna "reopened" (boolean) nas tabelas group_rooms e
+  round_rooms. Se ela não existir, o destravar dá erro. SQL pra criar (rodar 1x):
+
+    ALTER TABLE group_rooms ADD COLUMN IF NOT EXISTS reopened boolean DEFAULT false;
+    ALTER TABLE round_rooms ADD COLUMN IF NOT EXISTS reopened boolean DEFAULT false;
+
+
+================================================================================
+12. TABELA DE PONTUAÇÃO ATUAL (referência — jogos novos / molde v2)
+================================================================================
+AÇÕES POSITIVAS:
+  goal 4.2 | assist 3.3 | sot 1.7 | dribble 0.6 | prgp 0.13 | sca 0.75 | gca 2.0
+  tklint 0.36 | block 0.48 | recovery 0.05 | aerial 0.16 | clearance 0.03
+  accCross 0.2 | longBall 0.12 | prgCarry 0.10 | wasFouled 0.08 | penaltyWon 2.5
+  (pib e tib NÃO pontuam: 0)
+GOLEIRO:
+  save 1.35 | penSave 6 | opa 1.35 | crossStop 0.8
+AÇÕES NEGATIVAS:
+  inaccCross -0.08 | dispossessed -0.25 | foul -0.45 | dribbledPast -1
+  errShot -2 | yellow -2 | penCom -4 | errGoal -5 | redH2 -5 | ownGoal -6
+  concededGk -2 | redH1 -7
+
+CLEAN SHEET (sem sofrer gol):
+  GK 3.0 por tempo (jogo todo = 6) | DEF 1.5 por tempo
+  (na regra v1 antiga o GK era 1.5/tempo)
+
+MULTIPLICADORES E TETOS:
+  Posição (POS_MULT): GK 1.02 | DEF 1.077 | MID 1.005 | ATT 1.032
+    (princípio: todas as posições na mesma faixa de pontuação, pra dificultar
+     capitão/FLEX/banco)
+  Capitão: ×1.20
+  Tetos (CAPS): MATCH 28 | FLOOR -9 | CLUTCH 8 | TACT 13 (jogos antigos) / 4 (jogos novos, flag tactCapV2)
+  Impulso/boost: 15%
+
+TÁTICA:
+  Bônus alvo 3.5 (proporcional) | Ônus -1.4 (coletivo, -0.28/jogador)
+  TACT_PTSREF: muralha 1.21 | pressaototal 1.95 | cerebro 6.47 | aereo 1.04 | contra 1.4
+  (tridente 12.3 mantido só pra legado)
+
+PREVISÃO (bônus sobre a pontuação):
+  Cravar o placar exato: +40% | Acertar só o resultado (V/E/D): +10%
+  (cravar vale 4x o acerto de resultado)
+
+
+================================================================================
+13. SQLs E SCRIPTS ÚTEIS (referência — estão no seu GitHub)
+================================================================================
+SQL recém-criado (rodar 1x se ainda não rodou — ver seção 11):
+  ALTER TABLE group_rooms ADD COLUMN IF NOT EXISTS reopened boolean DEFAULT false;
+  ALTER TABLE round_rooms ADD COLUMN IF NOT EXISTS reopened boolean DEFAULT false;
+
+SQLs de setup (rodar no Supabase quando precisar):
+  SETUP SUPABASE.sql     — estrutura base do banco
+  SETUP GRUPOS.sql       — grupos
+  SETUP RODADAS.sql      — mini rodadas
+  SETUP ARQUIVADOS.sql   — arquivamento
+  SETUP FIX ENTRIES.sql  — correção de entries
+  SETUP OCULTAR PERFIL.sql
+  HABILITAR RESET.sql    — habilita reset
+
+Scripts Python de ELO/preço:
+  00 atualizar elo.py / 01 fetch elo clubes.py / 01 fetch elo selecoes.py
+  gerar precos.py            — gera preços
+  formula-preco-scraping.js  — fórmula de preço (v5: rating/desempenho da API-Football,
+                               por posição + titularidade + produção + peso de liga + piso titular)
+                               CALIBRAGEM FINAL: teto linha 35, teto GK 22, curva 1.0, z-amp 0.33 (dream team ~140)
+                               AMORTECEDOR (v2.7.1): rating E produção encolhem com poucos
+                               minutos (confiança = min/270, piso 35%); evita preço inflado
+                               por amostra pequena.
+  formula-preco-hibrida.js   — combina SofaScore (lista oficial + valor de mercado) com a v5;
+                               v5 dá o preço de quem tem rating; estreante sem histórico usa
+                               valor de mercado (curva raiz, teto 18). Match por nome aproximado.
+
+Molde de parser (o Claude recria a cada jogo):
+  parse-can-qat.js   — molde original
+  parse-*-v2.js      — versões v2 (molde atual; ex: parse-ned-swe-v2.js)
+
+Manuais (.gb / .pdf no GitHub):
+  MANUAL OPERACAO.gb, manual-taticas.gb, LEIA-ME.gb,
+  Manual FANTASY... Extração de Jogos
+
+
+================================================================================
+14. HISTÓRICO DE VERSÕES (o que mudou)
+================================================================================
+v2.4.0  — base anterior.
+v2.5.0  — reapuração dos 13 jogos no molde v2 (xAG real, dispossessed, penaltyWon,
+          sem longGoals); correção do bug de clean sheet nas duas telas; nerf do
+          clean sheet do GK (4.5→3.0/tempo); reequilíbrio das posições (POS_MULT,
+          todas ~9.0); impulso revelado por partida; previsão 10%/40% com selo
+          visual; primeira correção das táticas (bônus proporcional + ônus coletivo).
+v2.6.0  — REFORMA DAS TÁTICAS: de 6 pra 5 (Ataque Total descontinuado/legacy);
+          famílias reformuladas e recalibradas; equilíbrio medido por "melhor
+          escolha" (17-23% cada). Apuração do ned-swe 5×1. Sistema de REABRIR POOL
+          que vence o kickoff em todos os modos (escalação + palpite), com a coluna
+          "reopened" no banco.
+v2.7.0  — PREÇOS v5 (API-Football): preço por rating/desempenho real, não mais
+          valor de mercado. Sistema HÍBRIDO (SofaScore = lista oficial + mercado;
+          API-Football = rating; estreante sem histórico usa mercado). Calibragem
+          de dificuldade por DREAM TEAM ≈ 140 (teto linha 35, GK 22, curva 1.0,
+          z-amp 0.33). NERF DO BÔNUS TÁTICO: teto por jogador de 13 → 4 (flag
+          tactCapV2), só jogos pending/futuros; apurados preservados. Apuração do
+          equ-cur 0×0. tun-jpn remontado com a v5.
+v2.7.1  — AMORTECEDOR DE AMOSTRA PEQUENA na fórmula de preço: rating e produção
+          (gols/assists) de quem jogou poucos minutos são "puxados" pra média
+          (confiança = min/270, piso 35%). Corrige preço inflado por amostra
+          pequena (ex: Víctor Muñoz 28→22; Lukebakio 27→24; Mohebi sobe 30→35 por
+          ter volume real). Montados esp-ksa, bel-irn, uru-cpv. REGRA NOVA: ao
+          recalcular preços após mexer na fórmula, só mexer em jogos pending que
+          ainda não começaram (kickoff futuro); jogo já iniciado não muda de preço.
+
+LEMBRETE FINAL: ao apurar, sempre conferir a ordem dos 4 arquivos (varia),
+recriar o parser do molde v2 (com os stats novos + xAG real + desempate de
+homônimos), e partir SEMPRE da versão de outputs.
+
+================================================================================
+FIM — MANUAL DE OPERAÇÃO COMPLETO (v2.7.1)
+================================================================================

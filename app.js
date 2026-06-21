@@ -3956,6 +3956,7 @@ function superManualHTML(){
     ${sec("4. De onde vêm os preços",
       p(`O preço de cada jogador reflete ${b("quantos pontos ele tende a fazer na engine")} — calculado pelo histórico recente dele (gols, assistências, defesas, desarmes...) combinado com o valor de mercado, corrigido por idade e posição.`)+
       p(`Quem jogou pouco não despenca nem dispara: o mercado segura a estimativa até ele ter minutos suficientes. Cada partida é equilibrada sozinha pra que montar um time bom custe escolhas — não dá pra encher de craques.`)+
+      p(`${b("Idade:")} o mercado costuma inflar jovem (por potencial) e baratear veterano (por idade). A fórmula corrige isso: ${b("jovens ficam um pouco mais baratos")} e ${b("veteranos consagrados ficam mais caros")} (um craque de 35 pode custar bem mais que um valor de mercado sugeriria). Vale lembrar: só sobe o veterano que ainda tinha valor real — não é "idoso = caro".`)+
       p(`${b("Por posição:")} o mesmo critério vale pra goleiro, defensor, meia e atacante, então um zagueiro caro tende a valer tanto quanto um atacante caro.`))}
 
     ${sec("5. Pontuação",

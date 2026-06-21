@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.0  (2026-06-21)        ║
+// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.1  (2026-06-21) · curva de idade (jovem↓ veterano↑ até ×6)  ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 //
 // Arquivo único e autossuficiente (sem require externo). Contém as 3 etapas:
@@ -26,6 +26,17 @@
 //   • MERCADO 60%: amostra de seleção é curta e engana. O valor de mercado
 //     (corrigido por idade/posição) ancora a QUALIDADE REAL. Craque que jogou
 //     pouco (Marmoush, reserva do City) não despenca; veterano é resgatado.
+//   • CURVA DE IDADE: o mercado é enviesado — INFLA o jovem (paga fortuna por
+//     potencial) e SUBVALORIZA o veterano (desconta por idade mesmo jogando bem).
+//     A fórmula corrige na direção oposta, multiplicando o mv por idade:
+//       - jovem (16-24): multiplicador <1 (ex: 16a ×0.35, 20a ×0.53) → fica mais
+//         barato, pois o mv dele já vinha inflado pelo hype de potencial.
+//       - pico (25-27): ×1.00, onde o mv é justo.
+//       - veterano (28-40): multiplicador >1 crescente (32a ×2.55, 35a ×4.05,
+//         40a ×6.00) → resgata o consagrado que o mercado descontou por idade.
+//     Obs: o resgate só infla quem AINDA tem mv razoável; veterano de mv miúdo
+//     (ex: 1.4M) sobe pouco — a régua é "craque subvalorizado", não "idoso".
+//     A saturação (raiz) e os tetos por posição limitam o quanto isso dispara.
 //   • CONFIANÇA POR MINUTOS: quem jogou pouquíssimo tem desempenho instável;
 //     o peso do mercado sobe (até 88%) pra não deixar nota de 13 min virar teto.
 //   • NORMALIZAÇÃO POR JOGO: cada partida é um mundo fechado. CURVA 0.85 (<1)
@@ -40,10 +51,12 @@
 //   DREAM_ALVO    = 140    soma do dream team (GK+DEF+MID+ATT+FLEX)
 //   TETO_LINHA    = 35     teto de DEF/MID/ATT
 //   TETO_GK       = 22     teto do goleiro (menor: força escolher 1)
+//   CURVA_IDADE   = mult. por idade individual no mv (16a ×0.35 … 27a ×1.00 …
+//                   32a ×2.55 … 35a ×4.05 … 40a ×6.00). jovem↓, veterano↑.
 //
 // ─── HISTÓRICO ───────────────────────────────────────────────────────────────
 //   v5   rating normalizado + produção + peso de liga
-//   v6.0 preço-por-engine + mercado 60% + confiança + curva 0.85 + dream 140
+//   v6.1 = v6.0 + curva de idade (jovem<1, veterano até x6)
 // ══════════════════════════════════════════════════════════════════════════════
 
 const fs = require('fs');
@@ -467,12 +480,25 @@ function computeHybrid(sofaPlayers, apiResponse) {
   // - Jovem (<=23): mercado SOBE 15% (o pico está à frente; mv já é alto).
   // - Veterano (>29): mercado sobe ~6%/ano (teto +60%) para desfazer a deflação
   //   por idade que a SofaScore aplica (resgata o veterano consagrado, ex: Salah).
+  // CURVA DE IDADE (multiplicador por idade individual, RAMPA forte):
+  // corrige o viés do mercado, que infla jovem (potencial) e subvaloriza veterano.
+  // jovem DESCE (mv inflado), pico 25-27 neutro, veterano SOBE (resgate do consagrado).
+  const CURVA_IDADE = {
+    16:0.35, 17:0.38, 18:0.42, 19:0.47, 20:0.53, 21:0.60, 22:0.69, 23:0.80,
+    24:0.92, 25:1.00, 26:1.00, 27:1.00, 28:1.12, 29:1.35,
+    30:1.70, 31:2.10, 32:2.55, 33:3.05, 34:3.55, 35:4.05, 36:4.55,
+    37:5.00, 38:5.40, 39:5.75, 40:6.00
+  };
+  function multIdade(age){
+    if(!age) return 1;
+    if(age < 16) return 0.35;
+    if(age > 40) return 6.00;
+    return CURVA_IDADE[age] || 1;
+  }
   function precoMercado(sp){
     const top = ({ GK: 26, DEF: 42, MID: 42, ATT: 42 })[sp.pos] || 42;
     let mv = sp.mv || 0;
-    const age = sp.age || 0;
-    if (age <= 23) mv = mv * 1.15;
-    else if (age > 29) mv = mv * Math.min(1.6, 1 + (age - 29) * 0.06);
+    mv = mv * multIdade(sp.age || 0);
     const q = Math.min(1, Math.sqrt(mv / 80e6));
     return Math.round(3 + (top - 3) * q);
   }
