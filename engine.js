@@ -457,7 +457,11 @@ function makeEngine(match){
       }else{
         tact=TACT_ONUS_PTS/5; // ônus coletivo: parte igual do alvo entre os 5 titulares
       }
-      tact=Math.max(-CAPS.TACT,Math.min(CAPS.TACT,tact));
+      // teto do bônus tático: jogos novos (match.tactCapV2===true) usam 4
+      // (tática = tempero, não motor); jogos já apurados antes dessa mudança
+      // mantêm o teto antigo (CAPS.TACT=13) pra não alterar resultados publicados.
+      const tactCap = match.tactCapV2 ? 4 : CAPS.TACT;
+      tact=Math.max(-tactCap,Math.min(tactCap,tact));
       if(Math.abs(tact)>=0.05)push(`Tática ${T.name} ${st==="full"?"completa":"incompleta"}`,r1(tact));
     }
     const ix=indices(p);const avg=ix.iui*.3+ix.eff*.3+ix.sec*.2+ix.tw*.2;const perf=r1(Math.max(-3,Math.min(4,-3+avg/100*7)));
