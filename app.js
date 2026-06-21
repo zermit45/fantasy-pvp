@@ -112,7 +112,8 @@ let APP={
   captain:null, tactic:null, tabTeam:"ALL", tabPos:"ALL", warn:"", showRules:false, help:null, confirm:null,
   entries:[],           // entries da sala (pro ranking)
   avulsaLineup:null, members:null, memberView:null, memberProfile:null, memberHistory:null,
-  collapsedModes:{},   // {select:true} = grupo de modo recolhido na home
+  collapsedModes:{},   // (legado)
+  openModes:{},        // {full:true} = grupo de modo EXPANDIDO (padrão: fechado)
   compTab:{round:"live",phase:"live",league:"live"}, // aba "live"(andamento)/"done"(finalizadas) por seção
 };
 
@@ -1712,6 +1713,9 @@ function homeHTML(){
       <div class="h1 disp" style="color:var(--amber)">${esc(APP.groupName||"Salas")}</div>
       <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
     </div>
+    <div onclick="event.stopPropagation();go('members')" style="display:flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:6px 12px;margin-bottom:10px;width:fit-content">
+      <span style="font-size:13px">👥</span><span style="font-size:12px;font-weight:700;color:var(--chalk)">Membros do grupo</span><span style="color:var(--dim);font-size:12px">›</span>
+    </div>
     <p class="p" style="margin-bottom:12px">Jogos deste grupo. Escolha uma partida para montar seu time ou ver o resultado.</p>
     <div style="position:relative;margin-bottom:10px">
       <input id="homeSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar partida pelo nome do time…" value="${esc(APP.homeSearch||"")}" oninput="setHomeSearch(this.value)" autocorrect="off" />
@@ -1727,10 +1731,6 @@ function homeHTML(){
   ${roundsCardHTML()}
   ${phasesCardHTML()}
   ${leaguesCardHTML()}
-  <div class="card" onclick="go('members')" style="cursor:pointer">
-    <div class="rhead" style="padding:0"><div class="nm disp" style="font-size:18px">👥 Membros do grupo</div><div class="tot mono" style="color:var(--dim);font-size:14px">›</div></div>
-    <p class="p" style="margin-top:6px">Veja quem está no grupo, o perfil de cada um e o histórico de times que escalaram.</p>
-  </div>
   ${isAdmin()&&naoAbertos.length?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · ABRIR JOGO NESTE GRUPO</div>
     <p class="p" style="margin-bottom:10px">Jogos do catálogo ainda não abertos aqui:</p>
@@ -1894,7 +1894,7 @@ function roundsCardHTML(){
     const list=avulsas.filter(r=>modeOf(r)===mk);
     if(!list.length)continue;
     const mm=MODE_META[mk];
-    const collapsed=!!APP.collapsedModes[mk];
+    const collapsed=!APP.openModes[mk]; // invertido: começa FECHADO, abre ao clicar
     groupsHTML+=`<div onclick="toggleModeGroup('${mk}')" style="margin:14px 0 6px;display:flex;align-items:center;gap:8px;cursor:pointer">
       <span style="display:inline-flex;align-items:center;gap:6px;font-family:'Saira Condensed';font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:4px 12px">${mm.icon} ${mm.label} <span style="font-size:10px;opacity:.8">(${list.length})</span></span>
       <span style="flex:1;height:1px;background:color-mix(in srgb,${mm.color} 30%,transparent)"></span>
@@ -1913,7 +1913,7 @@ function roundsCardHTML(){
 }
 function askCreateRound(){APP.confirm={mode:"createRound",newMode:"full",label:"Criar mini rodada"};render();}
 function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm.draftName=n.value;APP.confirm.newMode=mk;render();}}
-function toggleModeGroup(mk){APP.collapsedModes[mk]=!APP.collapsedModes[mk];render();}
+function toggleModeGroup(mk){APP.openModes[mk]=!APP.openModes[mk];render();}
 
 // ----- RODADAS (phases) avulsas: card na home -----
 function phaseRowHTML(p){
@@ -2016,7 +2016,6 @@ function leagueHTML(){
     }
     html+=`</div>`;
   }
-  html+=`<button class="btn ghost" onclick="leaveLeague()">← Voltar</button>`;
   return html;
 }
 // tela de uma RODADA (phase): classificação + suas mini rodadas
@@ -2053,7 +2052,6 @@ function phaseHTML(){
     }
     html+=`</div>`;
   }
-  html+=`<button class="btn ghost" onclick="${ph.league_id?`enterLeague('${ph.league_id}')`:"go('home')"}">← Voltar</button>`;
   return html;
 }
 // card de classificação reutilizável (liga ou phase)
@@ -2355,7 +2353,10 @@ function roomHTML(){
   const finished=m&&m.status==="finished";
   const open=meta.status==="open";
   return `<div class="scorebar">
-    <div class="tag">${esc(pp.comp)} · ${esc(pp.venue||"")}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div class="tag">${esc(pp.comp)} · ${esc(pp.venue||"")}</div>
+      <div class="userchip" onclick="${APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId)?`go('round',null,'${APP.roundId}')`:"go('home')"}" style="cursor:pointer;flex-shrink:0">← voltar</div>
+    </div>
     <div class="score disp">
       <div><div class="team">${esc(pp.home.name)}</div><div class="elo mono">ELO ${pp.home.elo}</div></div>
       <div class="vs mono">${finished?m.score[0]+"–"+m.score[1]:"VS"}</div>
@@ -2379,7 +2380,6 @@ function roomHTML(){
         :`<button class="btn ghost" onclick="setPoolStatus('open')">🔓 Reabrir pool</button>`}
       <button class="btn ghost" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="resetRoom()">🧹 Limpar times desta sala</button>
     </div>`:""}
-    <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← Voltar</button>
   </div>`;
 }
 async function setPoolStatus(status){
@@ -2447,7 +2447,7 @@ function peekTeamsHTML(){
       stratTag=`<span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:#54E0A8;border:1px solid #54E0A8;border-radius:6px;padding:1px 6px">🔮 ${esc(pp.home.code)} ${e.pred_home}–${e.pred_away} ${esc(pp.away.code)}</span>`;
     }
     html+=`<div class="receipt"><div class="rhead" onclick="togglePeek(${i})">
-      <div class="nm">${esc(e.username)}${isMe?" <small>(você)</small>":""}${stratTag}<small>cap ${SLOT_LABEL[e.captain]||"?"} · ${TAC[e.tactic]?.name||e.tactic||"—"}</small></div>
+      <div class="nm">${esc(e.username)}${isMe?" <small>(você)</small>":""}${stratTag}<small>· cap ${SLOT_LABEL[e.captain]||"?"} · ${TAC[e.tactic]?.name||e.tactic||"—"}</small></div>
       <div class="tot mono" style="color:var(--dim);font-size:14px">${open?"▲":"▼"}</div></div>`;
     if(open){
       html+=`<div class="rbody">`;
@@ -2940,7 +2940,7 @@ function buildHTML(){
       const posKey=sl==="BENCH"&&pl?pl.pos:sl;
       return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div><div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div><div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div><div class="pr mono" style="color:var(--dim)">${sl==="BENCH"?"grátis":pl.price}</div></div>`;
     };
-    return `<div class="scorebar"><div class="tag">${esc(pp.comp)} · ⚽ EM ANDAMENTO</div>
+    return `<div class="scorebar"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tag">${esc(pp.comp)} · ⚽ EM ANDAMENTO</div><div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer;flex-shrink:0">← voltar</div></div>
       <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">×</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>
     <div class="card">
       <div class="prebox" style="border-color:#143a2a;background:#0c1f17;color:var(--green)">🔒 Time confirmado e travado. Boa sorte — agora é torcer! Você verá a pontuação quando a partida acabar.</div>
@@ -2949,10 +2949,10 @@ function buildHTML(){
       <div class="bsub">⚔️ Sua tática</div>
       ${tac?`<div class="tact on" style="min-width:0;--tac:${TACT_COLOR[APP.tactic]||"var(--amber)"}"><div class="ttop"></div>${`<div class="tn">${tac.name}</div><div class="td">${tac.desc}</div>${tactEffectHTML(tac)}`}</div>`:`<p class="p">—</p>`}
       <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)${helpBtn("capitao")}</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
-      <button class="btn ghost" style="margin-top:12px" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
     </div>`;
   }
   return `<div class="card">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer">← voltar</div></div>
     <div class="budget"><div class="h2 disp">Seu time${helpBtn("slots")}</div><div><span class="tag">RESTANTE${helpBtn("orcamento")} </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
     <div class="slots">${slotsHTML}</div>
     <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
@@ -2975,7 +2975,6 @@ function buildHTML(){
         ? `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar escalação":"Complete 6 slots, capitão e tática"}</button>
            <p class="p" style="margin-top:8px;font-size:12px;color:var(--dim)">Pode ajustar quantas vezes quiser até o jogo começar. O que está garantido é a <b>vaga neste jogo</b> (ficha gasta) — a escalação trava sozinha no apito inicial.</p>`
         : `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
-    <button class="btn ghost" style="margin-top:8px" onclick="${APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId)?`go('round',null,'${APP.roundId}')`:"go('room')"}">← Voltar</button>
   </div>`;
 }
 function askConfirmTeam(){
@@ -3444,7 +3443,6 @@ function profileHTML(){
     <p class="p" style="margin-bottom:10px">Excluir seu histórico oculta do seu perfil os times que você montou nos jogos já encerrados (zera medalhas e conquistas). Você continua no ranking das salas. Pede sua senha pra confirmar.</p>
     <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="askHideHistory()">🗑 Excluir histórico do perfil</button>
   </div>`;
-  html+=`<button class="btn ghost" onclick="go('home')">← Voltar</button>`;
   return html;
 }
 function statBox(emoji,val,label){
@@ -3482,7 +3480,7 @@ function memberHTML(){
   let html=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div class="h1 disp" style="color:var(--amber)">${esc(u||"")}</div>
-      <div class="userchip" onclick="go('members')" style="cursor:pointer">← membros</div>
+      <div class="userchip" onclick="go('members')" style="cursor:pointer">← voltar</div>
     </div>
     <p class="p" style="margin-top:6px">Perfil no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
   </div>`;
@@ -3532,7 +3530,6 @@ function memberHTML(){
   else if(!hist.length)html+=`<p class="p" style="margin-top:8px">Este membro ainda não jogou nenhuma partida finalizada.</p>`;
   else hist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"m");});
   html+=`</div>`;
-  html+=`<button class="btn ghost" onclick="go('members')">← Voltar aos membros</button>`;
   return html;
 }
 // renderiza uma partida do histórico com jogadores CLICÁVEIS (detalhe + arquétipo)
@@ -3604,7 +3601,8 @@ function resultHTML(){
   const scored=APP.entries.map(e=>scoreEntry(JSON.parse(JSON.stringify(e)),eng)).sort((a,b)=>b.total-a.total);
   const mine=scored.find(s=>s.username===APP.user?.username);
   const TAC=window.ENGINE_TACTICS;
-  let html=`<div class="scorebar"><div class="tag">${esc(pp.comp)} · FINALIZADO</div>
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  let html=`<div class="scorebar"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tag">${esc(pp.comp)} · FINALIZADO</div><div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}" style="cursor:pointer;flex-shrink:0">← voltar</div></div>
     <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">${m.score[0]}–${m.score[1]}</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>`;
   // ranking — toque numa pessoa pra ver o time dela
   html+=`<div class="card"><div class="h2 disp">Ranking da sala${helpBtn("ranking")}</div>`;
@@ -3649,7 +3647,6 @@ function resultHTML(){
     if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
   }
-  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   // botão + tabela de pontuação base de TODOS os jogadores do jogo (histórico, sem cap/tática/banco)
   html+=`<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleBaseAll()"><div class="nm disp" style="font-size:16px">📊 Base de todos os jogadores</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openBaseAll?"▲":"▼"}</div></div>`;
   if(_openBaseAll){
@@ -3662,7 +3659,6 @@ function resultHTML(){
     const arq=isArchived(APP.roomId);
     html+=`<button class="btn ghost" style="border-color:${arq?"var(--green)":"var(--amber)"};color:${arq?"var(--green)":"var(--amber)"};margin-bottom:10px" onclick="${arq?`unarchiveGame('${APP.roomId}')`:`askArchive('${APP.roomId}')`}">${arq?"♻️ Desarquivar partida":"📥 Arquivar partida (mandar pro histórico)"}</button>`;
   }
-  html+=`<button class="btn ghost" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('home')"}">← Voltar${inRound?" à mini rodada":" às salas"}</button>`;
   return html;
 }
 let _openBaseAll=false;
