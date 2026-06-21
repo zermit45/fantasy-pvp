@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.7  (2026-06-21) · atenuação de idade p/ prodígios (mv alto recupera desconto jovem)  ║
+// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.8  (2026-06-21) · curva de normalização adaptativa (mira ~25 caros/jogo p/ dilema parelho)  ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 //
 // Arquivo único e autossuficiente (sem require externo). Contém as 3 etapas:
@@ -647,7 +647,6 @@ function normalizeDream(players, alvo) {
   const ALVO = alvo || 140;
   const TETO_LINHA = 35;
   const TETO_GK = 22;
-  const CURVA = 0.85;   // <1 = base cara (mais gente na faixa alta)
   const PMIN = 3;
 
   function dreamDe(arr) {
@@ -662,7 +661,39 @@ function normalizeDream(players, alvo) {
   const maxLinha = linhaPrices.length ? Math.max(...linhaPrices) : 0;
   if (maxLinha <= 0) return players;
 
-  // 1) aplica a curva (infla o meio), guarda em _tmp
+  // v6.8: CURVA ADAPTATIVA. A curva <1 infla o meio-pelotão (mais jogadores na faixa cara,
+  // logo mais "dilema de escolha"). Jogos contra adversário fraco têm poucos jogadores caros
+  // (o time forte concentra os pontos) e ficam FÁCEIS de montar. Para equilibrar, busca-se a
+  // curva que faz o jogo ter ~ALVO_CAROS jogadores na faixa cara (>=22), criando tensão de
+  // orçamento parecida em todos os jogos. Jogos já equilibrados mantêm curva ~0.85 (suave);
+  // jogos desequilibrados recebem curva mais baixa (~0.55) que espalha os pontos.
+  const ALVO_CAROS = 25;
+  const LIMIAR_CARO = 22;
+  function carosCom(curva) {
+    const mx = maxLinha;
+    let n = 0;
+    // simula a normalização rápida só pra contar caros
+    const tmps = players.map(p => Math.pow((p.price || 0) / mx, curva) * mx);
+    // dream e fator
+    const arrTmp = players.map((p, i) => ({ pos: p.pos, _tmp: tmps[i] }));
+    const dr = dreamDe(arrTmp);
+    const fat = dr > 0 ? ALVO / dr : 1;
+    players.forEach((p, i) => {
+      let np = Math.round(tmps[i] * fat);
+      const teto = p.pos === 'GK' ? TETO_GK : TETO_LINHA;
+      if (np > teto) np = teto;
+      if (np >= LIMIAR_CARO) n++;
+    });
+    return n;
+  }
+  // busca a curva (0.50..0.85) que mais aproxima ALVO_CAROS
+  let CURVA = 0.85, melhorDist = Infinity;
+  for (let c = 0.50; c <= 0.851; c += 0.02) {
+    const d = Math.abs(carosCom(c) - ALVO_CAROS);
+    if (d < melhorDist) { melhorDist = d; CURVA = Math.round(c * 100) / 100; }
+  }
+
+  // 1) aplica a curva escolhida (infla o meio), guarda em _tmp
   players.forEach(p => { p._tmp = Math.pow((p.price || 0) / maxLinha, CURVA) * maxLinha; });
   // 2) escala pra cravar o dream em 140
   const dream = dreamDe(players);
