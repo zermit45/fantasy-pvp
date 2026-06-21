@@ -1,0 +1,56 @@
+# Fantasy PvP — Estado v6.7 (cole isto no início do próximo chat)
+
+## Onde paramos
+Fórmula de preço na **v6.7**: o preço de cada jogador combina mercado (mv), idade
+(com atenuação p/ prodígios), posição, liga de clube + **elo de clube** e desempenho recente.
+
+## O que mudou nesta sessão (v6.4 → v6.7)
+- **v6.7**: ATENUAÇÃO DE IDADE para prodígios. O desconto de idade do jovem (ex: 19a ×0.47)
+  é devolvido proporcionalmente ao mv. Yamal (215M, 19a) subiu de 28→31 (topo da Espanha).
+  Jovem comum de mv baixo quase não muda. Fórmula: multIdadeMv(age,mv) na função precoMercado.
+- **v6.4**: liga de clube virou multiplicador sobre o mv (`mv × clubLw`). A normalização
+  pra dream 140 anula o desconto no total → liga muda só a **distribuição relativa** (escolha do usuário).
+- **v6.5**: curva de mercado corrigida. Antes `sqrt(mv/80M)` saturava aos 80M (Mbappé=80M).
+  Agora `(mv/250M)^0.62` — mv alto descola. Mbappé/Yamal/Pedri/Kane voltam ao topo.
+  Trade-off aceito: Messi (mv 16M, 39a) e jovens-promessa (Doué/Cherki) descem.
+- **v6.6**: **elo de clube** (footballdatabase.com, 3069 clubes) entra COMBINADO com a liga:
+  `clubLw = 0.6×ligaLw + 0.4×eloMult(elo)`. Liga dá estabilidade, elo ajusta pela forma real
+  do clube (Arsenal 2055 ≠ Bournemouth 1833 na mesma Premier). Se o clube não casa no banco → usa só liga.
+
+## Decisões importantes (não reabrir)
+- **Bug do Adé** (mv 310k custando 33): DECIDIDO NÃO CORRIGIR. Qualquer teto de desempenho
+  que pegasse o Adé também cortava craques de mv baixo (Modric, Mahrez). Risco não compensa.
+- Elo COMPLEMENTA a liga (60/40), não substitui. Modelo escolhido pela cobertura 100% confiável da liga.
+
+## Arquivos entregues (subir no GitHub, raiz)
+- `formula-preco-v6.js` — fórmula v6.6 (tem clubMultiplier, eloDeClube, eloMult)
+- `club-elo-map.js` — **NOVO**, banco de 3069 clubes (norm(nome)→elo) + aliases dos grandes
+- `games-part1.js` ... `games-part6.js` — 25 jogos, na v6.7 (curva nova + atenuação idade). bel-irn NÃO reprocessar (já começou)
+- `engine.js`, `app.js` — inalterados nesta sessão
+- `club-elo-database.json` — banco bruto (referência, não precisa subir)
+
+ORDEM no index.html: config.js → games-part1..6 → engine.js → app.js
+(se a fórmula rodar no front, club-elo-map.js ANTES de formula-preco-v6.js)
+
+## PENDÊNCIAS
+1. **Recolar SofaScore jogo a jogo** pra ativar o elo de clube. Hoje só URU/CPV/BEL têm
+   o clube por jogador. Os outros 22 jogos estão na v6.5 (curva nova) mas SEM elo de clube
+   (clubLw neutro). Formato necessário: SofaScore "players" com mv + team.tournament (clube).
+   Extrator pronto: `/tmp/extrai-sofa-v66.py <arquivo> <TEAM> <saida.json>` (relê banco de elo).
+2. **Duplicação inofensiva**: part1 tem eng-cro/gha-pan/uzb-col/por-cod gravados 2× (idênticos).
+   Não quebra nada, mas pode limpar depois.
+3. **Subir no GitHub** + testar aba anônima (cache!).
+4. **SQL Supabase** (salas pending): rooms uru-cpv, nzl-egy, arg-aut, fra-irq, nor-sen,
+   jor-alg, por-uzb, eng-gha, pan-cro, col-cod (todos -2026), status 'pending'.
+
+## Como reprocessar um jogo com elo (próximo chat)
+1. Usuário cola SofaScore das 2 seleções (formato "players" com clube).
+2. `python3 /tmp/extrai-sofa-v66.py arquivo.txt TEAM /tmp/x.json` (gera clubLw combinado).
+3. Recalcular preços do jogo e regravar no games-part certo (room_id COMPLETO com -2026).
+4. node --check + validar dream ~140 + topo coerente.
+
+## Workflow técnico
+- Trabalho em /home/claude/fantasy-pvp/, entregas em /mnt/user-data/outputs/fantasy-pvp-simples/
+- Backup do estado v6.5 bom: /tmp/backup-v65/
+- regrava usa room_id COMPLETO (com -2026). apply-v65-safe.js relê disco a cada jogo (sem cache).
+- LIÇÃO: nunca reprocessar em massa com offsets em cache → corrompe. Reler disco a cada jogo.

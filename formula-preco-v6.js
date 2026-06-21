@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.1  (2026-06-21) · curva de idade (jovem↓ veterano↑ até ×6)  ║
+// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.7  (2026-06-21) · atenuação de idade p/ prodígios (mv alto recupera desconto jovem)  ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 //
 // Arquivo único e autossuficiente (sem require externo). Contém as 3 etapas:
@@ -218,14 +218,39 @@ const B = {
 };
 const POS_MULT = { GK: 1.02, DEF: 1.077, MID: 1.005, ATT: 1.032 };
 
-// peso de liga (mesma tabela da v5; liga fraca rende menos "nível")
+// peso de liga (v6.3: ranking IFFHS "Strongest National League" 2025, top100 países)
+// peso = piso + (1-piso)*(pts/2359)^0.62 ; England 1ª div = 1.00
+// divisões inferiores (2ª/3ª/4ª) = país × fator (0.62/0.42/0.30) sobre o excedente
+// seleções (1,2,3,10,29-37) mantidas. 205 ligas no total. fora da tabela: DEFAULT.
 const LEAGUE_WEIGHT = {
-  1: 0.92, 2: 0.95, 3: 0.85, 10: 0.8, 29: 0.74, 30: 0.74, 31: 0.78, 32: 0.82,
-  33: 0.82, 34: 0.74, 39: 1, 61: 0.9, 71: 0.76, 78: 0.94, 88: 0.78, 94: 0.78,
-  128: 0.72, 135: 0.95, 140: 0.97, 144: 0.75, 179: 0.68, 197: 0.65, 203: 0.74,
-  218: 0.62, 253: 0.7, 307: 0.7,
+  1: 0.92, 2: 0.95, 3: 0.85, 10: 0.8, 29: 0.74, 30: 0.74, 31: 0.74, 32: 0.74, 33: 0.74,
+  34: 0.74, 37: 0.74, 39: 1, 40: 0.79, 41: 0.68, 42: 0.61, 43: 0.57, 61: 0.89, 62: 0.72,
+  63: 0.63, 71: 0.96, 72: 0.76, 75: 0.66, 76: 0.6, 78: 0.94, 79: 0.75, 80: 0.66, 88: 0.83,
+  89: 0.68, 94: 0.84, 95: 0.69, 98: 0.76, 99: 0.64, 100: 0.58, 103: 0.72, 104: 0.62,
+  106: 0.75, 107: 0.64, 110: 0.63, 113: 0.67, 114: 0.59, 116: 0.66, 119: 0.74, 120: 0.63,
+  128: 0.83, 129: 0.68, 135: 0.95, 136: 0.76, 138: 0.66, 140: 0.97, 141: 0.77, 144: 0.81,
+  145: 0.67, 162: 0.73, 164: 0.65, 165: 0.58, 166: 0.54, 169: 0.68, 172: 0.71, 173: 0.61,
+  179: 0.75, 180: 0.64, 183: 0.58, 184: 0.54, 186: 0.69, 187: 0.6, 188: 0.65, 197: 0.77,
+  200: 0.71, 201: 0.61, 202: 0.68, 203: 0.81, 204: 0.67, 205: 0.6, 207: 0.72, 208: 0.62,
+  210: 0.73, 211: 0.62, 218: 0.72, 219: 0.61, 233: 0.77, 234: 0.67, 239: 0.82, 240: 0.68,
+  242: 0.78, 243: 0.66, 244: 0.66, 245: 0.58, 250: 0.76, 251: 0.64, 252: 0.76, 253: 0.71,
+  255: 0.61, 261: 0.64, 262: 0.75, 263: 0.64, 265: 0.72, 266: 0.62, 268: 0.75, 269: 0.64,
+  271: 0.7, 272: 0.61, 274: 0.64, 275: 0.57, 278: 0.64, 281: 0.72, 282: 0.61, 283: 0.73,
+  284: 0.62, 286: 0.72, 287: 0.62, 288: 0.69, 289: 0.6, 290: 0.67, 292: 0.71, 293: 0.61,
+  296: 0.69, 297: 0.6, 299: 0.66, 300: 0.58, 301: 0.7, 303: 0.61, 304: 0.64, 305: 0.66,
+  306: 0.58, 307: 0.79, 308: 0.66, 309: 0.59, 310: 0.66, 312: 0.64, 315: 0.69, 316: 0.55,
+  317: 0.55, 318: 0.75, 319: 0.64, 322: 0.66, 326: 0.57, 327: 0.65, 328: 0.59, 329: 0.67,
+  330: 0.64, 331: 0.57, 332: 0.64, 333: 0.72, 334: 0.62, 339: 0.66, 342: 0.67, 344: 0.69,
+  345: 0.76, 346: 0.65, 355: 0.64, 357: 0.69, 358: 0.6, 361: 0.57, 362: 0.64, 364: 0.59,
+  365: 0.68, 366: 0.57, 367: 0.65, 368: 0.64, 369: 0.64, 371: 0.66, 373: 0.7, 374: 0.6,
+  382: 0.61, 383: 0.7, 386: 0.64, 388: 0.57, 389: 0.65, 393: 0.65, 394: 0.65, 396: 0.68,
+  397: 0.64, 399: 0.64, 400: 0.64, 404: 0.65, 407: 0.59, 408: 0.67, 412: 0.64, 418: 0.61,
+  419: 0.71, 424: 0.66, 435: 0.67, 436: 0.67, 473: 0.56, 474: 0.56, 489: 0.56, 494: 0.65,
+  506: 0.57, 542: 0.64, 563: 0.54, 564: 0.54, 567: 0.68, 570: 0.63, 598: 0.65, 636: 0.65,
+  664: 0.68, 710: 0.6, 711: 0.56, 828: 0.6, 844: 0.66, 865: 0.61, 942: 0.66, 943: 0.66,
+  1087: 0.58, 1126: 0.59,
 };
-const LEAGUE_WEIGHT_DEFAULT = 0.6;
+const LEAGUE_WEIGHT_DEFAULT = 0.55;
 function leagueWeight(id) { return LEAGUE_WEIGHT[id] != null ? LEAGUE_WEIGHT[id] : LEAGUE_WEIGHT_DEFAULT; }
 
 const POS_MAP = { Goalkeeper: 'GK', Defender: 'DEF', Midfielder: 'MID', Attacker: 'ATT' };
@@ -392,6 +417,47 @@ function lastToken(s) {
   const t = norm(s).split(' ').filter(Boolean);
   return t.length ? t[t.length - 1] : '';
 }
+
+// ─────────── v6.6: ELO DE CLUBE + LIGA (multiplicador combinado) ───────────
+// Banco de elo (footballdatabase.com, ~3000 clubes). Carrega lazy (se existir).
+let _CLUB_ELO = null;
+function _loadElo() {
+  if (_CLUB_ELO !== null) return _CLUB_ELO;
+  try { _CLUB_ELO = require('./club-elo-map.js'); }
+  catch (_) { _CLUB_ELO = { CLUB_ELO_EXACT: {}, CLUB_ELO_STRIPPED: {} }; }
+  return _CLUB_ELO;
+}
+// normaliza nome de clube p/ casar com o banco (igual ao gerador do mapa)
+function normClub(s) {
+  return (s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// busca elo de um clube pelo nome; null se não casar
+function eloDeClube(clubName) {
+  if (!clubName) return null;
+  const E = _loadElo();
+  const k = normClub(clubName);
+  if (E.CLUB_ELO_EXACT[k] != null) return E.CLUB_ELO_EXACT[k];
+  // tenta sem sufixos (fc, cf, kv, sk...)
+  const sk = k.replace(/\b(fc|cf|sc|ac|fk|sk|cd|ca|sv|afc|ssc|as|us|ud|kv|bk|if|ff|cs|rc|sd|club|kff|vc)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  if (E.CLUB_ELO_STRIPPED[sk] != null) return E.CLUB_ELO_STRIPPED[sk];
+  return null;
+}
+// elo -> multiplicador [0.55..1.0] (Bayern 2085=1.0; <=1400 piso 0.55)
+function eloMult(e) {
+  const lo = 1400, hi = 2085;
+  if (e <= lo) return 0.55;
+  return 0.55 + 0.45 * Math.pow((e - lo) / (hi - lo), 0.85);
+}
+// COMBINA liga (60%) + elo (40%). Se não tem elo do clube, usa só a liga.
+// ligaLw: peso da liga de clube (0.55..1.0). clubName: nome do clube (SofaScore).
+function clubMultiplier(ligaLw, clubName) {
+  const base = (ligaLw != null ? ligaLw : 1);
+  const e = eloDeClube(clubName);
+  if (e == null) return base;            // sem elo -> só liga
+  return 0.6 * base + 0.4 * eloMult(e);  // combinado 60/40
+}
 // inicial + sobrenome, ex "K. Mbappé" -> "k mbappe"
 function initialLast(s) {
   const t = norm(s).split(' ').filter(Boolean);
@@ -495,11 +561,26 @@ function computeHybrid(sofaPlayers, apiResponse) {
     if(age > 40) return 6.00;
     return CURVA_IDADE[age] || 1;
   }
+  // v6.7: para jovens, o desconto de idade é ATENUADO se o mv já é alto. Um prodígio
+  // (ex: Yamal 215M aos 19) vale tanto JUSTAMENTE por ser jovem — o mercado já validou
+  // o talento. Penalizar com ×0.47 dupla-conta. A atenuação devolve parte do desconto
+  // proporcional ao mv: jovem comum (mv baixo) quase não muda; prodígio recupera quase tudo.
+  function multIdadeMv(age, mv){
+    const base = multIdade(age);
+    if(base >= 1) return base;                 // só atenua descontos (jovens < 25a)
+    const validacao = Math.min(0.7, Math.pow((mv||0)/200e6, 0.7) * 0.7);
+    return base + (1 - base) * validacao;
+  }
   function precoMercado(sp){
     const top = ({ GK: 26, DEF: 42, MID: 42, ATT: 42 })[sp.pos] || 42;
     let mv = sp.mv || 0;
-    mv = mv * multIdade(sp.age || 0);
-    const q = Math.min(1, Math.sqrt(mv / 80e6));
+    mv = mv * multIdadeMv(sp.age || 0, sp.mv || 0);
+    // v6.4: peso da LIGA DE CLUBE escala o mv (liga forte = mv vale cheio; fraca = desconto)
+    const clubLw = (sp.clubLw != null ? sp.clubLw : 1);
+    mv = mv * clubLw;
+    // v6.5: curva de mercado sem saturação precoce. Antes: sqrt(mv/80M) saturava aos 80M
+    // (Mbappé 191M = jogador de 80M). Agora: (mv/250M)^0.62 — mv alto descola de verdade.
+    const q = Math.min(1, Math.pow(mv / 250e6, 0.62));
     return Math.round(3 + (top - 3) * q);
   }
 
@@ -535,8 +616,9 @@ function computeHybrid(sofaPlayers, apiResponse) {
     const CAP_SEM_JOGO = 18;
     for (const sp of unmatched) {
       const top = PMAX[sp.pos] || 35;
-      const mv = sp.mv || 0;
-      const q = Math.min(1, Math.sqrt(mv / 80e6)); // 80M ~ topo absoluto
+      let mv = sp.mv || 0;
+      mv = mv * (sp.clubLw != null ? sp.clubLw : 1); // v6.4: peso liga de clube
+      const q = Math.min(1, Math.pow(mv / 250e6, 0.62)); // v6.5: curva sem saturação precoce
       let price = Math.round(PMIN + (top - PMIN) * q);
       if (price > CAP_SEM_JOGO) price = CAP_SEM_JOGO;
       if (price < PMIN) price = PMIN;
@@ -604,4 +686,4 @@ function toResponse(players, teamName) {
   return { response: players };
 }
 
-module.exports = { parseApiFull, toResponse, computePricesEngine, computeHybrid, normalizeDream, aggregate, expectedPointsPer90, B, POS_MULT, LEAGUE_WEIGHT, norm, initialLast, lastToken };
+module.exports = { parseApiFull, toResponse, computePricesEngine, computeHybrid, normalizeDream, aggregate, expectedPointsPer90, B, POS_MULT, LEAGUE_WEIGHT, norm, initialLast, lastToken, clubMultiplier, eloDeClube, eloMult, normClub };
