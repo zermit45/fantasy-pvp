@@ -152,6 +152,15 @@ body{background:var(--bg)}
 details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.08em}
 .metricbox{font-size:11px;color:var(--dim);line-height:1.8;border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
 .prebox{border:1px solid #4a3a10;background:#1a1505;border-radius:10px;padding:8px 11px;margin-bottom:9px;font-size:11.5px;color:#d9c587;line-height:1.4}
+/* navegação por abas na home */
+.navtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.navtab{flex:1;min-width:calc(50% - 3px);display:flex;align-items:center;justify-content:center;gap:5px;font-family:'Saira Condensed';font-weight:800;font-size:13px;letter-spacing:.05em;text-transform:uppercase;padding:10px 8px;border-radius:11px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer;transition:.15s}
+.navtab .ic{font-size:14px}
+.navtab .ct{font-size:10px;opacity:.7;font-weight:700}
+.navtab.on{color:#0e1525;background:var(--amber);border-color:var(--amber)}
+.navtab.on .ct{color:#0e1525}
+.navpanel{animation:navfade .2s ease}
+@keyframes navfade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>

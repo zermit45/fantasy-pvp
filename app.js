@@ -114,6 +114,7 @@ let APP={
   avulsaLineup:null, members:null, memberView:null, memberProfile:null, memberHistory:null,
   collapsedModes:{},   // (legado)
   openModes:{},        // {full:true} = grupo de modo EXPANDIDO (padrão: fechado)
+  homeNavTab:"partidas", // aba ativa da home: partidas|mini|rodadas|ligas
   compTab:{round:"live",phase:"live",league:"live"}, // aba "live"(andamento)/"done"(finalizadas) por seção
 };
 
@@ -1611,6 +1612,7 @@ function kickoffInfo(iso){
     full:`${rel?rel+" · ":""}${dow} ${dd}/${mm2}/${Y} · ${hh}:${mm}`};
 }
 function setHomeTab(t){APP.homeTab=t;APP.homeDay="todos";render();}
+function setHomeNav(t){APP.homeNavTab=t;render();window.scrollTo(0,0);}
 function setHomeDay(d){APP.homeDay=decodeURIComponent(d);render();}
 function setHomeSearch(v){
   APP.homeSearch=v;
@@ -1708,29 +1710,45 @@ function homeHTML(){
   const abrirRows=naoAbertos.map(j=>`<div class="roomrow" onclick="openRoomInGroup('${j.room_id}')">
     <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">toque para abrir neste grupo</div></div>
     <span class="statuspill st-closed">+ ABRIR</span></div>`).join("");
-  return `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <div class="h1 disp" style="color:var(--amber)">${esc(APP.groupName||"Salas")}</div>
-      <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
-    </div>
-    <div onclick="event.stopPropagation();go('members')" style="display:flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:6px 12px;margin-bottom:10px;width:fit-content">
-      <span style="font-size:13px">👥</span><span style="font-size:12px;font-weight:700;color:var(--chalk)">Membros do grupo</span><span style="color:var(--dim);font-size:12px">›</span>
-    </div>
-    <p class="p" style="margin-bottom:12px">Jogos deste grupo. Escolha uma partida para montar seu time ou ver o resultado.</p>
+  const navTab=APP.homeNavTab||"partidas";
+  const nMini=APP.rounds.filter(r=>!r.phase_id).length;
+  const nRod=(APP.phases||[]).filter(p=>!p.league_id).length;
+  const nLig=(APP.leagues||[]).length;
+  const navBtn=(t,ic,label,n)=>`<div class="navtab${navTab===t?" on":""}" onclick="setHomeNav('${t}')"><span class="ic">${ic}</span> ${label}${n?` <span class="ct">(${n})</span>`:""}</div>`;
+  // painel da aba PARTIDAS (busca + lista de jogos)
+  const partidasPanel=`<div class="card">
     <div style="position:relative;margin-bottom:10px">
       <input id="homeSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar partida pelo nome do time…" value="${esc(APP.homeSearch||"")}" oninput="setHomeSearch(this.value)" autocorrect="off" />
       ${q?`<span onclick="setHomeSearch('')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim)">✕</span>`:""}
     </div>
     <div class="postabs" style="margin-bottom:8px">
-      <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar${nToplay?` (${nToplay})`:""}</div>
-      <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados${nFinished?` (${nFinished})`:""}</div>
+      <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar</div>
+      <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados</div>
     </div>
     ${diaChips}
     ${listaHTML}
+  </div>`;
+  let navPanel="";
+  if(navTab==="partidas")navPanel=partidasPanel;
+  else if(navTab==="mini")navPanel=roundsCardHTML()||`<div class="card"><p class="p">Nenhuma mini rodada ainda.</p></div>`;
+  else if(navTab==="rodadas")navPanel=phasesCardHTML()||`<div class="card"><p class="p">Nenhuma rodada ainda.</p></div>`;
+  else if(navTab==="ligas")navPanel=leaguesCardHTML()||`<div class="card"><p class="p">Nenhuma liga ainda.</p></div>`;
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="h1 disp" style="color:var(--amber)">${esc(APP.groupName||"Salas")}</div>
+      <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
+    </div>
+    <div onclick="event.stopPropagation();go('members')" style="display:flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:6px 12px;width:fit-content">
+      <span style="font-size:13px">👥</span><span style="font-size:12px;font-weight:700;color:var(--chalk)">Membros do grupo</span><span style="color:var(--dim);font-size:12px">›</span>
+    </div>
   </div>
-  ${roundsCardHTML()}
-  ${phasesCardHTML()}
-  ${leaguesCardHTML()}
+  <div class="navtabs">
+    ${navBtn("partidas","⚽","Partidas",0)}
+    ${navBtn("mini","🎯","Mini-rodadas",nMini)}
+    ${navBtn("rodadas","📅","Rodadas",nRod)}
+    ${navBtn("ligas","🏆","Ligas",nLig)}
+  </div>
+  <div class="navpanel">${navPanel}</div>
   ${isAdmin()&&naoAbertos.length?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · ABRIR JOGO NESTE GRUPO</div>
     <p class="p" style="margin-bottom:10px">Jogos do catálogo ainda não abertos aqui:</p>
