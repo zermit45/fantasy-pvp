@@ -91,7 +91,10 @@
     var _origLoad=loadDraftSeason;
     window.loadDraftSeason=async function(){
       await ensureMaster();
-      return _origLoad.apply(this,arguments);
+      var r=await _origLoad.apply(this,arguments);
+      // carrega a lista de observação do usuário pra esta temporada
+      try{ if(typeof window.__loadDraftWatch==="function") await window.__loadDraftWatch(); }catch(e){}
+      return r;
     };
   }
 
@@ -135,6 +138,41 @@
   }
   function reFocus(id){renderKeepFocus(id);} // alias retrocompat
   function reRender(){ (typeof render==="function"?render:renderKeepScroll)(); }
+
+  // ── LISTA DE OBSERVAÇÃO (favoritos) ──
+  // guardada em APP.draftWatch (array de player_key) + persistida no Supabase.
+  APP.draftWatch = APP.draftWatch || [];
+  var _watchLoadedFor=null;
+  function isWatched(key){ return (APP.draftWatch||[]).indexOf(key)>=0; }
+  async function loadWatch(){
+    try{
+      var s=APP.draftSeason; if(!s||!APP.user)return;
+      if(typeof sb!=="function")return;
+      var rows=await sb("draft_watchlist?season_id=eq."+s.id+"&username=eq."+encodeURIComponent(APP.user.username)+"&select=player_key");
+      APP.draftWatch=(rows||[]).map(function(r){return r.player_key;});
+      _watchLoadedFor=s.id;
+    }catch(e){ /* tabela pode não existir ainda */ }
+  }
+  window.dMktToggleWatch=async function(key){
+    var s=APP.draftSeason; if(!s||!APP.user){toast&&toast("Entre na temporada antes.");return;}
+    var cat=(catFnSafe()||[]).find(function(p){return p.key===key;});
+    var was=isWatched(key);
+    // otimista: atualiza na hora
+    if(was)APP.draftWatch=APP.draftWatch.filter(function(k){return k!==key;});
+    else APP.draftWatch=APP.draftWatch.concat([key]);
+    // atualiza a tela sem piscar
+    if(!liveUpdate() && typeof renderKeepScroll==="function") renderKeepScroll();
+    try{
+      if(was){
+        await sbDelete("draft_watchlist","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(APP.user.username)+"&player_key=eq."+encodeURIComponent(key));
+      }else{
+        await sbInsert("draft_watchlist",{season_id:s.id,username:APP.user.username,player_key:key,
+          player_name:cat?cat.name:null,player_team:cat?cat.team:null,pos:cat?cat.pos:null});
+      }
+    }catch(e){ toast&&toast("Erro ao salvar favorito: "+e.message); }
+  };
+  function catFnSafe(){ try{ return cachedCatalog(); }catch(e){ return []; } }
+  window.__loadDraftWatch=loadWatch; // exposto pro wrapper de loadDraftSeason
   function toggleArr(arr,v){var i=arr.indexOf(v);if(i<0)arr.push(v);else arr.splice(i,1);return arr;}
   window.dMktPos=function(v){if(v==="")APP.dMkt.pos=[];else toggleArr(APP.dMkt.pos,v);APP.dMkt.page=1;if(!liveUpdateFull())renderKeepScroll();};
   window.dMktTeamAdd=function(v){if(v&&APP.dMkt.team.indexOf(v)<0)APP.dMkt.team.push(v);APP.dMkt.page=1;reRender();};
@@ -295,10 +333,12 @@
         ? '<div style="margin-top:3px"><span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 8px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span></div>'
         : "";
       var infoBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:6px;border-color:var(--blue);color:var(--blue)" onclick="event.stopPropagation();dMktInfo(\''+esc(p.key)+'\')">ⓘ</span>';
+      var starOn=isWatched(p.key);
+      var starBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:4px;border-color:'+(starOn?"var(--amber)":"var(--line)")+';color:'+(starOn?"var(--amber)":"var(--dim)")+'" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">'+(starOn?"★":"☆")+'</span>';
       return '<div class="prow '+(own?"dis":"")+'" style="'+(clickable?"cursor:pointer":"")+'" onclick="'+(clickable?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
-        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+infoBtn+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+infoBtn+starBtn+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
         '<div class="pr mono">'+p.price+'</div>'+
       '</div>';
     }).join("");
@@ -320,6 +360,44 @@
     }
     var countHTML='<b style="color:var(--chalk)">'+total+'</b> '+(total===1?"jogador":"jogadores")+(searching?(total===1?" encontrado":" encontrados"):" · página "+f.page+"/"+pages);
     return {countHTML:countHTML, listHTML:rows, pagerHTML:pager};
+  }
+
+  // HTML da aba "⭐ Observação": lista os jogadores favoritados, com pickar/remover
+  function watchTabHTML(s,me,owner,myRoster){
+    var all=cachedCatalog()||[];
+    var byKey={}; all.forEach(function(p){byKey[p.key]=p;});
+    var favs=(APP.draftWatch||[]).map(function(k){return byKey[k];}).filter(Boolean);
+    // ordena por preço desc
+    favs.sort(function(a,b){return b.price-a.price||a.name.localeCompare(b.name);});
+
+    if(!favs.length){
+      return '<div id="dMktTop"></div>'+
+        '<p class="p" style="padding:18px;text-align:center">Sua lista de observação está vazia.<br><br>'+
+        'Vá no <b style="color:var(--chalk)">Mercado</b> e toque na <span style="color:var(--amber)">☆ estrela</span> ao lado de um jogador pra adicioná-lo aqui.</p>';
+    }
+
+    var rows=favs.map(function(p){
+      var own=owner[p.key];
+      var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
+      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
+      var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
+      var pickBtn = own
+        ? '<span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'
+        : '<span class="daychip" style="font-size:11px;padding:3px 10px;border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();buyDraftPlayer(\''+esc(p.key)+'\')">+ pickar</span>';
+      var rmBtn='<span class="daychip" style="font-size:11px;padding:3px 9px;margin-left:5px;border-color:var(--red);color:var(--red)" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">✕</span>';
+      return '<div class="prow '+(own?"dis":"")+'">'+
+        '<div class="posbar pb-'+p.pos+'"></div>'+
+        '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+
+          '<div style="margin-top:4px">'+pickBtn+rmBtn+'</div>'+
+        '</div>'+
+        '<div class="pr mono">'+p.price+'</div>'+
+      '</div>';
+    }).join("");
+
+    return '<div id="dMktTop"></div>'+
+      '<p class="p" style="font-size:11px;margin-bottom:8px"><b style="color:var(--chalk)">'+favs.length+'</b> '+(favs.length===1?"jogador favoritado":"jogadores favoritados")+' · toque em <span style="color:var(--green)">+ pickar</span> pra comprar</p>'+
+      '<div class="poolbox">'+rows+'</div>';
   }
 
   // monta o HTML da aba mercado nova
@@ -419,20 +497,19 @@
       '<div id="dMktPager" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px">'+r.pagerHTML+'</div>';
   }
 
-  // intercepta draftHTML: se a aba ativa for "mercado", injeta a versão nova
+  // intercepta draftHTML: aba "mercado" (versão nova) e aba "observacao" (favoritos)
   if(typeof draftHTML==="function"){
     var _origDraftHTML=draftHTML;
     window.draftHTML=function(){
       var html=_origDraftHTML.apply(this,arguments);
-      if((APP.draftTab||"visao")!=="mercado")return html;
+      var tab=APP.draftTab||"visao";
+      if(tab!=="mercado"&&tab!=="observacao")return html;
       var s=APP.draftSeason; if(!s||APP.draftSchemaMissing)return html;
       try{
         var me=myDraftTeam();
         var myRoster=(APP.draftRosters||[]).filter(function(r){return APP.user&&r.username===APP.user.username;});
         var owner=draftOwnerMap();
-        var newBody=marketTabHTML(s,me,owner,myRoster);
-        // substitui o corpo: troca tudo entre a tabbar e o fechamento do card.
-        // estratégia robusta: re-render do card inteiro com o body novo.
+        var newBody = tab==="observacao" ? watchTabHTML(s,me,owner,myRoster) : marketTabHTML(s,me,owner,myRoster);
         return draftCardWrap(s,newBody);
       }catch(e){return html;}
     };
@@ -440,9 +517,9 @@
 
   // recria o "wrapper" do card do draft com um body custom (mesma moldura do app)
   function draftCardWrap(s,body){
-    var tabs=[["visao","Visão"],["mercado","Mercado"],["elencos","Elencos"],["movs","Transações"]];
+    var tabs=[["visao","Visão"],["mercado","Mercado"],["observacao","⭐ Observação"],["elencos","Elencos"],["movs","Transações"]];
     var tab=APP.draftTab||"visao";
-    var tabbar='<div class="postabs" style="margin:12px 0">'+tabs.map(function(t){
+    var tabbar='<div class="postabs" style="margin:12px 0;flex-wrap:wrap">'+tabs.map(function(t){
       return '<div class="ptab'+(tab===t[0]?" on":"")+'" onclick="setDraftTab(\''+t[0]+'\')">'+t[1]+'</div>';
     }).join("")+'</div>';
     return '<div class="card" style="border-color:#FF8A4C">'+
