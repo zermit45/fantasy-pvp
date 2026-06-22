@@ -51,6 +51,7 @@
         key:k,name:p.name,team:p.team,pos:p.pos,age:p.age||null,
         mv:Number(p.marketValue)||0,
         price:Math.max(1,Math.round(Number(p.draftPrice)||1)),
+        club:p.club||null,league:p.league||null,country:p.country||null,
         room_id:null,match_name:""
       });
     }
@@ -84,7 +85,13 @@
   // app usa `let APP` (não vira window.APP). Acessamos APP direto.
   if(typeof APP==="undefined") return; // app ainda não inicializou; sai sem quebrar
   // estado dos filtros do mercado (persistente entre renders)
-  APP.dMkt = APP.dMkt || { pos:"", team:"", pmin:"", pmax:"", page:1, perPage:50 };
+  APP.dMkt = APP.dMkt || { pos:[], team:[], league:[], club:[], pmin:"", pmax:"", amin:"", amax:"", page:1, perPage:50, panel:false };
+  // migração: se vier de versão antiga com strings, converte pra array
+  ["pos","team","league","club"].forEach(function(k){ if(typeof APP.dMkt[k]==="string") APP.dMkt[k]=APP.dMkt[k]?[APP.dMkt[k]]:[]; });
+  if(APP.dMkt.league===undefined)APP.dMkt.league=[];
+  if(APP.dMkt.club===undefined)APP.dMkt.club=[];
+  if(APP.dMkt.amin===undefined)APP.dMkt.amin="";
+  if(APP.dMkt.amax===undefined)APP.dMkt.amax="";
 
   // setters expostos pro HTML.
   // Inputs de texto: render() recria o campo (some o teclado) E reseta o scroll
@@ -110,8 +117,14 @@
   }
   function reFocus(id){renderKeepFocus(id);} // alias retrocompat
   function reRender(){ (typeof render==="function"?render:renderKeepScroll)(); }
-  window.dMktPos=function(v){APP.dMkt.pos=(APP.dMkt.pos===v?"":v);APP.dMkt.page=1;renderKeepScroll();};
-  window.dMktTeam=function(v){APP.dMkt.team=v;APP.dMkt.page=1;renderKeepScroll();};
+  function toggleArr(arr,v){var i=arr.indexOf(v);if(i<0)arr.push(v);else arr.splice(i,1);return arr;}
+  window.dMktPos=function(v){if(v==="")APP.dMkt.pos=[];else toggleArr(APP.dMkt.pos,v);APP.dMkt.page=1;if(!liveUpdateFull())renderKeepScroll();};
+  window.dMktTeamAdd=function(v){if(v&&APP.dMkt.team.indexOf(v)<0)APP.dMkt.team.push(v);APP.dMkt.page=1;reRender();};
+  window.dMktTeamDel=function(v){toggleArr(APP.dMkt.team,v);APP.dMkt.page=1;if(!liveUpdateFull())reRender();};
+  window.dMktLeagueAdd=function(v){if(v&&APP.dMkt.league.indexOf(v)<0)APP.dMkt.league.push(v);APP.dMkt.page=1;reRender();};
+  window.dMktLeagueDel=function(v){toggleArr(APP.dMkt.league,v);APP.dMkt.page=1;if(!liveUpdateFull())reRender();};
+  window.dMktClubAdd=function(v){if(v&&APP.dMkt.club.indexOf(v)<0)APP.dMkt.club.push(v);APP.dMkt.page=1;reRender();};
+  window.dMktClubDel=function(v){toggleArr(APP.dMkt.club,v);APP.dMkt.page=1;if(!liveUpdateFull())reRender();};
   function liveUpdate(){
     try{
       var s=APP.draftSeason; if(!s)return false;
@@ -127,18 +140,22 @@
       return true;
     }catch(e){return false;}
   }
+  // liveUpdateFull = só atualiza lista/contador/pager (usado por toggles sem input de texto)
+  function liveUpdateFull(){ return liveUpdate(); }
   window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktMinInput");};
   window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktMaxInput");};
+  window.dMktAgeMin=function(v){APP.dMkt.amin=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktAgeMinInput");};
+  window.dMktAgeMax=function(v){APP.dMkt.amax=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktAgeMaxInput");};
   window.dMktPage=function(n){APP.dMkt.page=n;renderKeepScroll();
     var el=document.getElementById("dMktTop"); if(el&&el.scrollIntoView)el.scrollIntoView({block:"start"});};
   window.dMktSearch=function(v){APP.draftSearch=v;APP.dMkt.page=1;renderKeepFocus("draftSearchInput");};
   // BUSCA AO VIVO: atualiza só a lista/contador/paginação, SEM redesenhar a tela.
-  // O input não é recriado → teclado não some, sem engasgo, sem pular scroll.
   window.dMktSearchLive=function(v){
     APP.draftSearch=v; APP.dMkt.page=1;
-    if(!liveUpdate())renderKeepFocus("draftSearchInput"); // fallback se contêineres sumiram
+    if(!liveUpdate())renderKeepFocus("draftSearchInput");
   };
-  window.dMktClear=function(){APP.dMkt={pos:"",team:"",pmin:"",pmax:"",page:1,perPage:50};
+  window.dMktTogglePanel=function(){APP.dMkt.panel=!APP.dMkt.panel;reRender();};
+  window.dMktClear=function(){APP.dMkt={pos:[],team:[],league:[],club:[],pmin:"",pmax:"",amin:"",amax:"",page:1,perPage:50,panel:APP.dMkt.panel};
     APP.draftSearch="";reRender();};
 
   function normT(s){return (typeof normTxt==="function")?normTxt(s):String(s||"").toLowerCase();}
@@ -149,12 +166,18 @@
     var q=normT(APP.draftSearch||"");
     var all=draftPlayerCatalog();
     var pmin=f.pmin===""?null:Number(f.pmin), pmax=f.pmax===""?null:Number(f.pmax);
+    var amin=f.amin===""?null:Number(f.amin), amax=f.amax===""?null:Number(f.amax);
+    var fp=f.pos||[], ft=f.team||[], fl=f.league||[], fc=f.club||[];
     var filtered=all.filter(function(p){
-      if(f.pos && p.pos!==f.pos) return false;
-      if(f.team && p.team!==f.team) return false;
+      if(fp.length && fp.indexOf(p.pos)<0) return false;
+      if(ft.length && ft.indexOf(p.team)<0) return false;
+      if(fl.length && fl.indexOf(p.league)<0) return false;
+      if(fc.length && fc.indexOf(p.club)<0) return false;
       if(pmin!=null && p.price<pmin) return false;
       if(pmax!=null && p.price>pmax) return false;
-      if(q && !normT(p.name+" "+p.team+" "+p.pos).includes(q)) return false;
+      if(amin!=null && (p.age==null||p.age<amin)) return false;
+      if(amax!=null && (p.age==null||p.age>amax)) return false;
+      if(q && !normT(p.name+" "+p.team+" "+p.pos+" "+(p.club||"")+" "+(p.league||"")).includes(q)) return false;
       return true;
     });
     var total=filtered.length;
@@ -174,12 +197,12 @@
       // buyDraftPlayer mostra o motivo no toast em vez de ficar "travado" sem reação.
       var clickable = !own;
       var devBtn=(own && typeof isAdmin==="function" && isAdmin())
-        ? '<span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 7px;margin-left:6px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span>'
+        ? '<div style="margin-top:3px"><span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 8px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span></div>'
         : "";
       return '<div class="prow '+(own?"dis":"")+'" style="'+(clickable?"cursor:pointer":"")+'" onclick="'+(clickable?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
-        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:(can?"":' <span style="font-size:9px;color:var(--dim)">·</span>'))+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
         '<div class="pr mono">'+p.price+'</div>'+
       '</div>';
     }).join("");
@@ -208,39 +231,73 @@
     var f=APP.dMkt;
     var q=normT(APP.draftSearch||"");
     var all=draftPlayerCatalog();
-    var teamSet={}; all.forEach(function(p){teamSet[p.team]=1;});
+    // opções (ordenadas) para os dropdowns
+    var teamSet={},leagueSet={},clubSet={};
+    all.forEach(function(p){teamSet[p.team]=1;if(p.league)leagueSet[p.league]=1;if(p.club)clubSet[p.club]=1;});
     var teamOpts=Object.keys(teamSet).sort();
+    var leagueOpts=Object.keys(leagueSet).sort();
+    var clubOpts=Object.keys(clubSet).sort();
 
-    var posList=[["","Todas"],["GK","GOL"],["DEF","DEF"],["MID","MEI"],["ATT","ATA"]];
-    var posChips=posList.map(function(pp){
-      var on=(f.pos===pp[0]);
-      return '<div class="ptab'+(on?' on':'')+'" style="min-width:46px" onclick="dMktPos(\''+pp[0]+'\')">'+pp[1]+'</div>';
-    }).join("");
+    // chips de posição (multi)
+    var posList=[["GK","GOL"],["DEF","DEF"],["MID","MEI"],["ATT","ATA"]];
+    var posChips='<div class="ptab'+(f.pos.length===0?" on":"")+'" style="min-width:46px" onclick="dMktPos(\'\')">Todas</div>'+
+      posList.map(function(pp){
+        var on=f.pos.indexOf(pp[0])>=0;
+        return '<div class="ptab'+(on?' on':'')+'" style="min-width:46px" onclick="dMktPos(\''+pp[0]+'\')">'+pp[1]+'</div>';
+      }).join("");
 
-    var teamSel='<select class="input" style="margin:0" onchange="dMktTeam(this.value)">'+
-      '<option value="">Todas seleções</option>'+
-      teamOpts.map(function(t){return '<option value="'+t+'"'+(f.team===t?' selected':'')+'>'+esc(t)+'</option>';}).join("")+
-      '</select>';
+    // helper: dropdown "adicionar" + pílulas removíveis
+    function multiBlock(label,opts,selected,addFn,delFn){
+      var pills=selected.map(function(v){
+        return '<span class="daychip on" style="font-size:10px;padding:3px 9px" onclick="'+delFn+'(\''+esc(v).replace(/'/g,"\\'")+'\')">'+esc(v)+' ✕</span>';
+      }).join("");
+      var sel='<select class="input" style="margin:0" onchange="if(this.value){'+addFn+'(this.value);this.value=\'\'}">'+
+        '<option value="">'+label+'…</option>'+
+        opts.filter(function(o){return selected.indexOf(o)<0;}).map(function(o){return '<option value="'+esc(o)+'">'+esc(o)+'</option>';}).join("")+
+        '</select>';
+      return sel+(pills?'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px">'+pills+'</div>':"");
+    }
 
-    var priceRange='<div style="display:flex;gap:8px;align-items:center">'+
+    var teamBlock=multiBlock("Seleções",teamOpts,f.team,"dMktTeamAdd","dMktTeamDel");
+    var leagueBlock=multiBlock("Ligas",leagueOpts,f.league,"dMktLeagueAdd","dMktLeagueDel");
+    var clubBlock=multiBlock("Clubes",clubOpts,f.club,"dMktClubAdd","dMktClubDel");
+
+    var priceRange='<div><div class="tag" style="margin-bottom:4px">PREÇO</div><div style="display:flex;gap:8px;align-items:center">'+
       '<input id="dMktMinInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="mín" value="'+(f.pmin)+'" oninput="dMktMin(this.value)" />'+
       '<span style="color:var(--dim)">até</span>'+
       '<input id="dMktMaxInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="máx" value="'+(f.pmax)+'" oninput="dMktMax(this.value)" />'+
-      '</div>';
+      '</div></div>';
+    var ageRange='<div><div class="tag" style="margin-bottom:4px">IDADE</div><div style="display:flex;gap:8px;align-items:center">'+
+      '<input id="dMktAgeMinInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="mín" value="'+(f.amin)+'" oninput="dMktAgeMin(this.value)" />'+
+      '<span style="color:var(--dim)">até</span>'+
+      '<input id="dMktAgeMaxInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="máx" value="'+(f.amax)+'" oninput="dMktAgeMax(this.value)" />'+
+      '</div></div>';
 
     var search='<div style="position:relative">'+
-      '<input id="draftSearchInput" class="input" style="margin:0" placeholder="🔍 Buscar jogador…" value="'+esc(APP.draftSearch||"")+'" oninput="dMktSearchLive(this.value)" autocorrect="off" autocomplete="off" />'+
+      '<input id="draftSearchInput" class="input" style="margin:0" placeholder="🔍 Buscar (nome, clube, liga…)" value="'+esc(APP.draftSearch||"")+'" oninput="dMktSearchLive(this.value)" autocorrect="off" autocomplete="off" />'+
       '</div>';
 
+    var nActive=(f.pos.length+f.team.length+f.league.length+f.club.length)+(f.pmin!==""?1:0)+(f.pmax!==""?1:0)+(f.amin!==""?1:0)+(f.amax!==""?1:0);
+    var panelToggle='<div class="daychip'+(f.panel?" on":"")+'" style="align-self:flex-start" onclick="dMktTogglePanel()">⚙︎ Filtros'+(nActive?" ("+nActive+")":"")+(f.panel?" ▲":" ▼")+'</div>';
+    var panel = f.panel ? (
+      '<div class="card" style="padding:11px;margin:0;background:var(--panel2)">'+
+        '<div style="display:flex;flex-direction:column;gap:10px">'+
+          '<div><div class="tag" style="margin-bottom:4px">POSIÇÃO</div><div class="postabs" style="margin:0">'+posChips+'</div></div>'+
+          '<div><div class="tag" style="margin-bottom:4px">SELEÇÃO</div>'+teamBlock+'</div>'+
+          '<div><div class="tag" style="margin-bottom:4px">LIGA</div>'+leagueBlock+'</div>'+
+          '<div><div class="tag" style="margin-bottom:4px">CLUBE</div>'+clubBlock+'</div>'+
+          priceRange+ageRange+
+          (nActive?'<div class="daychip" style="align-self:flex-start;border-color:var(--red);color:var(--red)" onclick="dMktClear()">✕ limpar todos os filtros</div>':"")+
+        '</div>'+
+      '</div>'
+    ) : "";
+
     var r=computeResults(s,me,owner,myRoster);
-    var activeFilters=(f.pos||f.team||f.pmin!==""||f.pmax!==""||q);
     return '<div id="dMktTop"></div>'+
       '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">'+
         search+
-        '<div class="postabs" style="margin:0">'+posChips+'</div>'+
-        teamSel+
-        priceRange+
-        (activeFilters?'<div id="dMktClearBtn" class="daychip" style="align-self:flex-start;border-color:var(--red);color:var(--red)" onclick="dMktClear()">✕ limpar filtros</div>':"")+
+        panelToggle+
+        panel+
       '</div>'+
       '<p class="p" style="font-size:11px;margin-bottom:8px" id="dMktCount">'+r.countHTML+'</p>'+
       '<div class="poolbox" id="dMktList">'+r.listHTML+'</div>'+
