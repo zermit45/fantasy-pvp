@@ -171,11 +171,11 @@
     var line=function(label,val){return '<div class="line"><span>'+label+'</span><span class="v">'+esc(val||"—")+'</span></div>';};
     var posName={GK:"Goleiro",DEF:"Defensor",MID:"Meio-campo",ATT:"Atacante"}[cat.pos]||cat.pos;
     var box=
-      '<div class="modal" onclick="dMktCloseInfo(event)">'+
-        '<div class="box" onclick="event.stopPropagation()">'+
+      '<div class="modal" onclick="dMktCloseInfo(event)" style="font-family:Inter,system-ui,sans-serif">'+
+        '<div class="box" onclick="event.stopPropagation()" style="font-family:Inter,system-ui,sans-serif">'+
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
             '<span class="pchip pc-'+cat.pos+' bg-'+cat.pos+'">'+(SLOT_LABEL[cat.pos]||cat.pos)+'</span>'+
-            '<div class="h2 disp" style="margin:0">'+esc(cat.name)+'</div>'+
+            '<div class="h2 disp" style="margin:0;color:var(--chalk)">'+esc(cat.name)+'</div>'+
           '</div>'+
           '<div style="margin:10px 0">'+
             line("🏟️ Clube", cat.club)+
@@ -193,6 +193,7 @@
       '</div>';
     var host=document.getElementById("dMktInfoHost");
     if(!host){host=document.createElement("div");host.id="dMktInfoHost";document.body.appendChild(host);}
+    host.style.fontFamily="Inter,system-ui,sans-serif";
     host.innerHTML=box;
   };
   window.dMktCloseInfo=function(ev){
@@ -666,7 +667,7 @@
       return '<span style="color:var(--dim);font-size:12px;margin-left:6px">idade</span>'+
         '<input id="cap_'+key+'_age" class="input" style="margin:0;width:60px;text-align:center" inputmode="numeric" value="'+age+'" />';
     };
-    var box='<div class="modal" onclick="draftCapsClose(event)"><div class="box" onclick="event.stopPropagation()">'+
+    var box='<div class="modal" onclick="draftCapsClose(event)" style="font-family:Inter,system-ui,sans-serif"><div class="box" onclick="event.stopPropagation()" style="font-family:Inter,system-ui,sans-serif">'+
       '<div class="h2 disp" style="color:#FF8A4C">Limites de elenco</div>'+
       '<p class="p" style="margin:8px 0">Defina quantos jogadores no máximo cada manager pode ter por categoria. Deixe desmarcado pra não limitar.</p>'+
       row("country","Máx por PAÍS (onde o clube joga)")+
@@ -681,6 +682,7 @@
     '</div></div>';
     var host=document.getElementById("dCapsHost");
     if(!host){host=document.createElement("div");host.id="dCapsHost";document.body.appendChild(host);}
+    host.style.fontFamily="Inter,system-ui,sans-serif";
     host.innerHTML=box;
   };
   window.draftCapsClose=function(ev){
