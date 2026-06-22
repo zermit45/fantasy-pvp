@@ -208,7 +208,8 @@ body.confdragging{overscroll-behavior:none}
 body.confdragging .confpick{touch-action:none;-webkit-user-select:none;user-select:none}
 .conforderbar{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--purple);background:color-mix(in srgb,var(--purple) 13%,var(--panel2));border-radius:12px;padding:10px 11px;margin:0 0 12px}
 .conforderbar b{color:var(--purple)}
-.confordercard{touch-action:none}
+.confordercard{touch-action:none;cursor:grab}
+.confordercard:active{cursor:grabbing}
 .confgrab{touch-action:none;user-select:none;-webkit-user-select:none;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:1px solid var(--purple);border-radius:11px;background:color-mix(in srgb,var(--purple) 15%,transparent);color:var(--purple);font-weight:900;padding:10px 12px;margin-top:9px}
 .confghost{opacity:.72;transform:scale(.985)}
 .confhint{font-size:10px;color:var(--purple);font-weight:800;margin-left:2px}
@@ -257,6 +258,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part5.js?v=20260621-2155"></script>
 <script src="games-part6.js?v=20260621-2155"></script>
 <script src="engine.js"></script>
-<script src="app.js?v=20260622-0145"></script>
+<script src="app.js?v=20260622-0158"></script>
 </body>
 </html>

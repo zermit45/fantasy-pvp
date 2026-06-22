@@ -1189,6 +1189,11 @@ function confPointerStart(roomId,ev){
   document.addEventListener("pointercancel",confPointerEnd,{passive:false});
   _confPointerBound=true;
 }
+function confCardPointerStart(roomId,ev){
+  const t=ev&&ev.target;
+  if(t&&t.closest&&t.closest("button,input,select,textarea,.statuspill,.cbtn,a"))return;
+  confPointerStart(roomId,ev);
+}
 function confPointerOff(){
   if(!_confPointerBound)return;
   document.removeEventListener("pointermove",confPointerMove,{passive:false});
@@ -2441,8 +2446,10 @@ function roundHTML(){
     // controle de PREVISÃO: cravar placar (inputs home x away)
     let extraCtrl="";
     if(isConf&&!finished){
-      const myRank=confRankOf(rid);                  // posição na ordem (0-based) ou null
-      const total=confRankedCount();
+      const visualOrder=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:null;
+      const draftRank=visualOrder?visualOrder.indexOf(rid):null;
+      const myRank=draftRank!=null&&draftRank>=0?draftRank:confRankOf(rid);                  // posição na ordem (0-based) ou null
+      const total=visualOrder?visualOrder.length:confRankedCount();
       if(bLocked){
         extraCtrl=myRank!=null?`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:${mm.color}">📊 ${myRank+1}º confiança · <span>${confMultiplier(myRank,total).toFixed(2)}x</span></span>`:`<span style="font-size:11px;color:var(--dim)">sem ordem</span>`;
       }else{
@@ -2455,9 +2462,9 @@ function roundHTML(){
             extraCtrl=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
-                ${held?`<span class="confhint">arrastando...</span>`:`<span class="confhint">ordem editável</span>`}
+                ${held?`<span class="confhint">arrastando...</span>`:`<span class="confhint">segure o card e arraste</span>`}
               </div>
-              <button class="confgrab" style="border-color:${mm.color};color:${mm.color}" title="Segure e arraste para mudar a ordem" onpointerdown="confPointerStart('${rid}',event)" onclick="event.stopPropagation()">↕ Segure e arraste este jogo</button>
+              <div class="confgrab" style="border-color:${mm.color};color:${mm.color}">↕ Card inteiro arrastável</div>
             </div>`;
           }else{
             extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2503,14 +2510,14 @@ function roundHTML(){
     const confOrdering=isConf&&!finished&&!bLocked&&APP.confOrderMode;
     if(confOrdering){
       clickable=false;
-      tag=`<span class="statuspill st-finished" style="cursor:pointer;color:var(--blue);border:1px solid var(--blue);background:color-mix(in srgb,var(--blue) 16%,transparent)" onclick="event.stopPropagation();askEnterRoundGame('${rid}')">${team?"EDITAR TIME":"MONTAR TIME"}</span>`;
+      tag=`<span class="statuspill st-finished" style="cursor:pointer;color:var(--blue);border:1px solid var(--blue);background:color-mix(in srgb,var(--blue) 16%,transparent)" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();askEnterRoundGame('${rid}')">${team?"EDITAR TIME":"MONTAR TIME"}</span>`;
       meta=team?"time montado · arraste para mudar a confiança":"toque em montar time · arraste para ordenar";
     }
     const lineCtrl=isBoost?boostCtrl:(isConf||isPred?extraCtrl:"");
     const hasLineCtrl=(isBoost||isConf||isPred)&&!finished&&lineCtrl;
     const confRanked=isConf&&confRankOf(rid)!=null&&!finished&&!bLocked;
     const confDragAttrs=confRanked?`data-conf-room="${rid}"`:"";
-    return `<div class="roomrow ${confRanked?"confpick":""} ${confOrdering?"confordercard":""} ${APP.confDrag===rid?"confheld confghost":""}" ${confDragAttrs} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
+    return `<div class="roomrow ${confRanked?"confpick":""} ${confOrdering?"confordercard":""} ${APP.confDrag===rid?"confheld confghost":""}" ${confDragAttrs} ${confOrdering?`onpointerdown="confCardPointerStart('${rid}',event)"`:""} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
       <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
         <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${(!isBoost&&!isConf&&!isPred)?boostCtrl:""}${devBlock}</div>
@@ -2552,17 +2559,18 @@ function roundHTML(){
       ${(!bLocked&&avail.length>0)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ainda tem <b>${avail.length}</b> ficha(s) sem usar. Se a 1ª partida for fechada antes de você gastar TODAS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Distribua tudo!</div>`:""}`;
   }else if(isConf){
     const bConf=boostConfirmed();
-    const ranked=confRankedCount();
+    const draftIds=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:null;
+    const ranked=draftIds?draftIds.length:confRankedCount();
     const totalGames=APP.roundRooms.length;
-    const ord=confOrdered();
+    const ordIds=draftIds?draftIds:confOrdered().map(e=>e.room_id);
     // multiplicadores reais desta rodada (dependem de quantos jogos foram ordenados)
     const topMult=ranked>0?confMultiplier(0,ranked):1;
     const lowMult=ranked>1?confMultiplier(ranked-1,ranked):1;
     // mini resumo da ordem atual
-    const ordList=ord.map((e,i)=>{const g=window.GAMES.data[e.room_id];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
+    const ordList=ordIds.map((roomId,i)=>{const g=window.GAMES.data[roomId];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Confiança.</b> Coloque os jogos em ordem de confiança: do 1º (mais confia) ao último — dá pra ordenar antes de escalar. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. A escalação de cada jogo é livre até aquela partida começar. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
-      ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
+      ${ordIds.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
       ${!bLocked?`<div class="conforderbar">
         <div style="font-size:12px;line-height:1.35"><b>${APP.confOrderMode?"Modo ordenar ligado":"Quer ordenar mais fácil?"}</b><br><span style="color:var(--dim)">${APP.confOrderMode?"Segure em ↕ e arraste o card para cima/baixo.":"Toque aqui para transformar a lista em arrastável."}</span></div>
         <button class="btn sm" style="background:${APP.confOrderMode?"transparent":mm.color};color:${APP.confOrderMode?mm.color:"#0A0E1C"};border:${APP.confOrderMode?`1px solid ${mm.color}`:"none"};white-space:nowrap" onclick="${APP.confOrderMode?"confStopOrdering()":"confStartOrdering()"}">${APP.confOrderMode?"Sair":"Ordenar"}</button>
