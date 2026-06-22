@@ -81,7 +81,8 @@
   // busca) + paginação (páginas de 50). Sobrescreve só a aba "mercado"
   // do draftHTML, sem tocar no resto.
   // ============================================================
-  if(!window.APP) return; // app ainda não inicializou estado; sai sem quebrar
+  // app usa `let APP` (não vira window.APP). Acessamos APP direto.
+  if(typeof APP==="undefined") return; // app ainda não inicializou; sai sem quebrar
   // estado dos filtros do mercado (persistente entre renders)
   APP.dMkt = APP.dMkt || { pos:"", team:"", pmin:"", pmax:"", page:1, perPage:50 };
 
@@ -102,8 +103,9 @@
   window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;reRender();reFocus("dMktMaxInput");};
   window.dMktPage=function(n){APP.dMkt.page=n;renderKeepScroll();
     var el=document.getElementById("dMktTop"); if(el&&el.scrollIntoView)el.scrollIntoView({block:"start"});};
+  window.dMktSearch=function(v){APP.draftSearch=v;APP.dMkt.page=1;reRender();reFocus("draftSearchInput");};
   window.dMktClear=function(){APP.dMkt={pos:"",team:"",pmin:"",pmax:"",page:1,perPage:50};
-    if(typeof setDraftSearch==="function")APP.draftSearch="";renderKeepScroll();};
+    APP.draftSearch="";reRender();};
 
   function normT(s){return (typeof normTxt==="function")?normTxt(s):String(s||"").toLowerCase();}
 
@@ -154,7 +156,7 @@
 
     // busca
     var search='<div style="position:relative">'+
-      '<input id="draftSearchInput" class="input" style="margin:0" placeholder="🔍 Buscar jogador…" value="'+esc(APP.draftSearch||"")+'" oninput="setDraftSearch(this.value)" autocorrect="off" />'+
+      '<input id="draftSearchInput" class="input" style="margin:0" placeholder="🔍 Buscar jogador…" value="'+esc(APP.draftSearch||"")+'" oninput="dMktSearch(this.value)" autocorrect="off" autocomplete="off" />'+
       '</div>';
 
     // linhas de jogador
@@ -163,10 +165,13 @@
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
       var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
+      var devBtn = (own && typeof isAdmin==="function" && isAdmin())
+        ? '<span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 7px;margin-left:6px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span>'
+        : "";
       return '<div class="prow '+(own?"dis":"")+'" style="'+(can?"cursor:pointer":"")+'" onclick="'+(can?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
-        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>':"")+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
         '<div class="pr mono">'+p.price+'</div>'+
       '</div>';
     }).join("");
@@ -233,7 +238,79 @@
       '<div class="tag">MERCADO DRAFT · TEMPORADA</div>'+
       '<div class="h2 disp" style="color:#FF8A4C">🏟️ '+esc(s.name)+'</div>'+
       '<p class="p" style="margin:8px 0">Status: <b style="color:var(--chalk)">'+esc(s.status)+'</b> · Mercado: <b style="color:'+(s.market_status==="open"?"var(--green)":"var(--red)")+'">'+esc(s.market_status)+'</b></p>'+
+      betaPanelHTML(s)+
       tabbar+body+
     '</div>';
   }
+
+  // ── PAINEL BETA/DEV — só admin, só enquanto o modo está em teste ──
+  // permite reverter ações que normalmente seriam definitivas.
+  function betaPanelHTML(s){
+    if(typeof isAdmin!=="function"||!isAdmin())return "";
+    return '<div class="card" style="border:1px dashed var(--amber);background:color-mix(in srgb,var(--amber) 8%,transparent);margin:10px 0;padding:11px">'+
+      '<div class="tag" style="color:var(--amber);margin-bottom:6px">🛠️ DEV · BETA — ações reversíveis</div>'+
+      '<p class="p" style="font-size:10.5px;margin-bottom:9px">Só você (admin) vê isto, e só enquanto o modo está em teste. Desfaz compras e zera elencos.</p>'+
+      '<div style="display:flex;flex-direction:column;gap:7px">'+
+        '<button class="btn sm ghost" style="width:100%" onclick="devResetMyRoster()">↩︎ Devolver TODOS os meus jogadores</button>'+
+        '<button class="btn sm ghost" style="width:100%;border-color:var(--red);color:var(--red)" onclick="devResetSeason()">⚠︎ Resetar temporada inteira (todos os managers)</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // devolve UM jogador (desfaz a compra): remove do elenco, devolve moedas, loga reversão
+  window.devReturnPlayer=async function(playerKey){
+    if(typeof isAdmin!=="function"||!isAdmin())return;
+    var s=APP.draftSeason; if(!s)return;
+    var r=(APP.draftRosters||[]).find(function(x){return x.player_key===playerKey;});
+    if(!r){toast&&toast("Jogador não está em nenhum elenco.");return;}
+    try{
+      await sbDelete("draft_rosters","season_id=eq."+s.id+"&player_key=eq."+encodeURIComponent(playerKey));
+      // devolve moedas ao dono
+      var team=(APP.draftTeams||[]).find(function(t){return t.username===r.username;});
+      if(team&&draftSetting(s,"budget_enabled",true)){
+        await sbUpdate("draft_teams",{budget_left:Number(team.budget_left||0)+Number(r.acquired_price||r.current_price||0)},
+          "season_id=eq."+s.id+"&username=eq."+encodeURIComponent(r.username));
+      }
+      await sbInsert("draft_transactions",{season_id:s.id,username:r.username,type:"dev_return",
+        player_key:r.player_key,player_name:r.player_name,amount:-(r.acquired_price||0),meta:{by:"dev"}});
+      await loadDraftSeason(s.id);
+      toast&&toast(r.player_name+" devolvido (DEV).");
+      reRender();
+    }catch(e){toast&&toast("Erro: "+e.message);}
+  };
+
+  // devolve todos os meus jogadores
+  window.devResetMyRoster=async function(){
+    if(typeof isAdmin!=="function"||!isAdmin())return;
+    var s=APP.draftSeason; if(!s||!APP.user)return;
+    var mine=(APP.draftRosters||[]).filter(function(r){return r.username===APP.user.username;});
+    if(!mine.length){toast&&toast("Você não tem jogadores.");return;}
+    if(typeof askConfirm==="function"){/* usa confirm nativo abaixo */}
+    if(!confirm("Devolver seus "+mine.length+" jogadores e recuperar as moedas?"))return;
+    try{
+      for(var i=0;i<mine.length;i++)await window.devReturnPlayer(mine[i].player_key);
+    }catch(e){toast&&toast("Erro: "+e.message);}
+  };
+
+  // reseta a temporada inteira (todos os elencos + zera moedas pro budget inicial)
+  window.devResetSeason=async function(){
+    if(typeof isAdmin!=="function"||!isAdmin())return;
+    var s=APP.draftSeason; if(!s)return;
+    if(!confirm("RESETAR a temporada inteira? Remove TODOS os jogadores de TODOS os managers e devolve o orçamento. Não dá pra desfazer."))return;
+    try{
+      await sbDelete("draft_rosters","season_id=eq."+s.id);
+      // devolve budget cheio a todos os times
+      var budget=Number(s.budget||100);
+      var teams=APP.draftTeams||[];
+      for(var i=0;i<teams.length;i++){
+        await sbUpdate("draft_teams",{budget_left:budget},
+          "season_id=eq."+s.id+"&username=eq."+encodeURIComponent(teams[i].username));
+      }
+      await sbInsert("draft_transactions",{season_id:s.id,username:(APP.user&&APP.user.username)||"dev",
+        type:"dev_reset_season",amount:0,meta:{by:"dev"}});
+      await loadDraftSeason(s.id);
+      toast&&toast("Temporada resetada (DEV).");
+      reRender();
+    }catch(e){toast&&toast("Erro: "+e.message);}
+  };
 })();
