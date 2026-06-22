@@ -1679,14 +1679,17 @@ function scrollSnap(){
 }
 function restoreScroll(snap){
   if(!snap)return;
-  requestAnimationFrame(()=>{
+  const apply=()=>{
     window.scrollTo(0,snap.y||0);
     const m=document.querySelector(".modal");
     if(m&&snap.hasModal)m.scrollTop=snap.my||0;
-  });
+  };
+  requestAnimationFrame(()=>{apply();setTimeout(apply,60);setTimeout(apply,180);});
 }
 function renderKeepScroll(){
   const snap=scrollSnap();
+  const ae=document.activeElement;
+  if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)){try{ae.blur();}catch(e){}}
   render();
   restoreScroll(snap);
 }
@@ -2637,9 +2640,9 @@ function boostBuilderHTML(c){
     const neg=v<0;const col=neg?"#FF6B6B":"#FFC247";
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
       <span style="width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;border:2px solid ${col};color:${col};background:color-mix(in srgb,${col} 16%,transparent)">⚡</span>
-      <input class="input" type="number" inputmode="numeric" style="flex:1;margin:0" value="${v}" onchange="setChipValue(${i},this.value)" />
+      <input class="input" type="number" inputmode="numeric" style="flex:1;margin:0" value="${v}" onclick="event.stopPropagation()" onchange="setChipValue(${i},this.value)" />
       <span style="font-size:11px;color:${col};width:54px">${neg?"NEGATIVA":"+"+v+"%"}</span>
-      <button class="cbtn" style="position:static;width:28px;height:28px;color:var(--red);border-color:var(--red)" onclick="removeChip(${i})">×</button>
+      <button class="cbtn" style="position:static;width:28px;height:28px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();removeChip(${i})">×</button>
     </div>`;
   }).join("");
   const totalPos=chips.filter(v=>v>0).length, totalNeg=chips.filter(v=>v<0).length;
@@ -2647,13 +2650,13 @@ function boostBuilderHTML(c){
     <p class="p" style="font-size:11px;margin:0 0 8px;color:#FFC247">Monte as fichas desta pool. Cada ficha tem seu valor — use número negativo pra criar uma ficha "ruim" (vermelha) que o jogador é obrigado a gastar.</p>
     ${chipRow||'<p class="p" style="font-size:11px">Nenhuma ficha ainda.</p>'}
     <div style="display:flex;gap:6px;margin-top:6px">
-      <button class="btn ghost" style="margin:0;flex:1;font-size:12px" onclick="addChip(15)">+ Ficha positiva</button>
-      <button class="btn ghost" style="margin:0;flex:1;font-size:12px;color:#FF6B6B;border-color:#FF6B6B" onclick="addChip(-15)">+ Ficha negativa</button>
+      <button class="btn ghost" style="margin:0;flex:1;font-size:12px" onclick="event.stopPropagation();addChip(15)">+ Ficha positiva</button>
+      <button class="btn ghost" style="margin:0;flex:1;font-size:12px;color:#FF6B6B;border-color:#FF6B6B" onclick="event.stopPropagation();addChip(-15)">+ Ficha negativa</button>
     </div>
     <p class="p" style="font-size:10px;margin:8px 0 4px;color:var(--dim)">${chips.length} ficha(s): ${totalPos} positiva(s)${totalNeg?`, ${totalNeg} negativa(s)`:""}.</p>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0;renderKeepScroll()" /></div>
-      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Mín. de partidas (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${minG}" onchange="APP.confirm.boostMinGames=parseInt(this.value,10)||0;renderKeepScroll()" /></div>
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onclick="event.stopPropagation()" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0;renderKeepScroll()" /></div>
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Mín. de partidas (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${minG}" onclick="event.stopPropagation()" onchange="APP.confirm.boostMinGames=parseInt(this.value,10)||0;renderKeepScroll()" /></div>
     </div>
     ${totalNeg?`<div onclick="toggleNoMix()" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
       <span style="width:34px;height:20px;border-radius:99px;background:${noMix?"#FF6B6B":"var(--line)"};position:relative;flex-shrink:0;transition:.15s"><span style="position:absolute;top:2px;left:${noMix?"16px":"2px"};width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s"></span></span>
