@@ -203,15 +203,15 @@ body{background:var(--bg)}
 .draghandle:active{cursor:grabbing;transform:scale(.96)}
 .confdrop{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 16%,var(--panel2))}
 .confpick{user-select:none;-webkit-user-select:none}
-.confheld{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 18%,var(--panel2))}
+.confheld{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 18%,var(--panel2));box-shadow:0 12px 28px rgba(0,0,0,.25)}
 body.confdragging{overscroll-behavior:none}
 body.confdragging .confpick{touch-action:none;-webkit-user-select:none;user-select:none}
 .conforderbar{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--purple);background:color-mix(in srgb,var(--purple) 13%,var(--panel2));border-radius:12px;padding:10px 11px;margin:0 0 12px}
 .conforderbar b{color:var(--purple)}
-.confordercard{touch-action:none;cursor:grab}
+.confordercard{touch-action:none;cursor:grab;transition:transform .14s cubic-bezier(.16,1,.3,1),opacity .14s ease,box-shadow .18s ease,background .18s ease}
 .confordercard:active{cursor:grabbing}
 .confgrab{touch-action:none;user-select:none;-webkit-user-select:none;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:1px solid var(--purple);border-radius:11px;background:color-mix(in srgb,var(--purple) 15%,transparent);color:var(--purple);font-weight:900;padding:10px 12px;margin-top:9px}
-.confghost{opacity:.72;transform:scale(.985)}
+.confghost{opacity:.82;transform:scale(.992)}
 .confhint{font-size:10px;color:var(--purple);font-weight:800;margin-left:2px}
 .dashgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
 .dashitem{border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:10px}
@@ -270,6 +270,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part5.js?v=20260621-2155"></script>
 <script src="games-part6.js?v=20260621-2155"></script>
 <script src="engine.js"></script>
-<script src="app.js?v=20260622-0220"></script>
+<script src="app.js?v=20260622-0235"></script>
 </body>
 </html>

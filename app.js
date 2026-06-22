@@ -1154,9 +1154,35 @@ function confDragOver(roomId){
 function confDragCancel(){
   APP.confDrag=null;
   APP.confHover=null;
+  confAutoScrollStop();
   confTouchOff();
   confPointerOff();
   document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
+}
+let _confPointer={x:0,y:0}, _confAutoRAF=null, _confAutoSpeed=0;
+function confAutoScrollUpdate(x,y){
+  _confPointer={x,y};
+  const h=window.innerHeight||document.documentElement.clientHeight||700;
+  const zone=Math.min(150,Math.max(82,h*0.18));
+  let speed=0;
+  if(y<zone) speed=-Math.round(((zone-y)/zone)*18)-3;
+  else if(y>h-zone) speed=Math.round(((y-(h-zone))/zone)*18)+3;
+  _confAutoSpeed=Math.max(-24,Math.min(24,speed));
+  if(_confAutoSpeed&&!_confAutoRAF)_confAutoRAF=requestAnimationFrame(confAutoScrollTick);
+  if(!_confAutoSpeed)confAutoScrollStop();
+}
+function confAutoScrollTick(){
+  _confAutoRAF=null;
+  if(!APP.confDrag||!_confAutoSpeed)return;
+  const before=window.scrollY||document.documentElement.scrollTop||0;
+  window.scrollBy(0,_confAutoSpeed);
+  const after=window.scrollY||document.documentElement.scrollTop||0;
+  if(after!==before)confPointMove(_confPointer.x,_confPointer.y);
+  _confAutoRAF=requestAnimationFrame(confAutoScrollTick);
+}
+function confAutoScrollStop(){
+  _confAutoSpeed=0;
+  if(_confAutoRAF){cancelAnimationFrame(_confAutoRAF);_confAutoRAF=null;}
 }
 let _confTouchBound=false;
 function confTouchOn(){
@@ -1180,6 +1206,7 @@ function confTouchMove(ev){
   if(ev.cancelable)ev.preventDefault();
   const t=ev.touches&&ev.touches[0];
   if(!t)return;
+  confAutoScrollUpdate(t.clientX,t.clientY);
   confPointMove(t.clientX,t.clientY);
 }
 function confPointMove(x,y){
@@ -1192,6 +1219,7 @@ function confTouchEnd(ev){
   if(!APP.confDrag)return;
   if(ev&&ev.cancelable)ev.preventDefault();
   const order=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft.slice():confRoomOrderIds();
+  confAutoScrollStop();
   confDragCancel();
   confPersistOrder(order).then(()=>{renderKeepScroll();}).catch(e=>toast("Erro: "+e.message));
 }
@@ -1220,12 +1248,14 @@ function confPointerOff(){
 function confPointerMove(ev){
   if(!APP.confDrag)return;
   if(ev.cancelable)ev.preventDefault();
+  confAutoScrollUpdate(ev.clientX,ev.clientY);
   confPointMove(ev.clientX,ev.clientY);
 }
 function confPointerEnd(ev){
   if(!APP.confDrag){confPointerOff();return;}
   if(ev&&ev.cancelable)ev.preventDefault();
   const order=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft.slice():confRoomOrderIds();
+  confAutoScrollStop();
   confPointerOff();
   confDragCancel();
   confPersistOrder(order).then(()=>{renderKeepScroll();}).catch(e=>toast("Erro: "+e.message));
