@@ -112,25 +112,42 @@
   function reRender(){ (typeof render==="function"?render:renderKeepScroll)(); }
   window.dMktPos=function(v){APP.dMkt.pos=(APP.dMkt.pos===v?"":v);APP.dMkt.page=1;renderKeepScroll();};
   window.dMktTeam=function(v){APP.dMkt.team=v;APP.dMkt.page=1;renderKeepScroll();};
-  window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;renderKeepFocus("dMktMinInput");};
-  window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;renderKeepFocus("dMktMaxInput");};
+  function liveUpdate(){
+    try{
+      var s=APP.draftSeason; if(!s)return false;
+      var me=myDraftTeam();
+      var myRoster=(APP.draftRosters||[]).filter(function(r){return APP.user&&r.username===APP.user.username;});
+      var owner=draftOwnerMap();
+      var r=computeResults(s,me,owner,myRoster);
+      var list=document.getElementById("dMktList");
+      var cnt=document.getElementById("dMktCount");
+      var pg=document.getElementById("dMktPager");
+      if(!list||!cnt||!pg)return false;
+      list.innerHTML=r.listHTML; cnt.innerHTML=r.countHTML; pg.innerHTML=r.pagerHTML;
+      return true;
+    }catch(e){return false;}
+  }
+  window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktMinInput");};
+  window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktMaxInput");};
   window.dMktPage=function(n){APP.dMkt.page=n;renderKeepScroll();
     var el=document.getElementById("dMktTop"); if(el&&el.scrollIntoView)el.scrollIntoView({block:"start"});};
   window.dMktSearch=function(v){APP.draftSearch=v;APP.dMkt.page=1;renderKeepFocus("draftSearchInput");};
+  // BUSCA AO VIVO: atualiza só a lista/contador/paginação, SEM redesenhar a tela.
+  // O input não é recriado → teclado não some, sem engasgo, sem pular scroll.
+  window.dMktSearchLive=function(v){
+    APP.draftSearch=v; APP.dMkt.page=1;
+    if(!liveUpdate())renderKeepFocus("draftSearchInput"); // fallback se contêineres sumiram
+  };
   window.dMktClear=function(){APP.dMkt={pos:"",team:"",pmin:"",pmax:"",page:1,perPage:50};
     APP.draftSearch="";reRender();};
 
   function normT(s){return (typeof normTxt==="function")?normTxt(s):String(s||"").toLowerCase();}
 
-  // monta o HTML da aba mercado nova
-  function marketTabHTML(s,me,owner,myRoster){
+  // computa a lista filtrada/paginada e devolve {countHTML, listHTML, pagerHTML}
+  function computeResults(s,me,owner,myRoster){
     var f=APP.dMkt;
     var q=normT(APP.draftSearch||"");
     var all=draftPlayerCatalog();
-    // lista de seleções para o dropdown (ordenada)
-    var teamSet={}; all.forEach(function(p){teamSet[p.team]=1;});
-    var teamOpts=Object.keys(teamSet).sort();
-    // aplicar filtros
     var pmin=f.pmin===""?null:Number(f.pmin), pmax=f.pmax===""?null:Number(f.pmax);
     var filtered=all.filter(function(p){
       if(f.pos && p.pos!==f.pos) return false;
@@ -141,47 +158,19 @@
       return true;
     });
     var total=filtered.length;
-    // se há busca por texto, mostra TODOS os resultados numa lista só (sem paginar),
-    // pra nunca "esconder" um jogador em outra página. Filtros/sem-busca paginam normal.
-    var searching = !!q;
+    var searching=!!q;
     var perPage=f.perPage||50;
     var pages=searching?1:Math.max(1,Math.ceil(total/perPage));
     if(f.page>pages)f.page=pages;
     var start=searching?0:(f.page-1)*perPage;
     var pageItems=searching?filtered:filtered.slice(start,start+perPage);
 
-    // chips de posição
-    var posList=[["","Todas"],["GK","GOL"],["DEF","DEF"],["MID","MEI"],["ATT","ATA"]];
-    var posChips=posList.map(function(pp){
-      var on=(f.pos===pp[0]);
-      return '<div class="ptab'+(on?' on':'')+'" style="min-width:46px" onclick="dMktPos(\''+pp[0]+'\')">'+pp[1]+'</div>';
-    }).join("");
-
-    // dropdown de seleção
-    var teamSel='<select class="input" style="margin:0" onchange="dMktTeam(this.value)">'+
-      '<option value="">Todas seleções</option>'+
-      teamOpts.map(function(t){return '<option value="'+t+'"'+(f.team===t?' selected':'')+'>'+esc(t)+'</option>';}).join("")+
-      '</select>';
-
-    // faixa de preço
-    var priceRange='<div style="display:flex;gap:8px;align-items:center">'+
-      '<input id="dMktMinInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="mín" value="'+(f.pmin)+'" oninput="dMktMin(this.value)" />'+
-      '<span style="color:var(--dim)">até</span>'+
-      '<input id="dMktMaxInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="máx" value="'+(f.pmax)+'" oninput="dMktMax(this.value)" />'+
-      '</div>';
-
-    // busca
-    var search='<div style="position:relative">'+
-      '<input id="draftSearchInput" class="input" style="margin:0" placeholder="🔍 Buscar jogador…" value="'+esc(APP.draftSearch||"")+'" oninput="dMktSearch(this.value)" autocorrect="off" autocomplete="off" />'+
-      '</div>';
-
-    // linhas de jogador
     var rows=pageItems.map(function(p){
       var own=owner[p.key];
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
       var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
-      var devBtn = (own && typeof isAdmin==="function" && isAdmin())
+      var devBtn=(own && typeof isAdmin==="function" && isAdmin())
         ? '<span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 7px;margin-left:6px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span>'
         : "";
       return '<div class="prow '+(own?"dis":"")+'" style="'+(can?"cursor:pointer":"")+'" onclick="'+(can?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
@@ -193,7 +182,6 @@
     }).join("");
     if(!pageItems.length)rows='<p class="p" style="padding:14px;text-align:center">Nenhum jogador com esses filtros.</p>';
 
-    // paginação (janela de páginas em volta da atual)
     function pageBtn(n,label,disabled){
       return '<div class="daychip'+(n===f.page?" on":"")+'" style="'+(disabled?"opacity:.35;pointer-events:none":"")+'" onclick="dMktPage('+n+')">'+(label||n)+'</div>';
     }
@@ -206,9 +194,42 @@
       for(var i=from;i<=to;i++)parts.push(pageBtn(i));
       if(to<pages){if(to<pages-1)parts.push('<span style="color:var(--dim);align-self:center">…</span>');parts.push(pageBtn(pages));}
       parts.push(pageBtn(Math.min(pages,f.page+1),"›",f.page>=pages));
-      pager='<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px">'+parts.join("")+'</div>';
+      pager=parts.join("");
     }
+    var countHTML='<b style="color:var(--chalk)">'+total+'</b> '+(total===1?"jogador":"jogadores")+(searching?(total===1?" encontrado":" encontrados"):" · página "+f.page+"/"+pages);
+    return {countHTML:countHTML, listHTML:rows, pagerHTML:pager};
+  }
 
+  // monta o HTML da aba mercado nova
+  function marketTabHTML(s,me,owner,myRoster){
+    var f=APP.dMkt;
+    var q=normT(APP.draftSearch||"");
+    var all=draftPlayerCatalog();
+    var teamSet={}; all.forEach(function(p){teamSet[p.team]=1;});
+    var teamOpts=Object.keys(teamSet).sort();
+
+    var posList=[["","Todas"],["GK","GOL"],["DEF","DEF"],["MID","MEI"],["ATT","ATA"]];
+    var posChips=posList.map(function(pp){
+      var on=(f.pos===pp[0]);
+      return '<div class="ptab'+(on?' on':'')+'" style="min-width:46px" onclick="dMktPos(\''+pp[0]+'\')">'+pp[1]+'</div>';
+    }).join("");
+
+    var teamSel='<select class="input" style="margin:0" onchange="dMktTeam(this.value)">'+
+      '<option value="">Todas seleções</option>'+
+      teamOpts.map(function(t){return '<option value="'+t+'"'+(f.team===t?' selected':'')+'>'+esc(t)+'</option>';}).join("")+
+      '</select>';
+
+    var priceRange='<div style="display:flex;gap:8px;align-items:center">'+
+      '<input id="dMktMinInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="mín" value="'+(f.pmin)+'" oninput="dMktMin(this.value)" />'+
+      '<span style="color:var(--dim)">até</span>'+
+      '<input id="dMktMaxInput" class="input" style="margin:0;text-align:center" inputmode="numeric" placeholder="máx" value="'+(f.pmax)+'" oninput="dMktMax(this.value)" />'+
+      '</div>';
+
+    var search='<div style="position:relative">'+
+      '<input id="draftSearchInput" class="input" style="margin:0" placeholder="🔍 Buscar jogador…" value="'+esc(APP.draftSearch||"")+'" oninput="dMktSearchLive(this.value)" autocorrect="off" autocomplete="off" />'+
+      '</div>';
+
+    var r=computeResults(s,me,owner,myRoster);
     var activeFilters=(f.pos||f.team||f.pmin!==""||f.pmax!==""||q);
     return '<div id="dMktTop"></div>'+
       '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">'+
@@ -216,11 +237,11 @@
         '<div class="postabs" style="margin:0">'+posChips+'</div>'+
         teamSel+
         priceRange+
-        (activeFilters?'<div class="daychip" style="align-self:flex-start;border-color:var(--red);color:var(--red)" onclick="dMktClear()">✕ limpar filtros</div>':"")+
+        (activeFilters?'<div id="dMktClearBtn" class="daychip" style="align-self:flex-start;border-color:var(--red);color:var(--red)" onclick="dMktClear()">✕ limpar filtros</div>':"")+
       '</div>'+
-      '<p class="p" style="font-size:11px;margin-bottom:8px"><b style="color:var(--chalk)">'+total+'</b> '+(total===1?"jogador":"jogadores")+(searching?" encontrados":" · página "+f.page+"/"+pages)+'</p>'+
-      '<div class="poolbox">'+rows+'</div>'+
-      pager;
+      '<p class="p" style="font-size:11px;margin-bottom:8px" id="dMktCount">'+r.countHTML+'</p>'+
+      '<div class="poolbox" id="dMktList">'+r.listHTML+'</div>'+
+      '<div id="dMktPager" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px">'+r.pagerHTML+'</div>';
   }
 
   // intercepta draftHTML: se a aba ativa for "mercado", injeta a versão nova
