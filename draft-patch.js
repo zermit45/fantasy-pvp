@@ -162,6 +162,54 @@
     _searchTimer=setTimeout(function(){ liveUpdate(); },120);
   };
   window.dMktTogglePanel=function(){APP.dMkt.panel=!APP.dMkt.panel;reRender();};
+  // DETALHE DO JOGADOR: mostra clube, liga, nacionalidade, idade.
+  // No Draft, "team" é a seleção — então clube/liga são a info principal de
+  // "onde ele joga", e a seleção/nacionalidade aparece como contexto.
+  window.dMktInfo=function(key){
+    var cat=cachedCatalog().find(function(p){return p.key===key;});
+    if(!cat){if(typeof toast==="function")toast("Jogador não encontrado.");return;}
+    var line=function(label,val){return '<div class="line"><span>'+label+'</span><span class="v">'+esc(val||"—")+'</span></div>';};
+    var posName={GK:"Goleiro",DEF:"Defensor",MID:"Meio-campo",ATT:"Atacante"}[cat.pos]||cat.pos;
+    var box=
+      '<div class="modal" onclick="dMktCloseInfo(event)">'+
+        '<div class="box" onclick="event.stopPropagation()">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+            '<span class="pchip pc-'+cat.pos+' bg-'+cat.pos+'">'+(SLOT_LABEL[cat.pos]||cat.pos)+'</span>'+
+            '<div class="h2 disp" style="margin:0">'+esc(cat.name)+'</div>'+
+          '</div>'+
+          '<div style="margin:10px 0">'+
+            line("🏟️ Clube", cat.club)+
+            line("🏆 Liga", cat.league)+
+            line("🌍 Seleção", cat.team)+
+            (cat.country&&cat.country!==cat.team?line("Nacionalidade (clube)", cat.country):"")+
+            line("Posição", posName)+
+            line("Idade", cat.age?cat.age+" anos":"—")+
+            line("💰 Valor de mercado", cat.mv?("€"+(cat.mv/1e6).toFixed(0)+"M"):"—")+
+            '<div class="line total"><span>Preço no Draft</span><span class="v" style="color:var(--amber)">'+cat.price+'</span></div>'+
+          '</div>'+
+          '<button class="btn" onclick="dMktCloseInfo();buyDraftPlayer(\''+esc(key)+'\')">Adicionar ao meu time</button>'+
+          '<button class="btn ghost" style="margin-top:8px" onclick="dMktCloseInfo()">Fechar</button>'+
+        '</div>'+
+      '</div>';
+    var host=document.getElementById("dMktInfoHost");
+    if(!host){host=document.createElement("div");host.id="dMktInfoHost";document.body.appendChild(host);}
+    host.innerHTML=box;
+  };
+  window.dMktCloseInfo=function(ev){
+    if(ev&&ev.target&&ev.target.className!=="modal")return; // só fecha no fundo
+    var host=document.getElementById("dMktInfoHost");if(host)host.innerHTML="";
+  };
+  // REDE DE SEGURANÇA: mesmo que a aba nova falhe e a busca ANTIGA do app seja
+  // usada, sobrescrevemos setDraftSearch pra não redesenhar a tela inteira a cada
+  // tecla (que era o que fechava o teclado e subia o scroll).
+  if(typeof setDraftSearch==="function"){
+    var _stTimer=null;
+    window.setDraftSearch=function(v){
+      APP.draftSearch=v; APP.dMkt&&(APP.dMkt.page=1);
+      if(_stTimer)clearTimeout(_stTimer);
+      _stTimer=setTimeout(function(){ if(!liveUpdate())renderKeepFocus("draftSearchInput"); },120);
+    };
+  }
   window.dMktClear=function(){APP.dMkt={pos:[],team:[],league:[],club:[],pmin:"",pmax:"",amin:"",amax:"",page:1,perPage:50,panel:APP.dMkt.panel};
     APP.draftSearch="";reRender();};
 
@@ -174,7 +222,8 @@
     var m=window.draftMasterPlayers;
     var len=Array.isArray(m)?m.length:0;
     if(_catCache&&_catLen===len)return _catCache;
-    _catCache=draftPlayerCatalog(); _catLen=len;
+    var fn=window.draftPlayerCatalog||(typeof draftPlayerCatalog==="function"?draftPlayerCatalog:null);
+    _catCache=fn?fn():[]; _catLen=len;
     return _catCache;
   }
 
@@ -217,10 +266,11 @@
       var devBtn=(own && typeof isAdmin==="function" && isAdmin())
         ? '<div style="margin-top:3px"><span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 8px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span></div>'
         : "";
+      var infoBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:6px;border-color:var(--blue);color:var(--blue)" onclick="event.stopPropagation();dMktInfo(\''+esc(p.key)+'\')">ⓘ</span>';
       return '<div class="prow '+(own?"dis":"")+'" style="'+(clickable?"cursor:pointer":"")+'" onclick="'+(clickable?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
-        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+infoBtn+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
         '<div class="pr mono">'+p.price+'</div>'+
       '</div>';
     }).join("");
