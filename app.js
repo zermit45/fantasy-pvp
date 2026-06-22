@@ -2591,6 +2591,43 @@ function removeChip(i){if(!APP.confirm||!APP.confirm.chips)return;_syncCreateNam
 function setChipValue(i,val){if(!APP.confirm||!APP.confirm.chips)return;let v=parseInt(val,10);if(isNaN(v))v=0;APP.confirm.chips[i]=v;render();}
 function toggleNoMix(){if(!APP.confirm)return;_syncCreateName();APP.confirm.boostNoMix=!APP.confirm.boostNoMix;render();}
 function _syncCreateName(){if(!APP.confirm)return;const n=$("rndName")||$("renameInput");if(n){if(APP.confirm.mode==="rename")APP.confirm.cur=n.value;else APP.confirm.draftName=n.value;}}
+function modePreviewHTML(mk){
+  const mm=MODE_META[mk]||MODE_META.full;
+  if(mk==="boost"){
+    return `<div class="modepreview" style="border-color:${mm.color}">
+      <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview realista · Impulso</div>
+      <div class="pvtext">Todos os jogos valem. A decisão é onde colocar suas fichas de risco antes dos resultados.</div>
+      <div class="previewgame"><div class="pvname"><div>Argentina × Áustria</div><div class="pvmeta">escalação montada · você confia no ataque</div></div><span class="previewpill" style="background:#3a2e10;color:${mm.color}">+25%</span></div>
+      <div class="previewgame"><div class="pvname"><div>Espanha × Arábia Saudita</div><div class="pvmeta">favorita, mas pool caro</div></div><span class="previewpill" style="background:#3a2e10;color:${mm.color}">+15%</span></div>
+      <div class="previewgame"><div class="pvname"><div>Bélgica × Irã</div><div class="pvmeta">ficha negativa para cumprir regra</div></div><span class="previewpill" style="background:#35191f;color:var(--red)">-20%</span></div>
+      <div class="previewcalc">Exemplo: 42.8 pts com +25% viram <b style="color:${mm.color}">53.5 pts</b>. 31.0 pts com -20% caem para <b style="color:var(--red)">24.8 pts</b>.</div>
+    </div>`;
+  }
+  if(mk==="confianca"){
+    return `<div class="modepreview" style="border-color:${mm.color}">
+      <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview realista · Confiança</div>
+      <div class="pvtext">Você ordena os jogos do mais seguro ao mais perigoso. Essa ordem multiplica a pontuação.</div>
+      <div class="previewgame"><div class="pvname"><div>1º · Espanha × Arábia Saudita</div><div class="pvmeta">seu jogo mais confiável</div></div><span class="previewpill" style="background:#281d3b;color:${mm.color}">1.36x</span></div>
+      <div class="previewgame"><div class="pvname"><div>2º · Argentina × Áustria</div><div class="pvmeta">confiança média</div></div><span class="previewpill" style="background:#1b263b;color:var(--blue)">1.00x</span></div>
+      <div class="previewgame"><div class="pvname"><div>3º · Bélgica × Irã</div><div class="pvmeta">mais incerteza</div></div><span class="previewpill" style="background:#35191f;color:var(--red)">0.64x</span></div>
+      <div class="previewcalc">Exemplo: 40 pts no 1º jogo viram <b style="color:${mm.color}">54.4</b>. Os mesmos 40 pts no último viram <b style="color:var(--red)">25.6</b>.</div>
+    </div>`;
+  }
+  if(mk==="previsao"){
+    return `<div class="modepreview" style="border-color:${mm.color}">
+      <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview realista · Previsão</div>
+      <div class="pvtext">Você escala o time e crava o placar. O bônus entra em cima da sua pontuação naquela partida.</div>
+      <div class="previewgame"><div class="pvname"><div>Espanha 3 × 0 Arábia Saudita</div><div class="pvmeta">placar exato</div></div><span class="previewpill" style="background:#123326;color:${mm.color}">+40%</span></div>
+      <div class="previewgame"><div class="pvname"><div>Argentina 2 × 1 Áustria</div><div class="pvmeta">acertou só o vencedor</div></div><span class="previewpill" style="background:#123326;color:${mm.color}">+10%</span></div>
+      <div class="previewgame"><div class="pvname"><div>Bélgica 1 × 0 Irã</div><div class="pvmeta">errou resultado</div></div><span class="previewpill" style="background:#35191f;color:var(--red)">+0%</span></div>
+      <div class="previewcalc">Exemplo: 38.0 pts com placar exato viram <b style="color:${mm.color}">53.2 pts</b>. Com só vencedor certo, viram <b style="color:${mm.color}">41.8 pts</b>.</div>
+    </div>`;
+  }
+  return `<div class="modepreview" style="border-color:${mm.color}">
+    <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview · Completo</div>
+    <div class="pvtext">Todos escalam todos os jogos. Vence quem soma mais pontos na rodada inteira, sem bônus extra.</div>
+  </div>`;
+}
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
   // modo: criar grupo (admin)
@@ -2697,6 +2734,7 @@ function confirmModalHTML(){
       <p class="p" style="margin:8px 0">Escolha o modo:</p>
       <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">${modeBtns}</div>
       <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
+      ${modePreviewHTML(selMode)}
       <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
       ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
       ${selMode==="boost"?boostBuilderHTML(c):""}
@@ -2989,9 +3027,7 @@ function buildHTML(){
       else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
     }
     const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
-    const priceClass=p.price>=30?"star":(p.price<=10?"value":"");
-    const hint=p.price>=30?"estrela":(p.price<=10?"aposta":(p.price<=18?"valor":"equilíbrio"));
-    return `<div class="prow playerpick ${priceClass}${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}<div class="pricehint">${hint}${reason==="banco"?" · teto do banco":(reason==="orc"?" · orçamento":"")}</div></div><div class="pr mono">${p.price}</div></div>`;
+    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
   }).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){
