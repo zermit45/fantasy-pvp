@@ -562,3 +562,170 @@
     if(document.querySelector('.roomrow'))injectTrash();
   },600);
 })();
+
+// ============================================================
+// PATCH: LIMITES DE ELENCO POR CATEGORIA (país/liga/idade/seleção/clube/posição)
+// Dev configura limites na temporada; a compra bloqueia ao atingir.
+// ============================================================
+(function(){
+  if(typeof window==="undefined")return;
+
+  // estrutura dos limites (guardada em settings.roster_caps da temporada):
+  // { country:{enabled:true,max:3}, league:{...}, team:{...}, club:{...},
+  //   pos:{...}, ageOver:{enabled,max,age}, ageUnder:{enabled,max,age} }
+  function caps(s){ try{ return (s&&s.settings&&s.settings.roster_caps)||{}; }catch(e){ return {}; } }
+
+  // dado um jogador (cat) e meu elenco atual (mine = draft_rosters meus),
+  // conta quantos eu JÁ tenho na mesma categoria de cada tipo
+  function catFn(){ return (window.draftPlayerCatalog||(typeof draftPlayerCatalog==="function"?draftPlayerCatalog:function(){return[];}))(); }
+  function catalogByKey(){
+    var m={}; try{ (catFn()||[]).forEach(function(p){m[p.key]=p;}); }catch(e){}
+    return m;
+  }
+  function violacao(s, cat, mine){
+    var c=caps(s); if(!c||!Object.keys(c).length)return null;
+    var byKey=catalogByKey();
+    // resolve os atributos dos jogadores que já tenho
+    var meus=mine.map(function(r){ return byKey[r.player_key]||{team:r.player_team,pos:r.pos}; });
+
+    function contaMesma(attr){ return meus.filter(function(p){return p&&p[attr]!=null&&p[attr]===cat[attr];}).length; }
+
+    if(c.country&&c.country.enabled&&cat.country){
+      if(contaMesma("country")>=Number(c.country.max||99)) return "país "+cat.country+" (máx "+c.country.max+")";
+    }
+    if(c.league&&c.league.enabled&&cat.league){
+      if(contaMesma("league")>=Number(c.league.max||99)) return "liga "+cat.league+" (máx "+c.league.max+")";
+    }
+    if(c.team&&c.team.enabled&&cat.team){
+      if(contaMesma("team")>=Number(c.team.max||99)) return "seleção "+cat.team+" (máx "+c.team.max+")";
+    }
+    if(c.club&&c.club.enabled&&cat.club){
+      if(contaMesma("club")>=Number(c.club.max||99)) return "clube "+cat.club+" (máx "+c.club.max+")";
+    }
+    if(c.pos&&c.pos.enabled&&cat.pos){
+      if(contaMesma("pos")>=Number(c.pos.max||99)) return "posição "+cat.pos+" (máx "+c.pos.max+")";
+    }
+    if(c.ageOver&&c.ageOver.enabled&&cat.age!=null){
+      var lim=Number(c.ageOver.age||33);
+      if(cat.age>=lim){
+        var n=meus.filter(function(p){return p&&p.age!=null&&p.age>=lim;}).length;
+        if(n>=Number(c.ageOver.max||99)) return "idade "+lim+"+ (máx "+c.ageOver.max+")";
+      }
+    }
+    if(c.ageUnder&&c.ageUnder.enabled&&cat.age!=null){
+      var limu=Number(c.ageUnder.age||21);
+      if(cat.age<=limu){
+        var nu=meus.filter(function(p){return p&&p.age!=null&&p.age<=limu;}).length;
+        if(nu>=Number(c.ageUnder.max||99)) return "idade até "+limu+" (máx "+c.ageUnder.max+")";
+      }
+    }
+    return null;
+  }
+
+  // intercepta buyDraftPlayer pra validar os limites ANTES de comprar.
+  // (é chamado pelos cliques, que resolvem window.buyDraftPlayer na hora → interceptação pega)
+  if(typeof buyDraftPlayer==="function"){
+    var _origBuy=buyDraftPlayer;
+    window.buyDraftPlayer=function(playerKey){
+      try{
+        var s=APP.draftSeason;
+        if(s){
+          var cat=(catFn()||[]).find(function(p){return p.key===playerKey;});
+          var mine=(APP.draftRosters||[]).filter(function(r){return APP.user&&r.username===APP.user.username;});
+          if(cat){
+            var v=violacao(s,cat,mine);
+            if(v){ toast&&toast("Limite de elenco atingido: "+v); return; }
+          }
+        }
+      }catch(e){}
+      return _origBuy.apply(this,arguments);
+    };
+  }
+
+  // ---- PAINEL DE CONFIG DOS LIMITES (admin), salvo em settings.roster_caps ----
+  window.draftCapsOpen=function(){
+    var s=APP.draftSeason; if(!s){toast&&toast("Abra a temporada primeiro.");return;}
+    var c=caps(s);
+    function row(key,label,extra){
+      var on=c[key]&&c[key].enabled;
+      var max=(c[key]&&c[key].max)||"";
+      return '<div style="border:1px solid var(--line);border-radius:9px;padding:9px;margin:6px 0">'+
+        '<label style="display:flex;gap:8px;align-items:center">'+
+          '<input type="checkbox" id="cap_'+key+'_on" '+(on?"checked":"")+' style="transform:scale(1.15)" />'+
+          '<b style="flex:1;color:var(--chalk)">'+label+'</b>'+
+        '</label>'+
+        '<div style="display:flex;gap:8px;align-items:center;margin-top:7px">'+
+          '<span style="color:var(--dim);font-size:12px">máx</span>'+
+          '<input id="cap_'+key+'_max" class="input" style="margin:0;width:70px;text-align:center" inputmode="numeric" value="'+max+'" placeholder="ex 3" />'+
+          (extra||"")+
+        '</div>'+
+      '</div>';
+    }
+    var ageExtra=function(key,defAge){
+      var age=(c[key]&&c[key].age)||defAge;
+      return '<span style="color:var(--dim);font-size:12px;margin-left:6px">idade</span>'+
+        '<input id="cap_'+key+'_age" class="input" style="margin:0;width:60px;text-align:center" inputmode="numeric" value="'+age+'" />';
+    };
+    var box='<div class="modal" onclick="draftCapsClose(event)"><div class="box" onclick="event.stopPropagation()">'+
+      '<div class="h2 disp" style="color:#FF8A4C">Limites de elenco</div>'+
+      '<p class="p" style="margin:8px 0">Defina quantos jogadores no máximo cada manager pode ter por categoria. Deixe desmarcado pra não limitar.</p>'+
+      row("country","Máx por PAÍS (onde o clube joga)")+
+      row("league","Máx por LIGA")+
+      row("team","Máx por SELEÇÃO")+
+      row("club","Máx por CLUBE")+
+      row("pos","Máx por POSIÇÃO")+
+      row("ageOver","Máx VETERANOS",ageExtra("ageOver",33))+
+      row("ageUnder","Máx JOVENS",ageExtra("ageUnder",21))+
+      '<button class="btn" style="margin-top:6px;background:#FF8A4C;color:#0A0E1C" onclick="draftCapsSave()">Salvar limites</button>'+
+      '<button class="btn ghost" style="margin-top:8px" onclick="draftCapsClose()">Cancelar</button>'+
+    '</div></div>';
+    var host=document.getElementById("dCapsHost");
+    if(!host){host=document.createElement("div");host.id="dCapsHost";document.body.appendChild(host);}
+    host.innerHTML=box;
+  };
+  window.draftCapsClose=function(ev){
+    if(ev&&ev.target&&ev.target.className!=="modal")return;
+    var host=document.getElementById("dCapsHost");if(host)host.innerHTML="";
+  };
+  window.draftCapsSave=async function(){
+    var s=APP.draftSeason; if(!s)return;
+    function read(key,hasAge){
+      var on=document.getElementById("cap_"+key+"_on");
+      var max=document.getElementById("cap_"+key+"_max");
+      var o={enabled:!!(on&&on.checked), max:Number(max&&max.value)||0};
+      if(hasAge){var a=document.getElementById("cap_"+key+"_age");o.age=Number(a&&a.value)||0;}
+      return o;
+    }
+    var capsObj={
+      country:read("country"), league:read("league"), team:read("team"),
+      club:read("club"), pos:read("pos"),
+      ageOver:read("ageOver",true), ageUnder:read("ageUnder",true)
+    };
+    try{
+      var st=Object.assign({}, s.settings||{}, {roster_caps:capsObj});
+      await sbUpdate("draft_seasons",{settings:st},"id=eq."+s.id);
+      s.settings=st; // atualiza local
+      toast&&toast("Limites salvos.");
+      draftCapsClose();
+    }catch(e){toast&&toast("Erro ao salvar: "+e.message);}
+  };
+
+  // injeta o botão "⚖︎ Limites de elenco" no painel DEV/BETA da temporada (admin)
+  function injectCapsButton(){
+    try{
+      if(typeof isAdmin==="function" && !isAdmin())return;
+      if(!APP.draftSeason)return;
+      if(document.getElementById("dCapsBtn"))return;
+      // procura o painel dev do draft (tem os botões de reset). Inserimos perto.
+      var anchor=document.querySelector('[onclick*="devResetSeason"]')||document.querySelector('[onclick*="devResetMyRoster"]');
+      if(!anchor)return;
+      var btn=document.createElement("button");
+      btn.id="dCapsBtn"; btn.className="btn ghost";
+      btn.style.cssText="margin-top:8px;border-color:#FF8A4C;color:#FF8A4C";
+      btn.textContent="⚖︎ Limites de elenco";
+      btn.onclick=function(){draftCapsOpen();};
+      anchor.parentNode.insertBefore(btn, anchor);
+    }catch(e){}
+  }
+  setInterval(injectCapsButton, 700);
+})();
