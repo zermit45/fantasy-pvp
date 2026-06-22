@@ -123,10 +123,10 @@ function mapPlayer(pp, teamCode) {
     goals: sh.goals, assists: assistsOf(name), sots: sh.sots,
     setPieceSot: sh.setPieceSot, setPieceGoals: sh.setPieceGoals,
     longSot: sh.longSot, longGoals: sh.longGoals,
-    penMiss: sh.penMiss + (st.penaltyMiss || 0),     // shotmap + stat (segurança)
+    penMiss: Math.max(sh.penMiss, st.penaltyMiss || 0),  // shotmap e stat são o MESMO pênalti — usa o maior, não soma
     dribbles: st.wonContest || 0,                     // dribles certos
-    prgp: st.totalProgression || 0,                   // ~aprox: progressão de passe
-    pib: st.accurateOppositionHalfPasses || 0,        // ~aprox: passes no campo de ataque
+    prgp: st.accurateOppositionHalfPasses || 0,       // ~aprox: passes certos no ataque (NÃO totalProgression, que é distância em metros e infla tudo)
+    pib: Math.round((st.accurateOppositionHalfPasses || 0) * 0.18), // ~aprox: passes na área
     sca: st.keyPass || 0,                             // ~aprox: criação ~ passes-chave
     gca: st.goalAssist || 0,                          // ~aprox: criação de gol ~ assists
     // ── defesa ──

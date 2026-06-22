@@ -11,9 +11,9 @@ const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.13, pib:0, tib:0
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
   save:1.35, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
   wasFouled:.08, longBall:.12, prgCarry:.10, penaltyWon:2.5,
-  yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, dispossessed:-.25, foul:-.45, concededGk:-2, ownGoal:-6 };
+  yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, penMiss:-4, dribbledPast:-1, dispossessed:-.25, foul:-.45, concededGk:-2, ownGoal:-6 };
 // pesos ANTIGOS — CONGELADOS (jogos já apurados / tacticRules v1). NÃO herdam da BASE pra não alterar jogos finalizados.
-const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, penaltyWon:0, dispossessed:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
+const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, penaltyWon:0, dispossessed:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, penMiss:0, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
 const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
 // multiplicador de equilíbrio por posição (só nos pontos POSITIVOS) — normaliza médias entre GK/DEF/MID/ATT.
 // Correção SUAVE: defensor pontua um pouco mais fácil, então leva leve desconto; atacante e goleiro ganham leve empurrão.
@@ -137,7 +137,7 @@ function normP(raw){
     min:0, started:false, goals:[], assists:[], sots:[], dribbles:0, prgp:0, pib:0, tib:0,
     sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
     yellow:0, red:null, errGoal:0, errShot:0, penCom:0, accCross:0, inaccCross:0, gk:null, ownGoal:0,
-    wasFouled:0, longBall:0, prgCarry:0, dispossessed:0, penaltyWon:0,
+    wasFouled:0, longBall:0, prgCarry:0, dispossessed:0, penaltyWon:0, penMiss:0,
     // dados de finalização (capturados do shotmap): bola parada e chute de fora
     setPieceSot:0, setPieceGoals:0, longSot:0, longGoals:0
   }, raw||{});
@@ -388,7 +388,7 @@ function makeEngine(match){
     ["Saídas (sweeper)",B.opa,p=>p.gk?p.gk.opa:0],["Cruzamentos cortados",B.crossStop,p=>p.gk?p.gk.crossStop:0],
     ["Gols sofridos",B.concededGk,p=>p.gk?p.gk.conceded:0],["Cartão amarelo",B.yellow,p=>p.yellow],
     ["Faltas",B.foul,p=>p.fouls],["Vezes driblado",B.dribbledPast,p=>p.dribbledPast],["Perda de posse",B.dispossessed,p=>p.dispossessed||0],
-    ["Erro → gol",B.errGoal,p=>p.errGoal],["Erro → finalização",B.errShot,p=>p.errShot||0],["Pênalti cometido",B.penCom,p=>p.penCom],
+    ["Erro → gol",B.errGoal,p=>p.errGoal],["Erro → finalização",B.errShot,p=>p.errShot||0],["Pênalti cometido",B.penCom,p=>p.penCom],["Pênalti perdido",B.penMiss,p=>p.penMiss||0],
     ["Gol contra",B.ownGoal,p=>p.ownGoal||0],
   ];
   function statLines(p){const o=[];for(const[l,v,c]of STAT_DEFS){const n=c(p);if(n)o.push([l,n,v,r1(n*v)]);}return o;}
@@ -413,7 +413,7 @@ function makeEngine(match){
     let gkB=0,conc=0;
     if(p.gk){gkB=p.gk.saves.length*B.save+p.gk.opa*B.opa+p.gk.crossStop*B.crossStop+p.gk.penSave*B.penSave;conc=p.gk.conceded*B.concededGk;}
     const negRed=redPenalty(p.red);
-    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+(p.errShot||0)*B.errShot+p.penCom*B.penCom+(p.ownGoal||0)*B.ownGoal+r1(p.dribbledPast*mf)*B.dribbledPast+(p.dispossessed||0)*B.dispossessed+r1(p.fouls*mf)*B.foul;
+    const neg=p.yellow*B.yellow+negRed+p.errGoal*B.errGoal+(p.errShot||0)*B.errShot+p.penCom*B.penCom+(p.penMiss||0)*(B.penMiss||0)+(p.ownGoal||0)*B.ownGoal+r1(p.dribbledPast*mf)*B.dribbledPast+(p.dispossessed||0)*B.dispossessed+r1(p.fouls*mf)*B.foul;
     // multiplicador de equilíbrio por posição: só nos POSITIVOS, e só em jogos novos (v1 = 1.0)
     const posMult=(match.tacticRules==="v1")?1:((POS_MULT[p.pos])||1);
     const posPart=(Object.values(comp).reduce((a,b)=>a+b,0)+gkB+cs)*posMult;
