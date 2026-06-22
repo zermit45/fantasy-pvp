@@ -1612,7 +1612,7 @@ function kickoffInfo(iso){
     full:`${rel?rel+" · ":""}${dow} ${dd}/${mm2}/${Y} · ${hh}:${mm}`};
 }
 function setHomeTab(t){APP.homeTab=t;APP.homeDay="todos";render();}
-function setHomeNav(t){APP.homeNavTab=t;render();window.scrollTo(0,0);}
+function setHomeNav(t){APP.homeNavTab=t;render();}
 function setHomeDay(d){APP.homeDay=decodeURIComponent(d);render();}
 function setHomeSearch(v){
   APP.homeSearch=v;
