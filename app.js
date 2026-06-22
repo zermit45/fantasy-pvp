@@ -1057,6 +1057,38 @@ async function confMove(roomId,delta){
     await loadRound(APP.roundId);render();
   }catch(e2){toast("Erro: "+e2.message);}
 }
+function confDragStart(roomId){
+  if(boostLocked())return;
+  APP.confDrag=roomId;
+  try{navigator.vibrate&&navigator.vibrate(12);}catch(e){}
+}
+function confDragOver(roomId){
+  if(!APP.confDrag||APP.confDrag===roomId)return;
+  document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
+  const el=document.querySelector(`[data-conf-room="${roomId}"]`);
+  if(el)el.classList.add("confdrop");
+}
+function confDragCancel(){
+  APP.confDrag=null;
+  document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
+}
+async function confDropOn(roomId){
+  const from=APP.confDrag;
+  confDragCancel();
+  if(!from||from===roomId||boostLocked())return;
+  const ord=confOrdered();
+  const src=ord.findIndex(e=>e.room_id===from);
+  const dst=ord.findIndex(e=>e.room_id===roomId);
+  if(src<0||dst<0)return;
+  const moved=ord.splice(src,1)[0];
+  ord.splice(dst,0,moved);
+  try{
+    for(let i=0;i<ord.length;i++){
+      if(ord[i].conf_rank!==i)await sbUpdate("entries",{conf_rank:i,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${ord[i].room_id}`);
+    }
+    await loadRound(APP.roundId);render();
+  }catch(e2){toast("Erro: "+e2.message);}
+}
 // ===== PREVISÃO =====
 function predOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===roomId);if(!e)return null;if(e.pred_home==null&&e.pred_away==null)return null;return {home:e.pred_home,away:e.pred_away};}
 async function predSet(roomId,homeVal,awayVal){
@@ -1718,7 +1750,7 @@ function homeHTML(){
         listaHTML+=`<div class="roomrow gamecard ${j.isFinished?"fin":(j.status==="open"?"open":"closed")}" onclick="${onclick}">
           <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${hora} · ${esc(j.comp)}${j.archived?" · arquivado":""}</div></div>
           ${score?`<div class="scoremini mono">${score}</div>`:""}
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">${pill}${adminBtn}</div>
+          <div class="statuswrap">${pill}${adminBtn}</div>
           <div class="actionhint">${gameActionText(j)}</div>
         </div>`;
       });
@@ -2136,6 +2168,10 @@ function setLeagueTab(t){APP.leagueTab=t;render();}
 function setPhaseTab(t){APP.phaseTab=t;render();}
 function askCreatePhase(leagueId){APP.confirm={mode:"createPhase",leagueId,label:"Criar rodada"};render();}
 function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",newMode:"full",phaseId,label:"Criar mini rodada"};render();}
+function roundGameClick(roomId){
+  if(APP.confDrag){confDragCancel();return;}
+  askEnterRoundGame(roomId);
+}
 async function addPhaseToLeague(phaseId){
   if(!isAdmin())return;
   try{await sbUpdate("phases",{league_id:APP.leagueId},`id=eq.${phaseId}`);await loadPhases();await loadLeague(APP.leagueId);toast("Rodada adicionada à liga.");render();}
@@ -2251,6 +2287,7 @@ function roundHTML(){
         }else{
           const mult=confMultiplier(myRank,total);
           extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="draghandle" style="color:${mm.color}" title="Segure e arraste para mudar a ordem" draggable="true" onpointerdown="event.stopPropagation();confDragStart('${rid}')" ondragstart="event.stopPropagation();confDragStart('${rid}')">↕</span>
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
             <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
             <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
@@ -2291,7 +2328,8 @@ function roundHTML(){
     }
     const lineCtrl=isBoost?boostCtrl:(isConf||isPred?extraCtrl:"");
     const hasLineCtrl=(isBoost||isConf||isPred)&&!finished&&lineCtrl;
-    return `<div class="roomrow" ${clickable||finished?`onclick="askEnterRoundGame('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
+    const confDragAttrs=isConf&&confRankOf(rid)!=null&&!finished&&!bLocked?`data-conf-room="${rid}" onpointerenter="confDragOver('${rid}')" onpointerup="event.stopPropagation();confDropOn('${rid}')" ondragover="event.preventDefault();confDragOver('${rid}')" ondrop="event.preventDefault();confDropOn('${rid}')" ondragend="confDragCancel()"`:"";
+    return `<div class="roomrow" ${confDragAttrs} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
       <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
         <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${(!isBoost&&!isConf&&!isPred)?boostCtrl:""}${devBlock}</div>

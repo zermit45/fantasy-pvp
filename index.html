@@ -35,8 +35,8 @@ body{background:var(--bg)}
 .btn.sm{padding:9px;font-size:13px;width:auto}
 .input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--chalk);padding:12px;font-size:14px;font-family:Inter;margin-bottom:10px;outline:none}
 .input:focus{border-color:var(--amber)}
-.roomrow{display:flex;align-items:center;gap:10px;padding:11px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--panel2);cursor:pointer;transition:border-color .15s,transform .15s,background .15s;overflow:hidden;flex-wrap:wrap}
-.roomrow:hover{border-color:var(--amber);transform:translateY(-1px)}
+.roomrow{display:flex;align-items:center;gap:10px;padding:11px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--panel2);cursor:pointer;transition:border-color .15s,transform .15s,background .15s,box-shadow .15s;overflow:hidden;flex-wrap:wrap}
+.roomrow:hover{border-color:var(--amber);transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,0,0,.18)}
 .roomrow .info{flex:1;min-width:0}
 .roomrow .nm{font-size:15px;font-weight:700}
 .roomrow .meta{font-size:11px;color:var(--dim);margin-top:2px}
@@ -59,12 +59,17 @@ body{background:var(--bg)}
 .nextbox .nextGo{margin-left:auto;color:#0b1120;background:var(--amber);font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-radius:99px;padding:6px 9px;white-space:nowrap}
 .legendbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
 .legendbar span{font-size:9px;color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:4px 8px;background:var(--panel2)}
+.roomrow.gamecard{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 10px;flex-wrap:nowrap}
 .gamecard{position:relative;border-left:3px solid var(--line);padding:12px}
 .gamecard.fin{border-left-color:var(--blue)}
 .gamecard.open{border-left-color:var(--green)}
 .gamecard.closed{border-left-color:var(--amber)}
-.gamecard .scoremini{font-family:'JetBrains Mono';font-size:15px;font-weight:900;color:var(--blue);margin-top:4px}
-.gamecard .actionhint{font-size:10px;color:var(--dim);margin-top:3px}
+.gamecard .info{grid-column:1;grid-row:1 / span 2}
+.gamecard .nm{font-size:15px;line-height:1.15;word-break:normal;overflow-wrap:break-word}
+.gamecard .meta{line-height:1.35}
+.gamecard .scoremini{grid-column:2;grid-row:1;font-family:'JetBrains Mono';font-size:15px;font-weight:900;color:var(--blue);margin:0;text-align:right;white-space:nowrap}
+.gamecard .statuswrap{grid-column:2;grid-row:2;display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-shrink:0}
+.gamecard .actionhint{grid-column:1 / -1;font-size:10px;color:var(--dim);margin-top:1px;text-align:right}
 .scorebar{border:1px solid var(--line);background:linear-gradient(180deg,#1a2747,#0F1626);border-radius:13px;padding:11px 13px;margin-bottom:10px}
 .tag{font-size:10px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
 .score{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
@@ -191,8 +196,18 @@ body{background:var(--bg)}
 .rank .pt{font-size:19px;font-weight:700;color:var(--amber)}
 .foot{font-size:10px;color:#5a6786;text-align:center;padding:14px 0 4px;line-height:1.7}
 .loading{text-align:center;padding:30px;color:var(--dim);font-size:13px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
-.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:380px;width:100%}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-start;justify-content:center;padding:18px 14px calc(88px + env(safe-area-inset-bottom));z-index:100;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:430px;width:100%;max-height:none;animation:popin .18s ease-out}
+.draghandle{touch-action:none;user-select:none;cursor:grab;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:10px;border:1px solid currentColor;color:inherit;background:rgba(255,255,255,.03);font-weight:900}
+.draghandle:active{cursor:grabbing;transform:scale(.96)}
+.confdrop{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 16%,var(--panel2))}
+@keyframes popin{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:no-preference){
+  .card,.homehero,.navpanel,.roomrow,.slot,.tact,.modepreview{animation:softin .22s ease-out both}
+  .btn,.ptab,.navtab,.statuspill{transition:transform .12s,filter .12s,background .12s,border-color .12s}
+  .btn:active,.ptab:active,.navtab:active,.statuspill:active{transform:scale(.98);filter:brightness(1.08)}
+}
+@keyframes softin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--amber);color:var(--chalk);padding:11px 18px;border-radius:10px;font-size:13px;z-index:200;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:90vw;text-align:center;transition:opacity .2s}
 details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.08em}
 .metricbox{font-size:11px;color:var(--dim);line-height:1.8;border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
@@ -218,6 +233,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part5.js?v=20260621-2155"></script>
 <script src="games-part6.js?v=20260621-2155"></script>
 <script src="engine.js"></script>
-<script src="app.js?v=20260621-2345"></script>
+<script src="app.js?v=20260622-0005"></script>
 </body>
 </html>
