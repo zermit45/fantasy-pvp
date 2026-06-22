@@ -142,17 +142,24 @@
   }
   // liveUpdateFull = só atualiza lista/contador/pager (usado por toggles sem input de texto)
   function liveUpdateFull(){ return liveUpdate(); }
-  window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktMinInput");};
-  window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktMaxInput");};
-  window.dMktAgeMin=function(v){APP.dMkt.amin=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktAgeMinInput");};
-  window.dMktAgeMax=function(v){APP.dMkt.amax=v;APP.dMkt.page=1;if(!liveUpdate())renderKeepFocus("dMktAgeMaxInput");};
+  var _numTimer=null;
+  function liveDeb(){ if(_numTimer)clearTimeout(_numTimer); _numTimer=setTimeout(function(){liveUpdate();},120); }
+  window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;liveDeb();};
+  window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;liveDeb();};
+  window.dMktAgeMin=function(v){APP.dMkt.amin=v;APP.dMkt.page=1;liveDeb();};
+  window.dMktAgeMax=function(v){APP.dMkt.amax=v;APP.dMkt.page=1;liveDeb();};
   window.dMktPage=function(n){APP.dMkt.page=n;renderKeepScroll();
     var el=document.getElementById("dMktTop"); if(el&&el.scrollIntoView)el.scrollIntoView({block:"start"});};
   window.dMktSearch=function(v){APP.draftSearch=v;APP.dMkt.page=1;renderKeepFocus("draftSearchInput");};
   // BUSCA AO VIVO: atualiza só a lista/contador/paginação, SEM redesenhar a tela.
+  // NUNCA cai no render completo (que recria o input e sobe o scroll). Se os
+  // contêineres não existirem, simplesmente ignora aquela tecla (raríssimo).
+  var _searchTimer=null;
   window.dMktSearchLive=function(v){
     APP.draftSearch=v; APP.dMkt.page=1;
-    if(!liveUpdate())renderKeepFocus("draftSearchInput");
+    // debounce: só recalcula 120ms após parar de digitar (evita travar a cada tecla)
+    if(_searchTimer)clearTimeout(_searchTimer);
+    _searchTimer=setTimeout(function(){ liveUpdate(); },120);
   };
   window.dMktTogglePanel=function(){APP.dMkt.panel=!APP.dMkt.panel;reRender();};
   window.dMktClear=function(){APP.dMkt={pos:[],team:[],league:[],club:[],pmin:"",pmax:"",amin:"",amax:"",page:1,perPage:50,panel:APP.dMkt.panel};
@@ -160,11 +167,22 @@
 
   function normT(s){return (typeof normTxt==="function")?normTxt(s):String(s||"").toLowerCase();}
 
+  // cache do catálogo: processar 1251 jogadores a cada tecla trava. Guardamos
+  // a lista pronta e só refazemos se o tamanho do banco mudar.
+  var _catCache=null, _catLen=-1;
+  function cachedCatalog(){
+    var m=window.draftMasterPlayers;
+    var len=Array.isArray(m)?m.length:0;
+    if(_catCache&&_catLen===len)return _catCache;
+    _catCache=draftPlayerCatalog(); _catLen=len;
+    return _catCache;
+  }
+
   // computa a lista filtrada/paginada e devolve {countHTML, listHTML, pagerHTML}
   function computeResults(s,me,owner,myRoster){
     var f=APP.dMkt;
     var q=normT(APP.draftSearch||"");
-    var all=draftPlayerCatalog();
+    var all=cachedCatalog();
     var pmin=f.pmin===""?null:Number(f.pmin), pmax=f.pmax===""?null:Number(f.pmax);
     var amin=f.amin===""?null:Number(f.amin), amax=f.amax===""?null:Number(f.amax);
     var fp=f.pos||[], ft=f.team||[], fl=f.league||[], fc=f.club||[];
@@ -230,7 +248,7 @@
   function marketTabHTML(s,me,owner,myRoster){
     var f=APP.dMkt;
     var q=normT(APP.draftSearch||"");
-    var all=draftPlayerCatalog();
+    var all=cachedCatalog();
     // opções (ordenadas) para os dropdowns
     var teamSet={},leagueSet={},clubSet={};
     all.forEach(function(p){teamSet[p.team]=1;if(p.league)leagueSet[p.league]=1;if(p.club)clubSet[p.club]=1;});
@@ -409,5 +427,19 @@
       toast&&toast("Temporada resetada (DEV).");
       reRender();
     }catch(e){toast&&toast("Erro: "+e.message);}
+  };
+})();
+
+// ============================================================
+// PATCH EXTRA: senha "EXCLUIR" também na exclusão de LIGA
+// (padroniza com grupos/rodadas que já pedem a palavra).
+// ============================================================
+(function(){
+  if(typeof window==="undefined")return;
+  if(typeof askConfirm!=="function"||typeof deleteLeague!=="function")return;
+  // guarda referência e sobrescreve o atalho que abria o modal sem senha
+  window.askDeleteLeague=function(id){
+    askConfirm("EXCLUIR","Excluir esta liga/competição",function(){ deleteLeague(id); },
+      "As rodadas dela NÃO são apagadas — apenas voltam a ser avulsas. Times e pontuações continuam intactos.");
   };
 })();
