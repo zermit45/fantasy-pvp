@@ -493,3 +493,72 @@
       "As rodadas dela NÃO são apagadas — apenas voltam a ser avulsas. Times e pontuações continuam intactos.");
   };
 })();
+
+// ============================================================
+// PATCH: EXCLUIR temporada do MERCADO DRAFT (com senha "EXCLUIR")
+// O Draft não tinha botão de excluir. Aqui: injeta uma lixeira em cada
+// temporada (só admin) e cria deleteDraftSeason com cascata + senha.
+// ============================================================
+(function(){
+  if(typeof window==="undefined")return;
+
+  function reRenderSafe(){ (typeof render==="function"?render:(typeof renderKeepScroll==="function"?renderKeepScroll:function(){}))(); }
+
+  // 1) apaga a temporada e tudo ligado a ela (cascata)
+  window.deleteDraftSeason=async function(id){
+    if(typeof isAdmin==="function" && !isAdmin())return;
+    try{
+      if(typeof sbDelete==="function"){
+        try{await sbDelete("draft_rosters","season_id=eq."+id);}catch(e){}
+        try{await sbDelete("draft_transactions","season_id=eq."+id);}catch(e){}
+        try{await sbDelete("draft_teams","season_id=eq."+id);}catch(e){}
+        try{await sbDelete("draft_status","season_id=eq."+id);}catch(e){}
+        await sbDelete("draft_seasons","id=eq."+id);
+      }
+      if(APP.draftSeason&&APP.draftSeason.id===id){APP.draftSeason=null;APP.draftSeasonId=null;}
+      if(typeof loadDraftSeasons==="function")await loadDraftSeasons();
+      if(APP.view==="draft")APP.view="home";
+      toast&&toast("Temporada excluída.");
+      reRenderSafe();
+    }catch(e){toast&&toast("Erro ao excluir: "+e.message);}
+  };
+
+  // atalho com senha EXCLUIR
+  window.askDeleteDraftSeason=function(id,nome){
+    if(typeof askConfirm!=="function"){ if(confirm("Excluir a temporada?"))window.deleteDraftSeason(id); return; }
+    askConfirm("EXCLUIR","Excluir a temporada"+(nome?' "'+nome+'"':""),function(){ window.deleteDraftSeason(id); },
+      "Isso apaga a temporada e TODOS os elencos, times e transações dela. Não pode ser desfeito.");
+  };
+
+  // 2) injeta a lixeira em cada temporada via DOM (a função é chamada direto,
+  // não dá pra interceptar o HTML; então adicionamos o botão após cada render).
+  function injectTrash(){
+    try{
+      if(typeof isAdmin==="function" && !isAdmin())return;
+      var list=APP.draftSeasons||[];
+      if(!list.length)return;
+      // as linhas têm onclick com go('draft',...,'ID'); achamos por esse atributo
+      var rows=document.querySelectorAll('.roomrow');
+      rows.forEach(function(row){
+        var oc=row.getAttribute("onclick")||"";
+        var m=oc.match(/go\('draft',[^)]*'([^']+)'\)/);
+        if(!m)return;
+        var id=m[1];
+        if(row.querySelector(".draft-del-btn"))return; // já injetado
+        var s=null;for(var i=0;i<list.length;i++)if(list[i].id===id){s=list[i];break;}
+        var nome=s?(s.name||""):"";
+        var btn=document.createElement("span");
+        btn.className="daychip draft-del-btn";
+        btn.style.cssText="margin-left:8px;border-color:var(--red);color:var(--red);font-size:11px;padding:3px 9px";
+        btn.textContent="🗑";
+        btn.onclick=function(ev){ev.stopPropagation();window.askDeleteDraftSeason(id,nome);};
+        row.appendChild(btn);
+      });
+    }catch(e){}
+  }
+  // roda após cada render: faz polling leve enquanto a aba é a home do draft
+  var _trashTimer=setInterval(function(){
+    // só injeta quando há temporadas listadas na tela
+    if(document.querySelector('.roomrow'))injectTrash();
+  },600);
+})();
