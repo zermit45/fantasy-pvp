@@ -1065,7 +1065,23 @@ function confPreviewMove(targetRoomId){
   ids.splice(dst,0,moved);
   APP.confOrderDraft=ids;
   APP.confHover=targetRoomId;
-  renderKeepScroll();
+  confReorderDOM(ids,moved,targetRoomId,src,dst);
+}
+function confReorderDOM(ids,moved,targetRoomId,src,dst){
+  try{
+    const moving=document.querySelector(`[data-conf-room="${moved}"]`);
+    const target=document.querySelector(`[data-conf-room="${targetRoomId}"]`);
+    if(moving&&target&&target.parentNode){
+      if(src<dst)target.parentNode.insertBefore(moving,target.nextSibling);
+      else target.parentNode.insertBefore(moving,target);
+    }
+    const total=ids.length;
+    ids.forEach((roomId,i)=>{
+      document.querySelectorAll(`[data-conf-pos="${roomId}"]`).forEach(el=>{
+        el.textContent=`📊 ${i+1}º · ${confMultiplier(i,total).toFixed(2)}x`;
+      });
+    });
+  }catch(e){}
 }
 async function confPersistOrder(ids){
   if(boostLocked())return;
@@ -1352,6 +1368,12 @@ async function toggleBoostConfirm(){
       if(montados.length<APP.roundRooms.length){toast("Escale todos os jogos antes de confirmar os palpites.");return;}
       if(semPalpite.length){toast(`Crave o placar de todos os jogos (faltam ${semPalpite.length}).`);return;}
     }
+    if(!APP._confirmSummaryBypass){
+      APP.confirm={mode:"roundSummary",label:"Resumo da mini rodada"};
+      render();
+      restoreScroll(snap);
+      return;
+    }
   }
   const msgOn=mode==="confianca"?"Ordem confirmada! (dá pra reeditar até o 1º jogo)":mode==="previsao"?"Palpites confirmados! (dá pra reeditar até o 1º jogo)":"Impulsos confirmados! (dá pra reeditar até o 1º jogo)";
   const msgOff=mode==="confianca"?"Ordem reaberta pra edição.":mode==="previsao"?"Palpites reabertos pra edição.":"Impulsos reabertos pra edição.";
@@ -1361,6 +1383,11 @@ async function toggleBoostConfirm(){
     toast(willConfirm?msgOn:msgOff);
     render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
+}
+function confirmRoundSummary(){
+  APP.confirm=null;
+  APP._confirmSummaryBypass=true;
+  toggleBoostConfirm().finally(()=>{APP._confirmSummaryBypass=false;});
 }
 async function selectRoundGame(roomId){
   if(picksLocked()){toast("A seleção de jogos já foi fechada.");return;}
@@ -2340,6 +2367,72 @@ function roundGameClick(roomId){
   }
   askEnterRoundGame(roomId);
 }
+function roundStatusSnapshot(){
+  const r=APP.round, mode=modeOf(r);
+  const rooms=APP.roundRooms||[];
+  const entries=APP.roundEntries||[];
+  const total=rooms.length;
+  const mounted=rooms.filter(rr=>hasTeam(rr.room_id)).length;
+  const confirmed=boostConfirmed();
+  const chipsLeft=mode==="boost"?chipsAvailable().length:0;
+  const confDone=mode==="confianca"?confRankedCount():0;
+  const predDone=mode==="previsao"?entries.filter(e=>e.pred_home!=null&&e.pred_away!=null).length:0;
+  const ready=mode==="boost"?mounted===total&&chipsLeft===0&&confirmed:
+    mode==="confianca"?mounted===total&&confDone===total&&confirmed:
+    mode==="previsao"?mounted===total&&predDone===total&&confirmed:
+    mode==="full"?mounted===total:
+    true;
+  return {mode,total,mounted,confirmed,chipsLeft,confDone,predDone,ready};
+}
+function roundTodoHTML(){
+  const s=roundStatusSnapshot(), mode=s.mode;
+  if(!s.total)return"";
+  const items=[];
+  items.push({ok:s.mounted===s.total,label:"Escalações",value:`${s.mounted}/${s.total}`});
+  if(mode==="boost")items.push({ok:s.chipsLeft===0,label:"Fichas usadas",value:s.chipsLeft===0?"tudo certo":`${s.chipsLeft} faltando`});
+  if(mode==="confianca")items.push({ok:s.confDone===s.total,label:"Ordem de confiança",value:`${s.confDone}/${s.total}`});
+  if(mode==="previsao")items.push({ok:s.predDone===s.total,label:"Palpites",value:`${s.predDone}/${s.total}`});
+  if(mode==="boost"||mode==="confianca"||mode==="previsao")items.push({ok:s.confirmed,label:"Confirmação",value:s.confirmed?"confirmado":"pendente"});
+  const missing=items.filter(i=>!i.ok).length;
+  return `<div class="card" style="border-color:${missing?"var(--amber)":"var(--green)"}">
+    <div class="h2 disp">${missing?"⚠️ Minhas pendências":"✅ Tudo pronto"}</div>
+    <p class="p">${missing?"Resolva isso antes da trava para não zerar/ficar incompleto.":"Sua mini rodada está redonda. Só acompanhar os jogos."}</p>
+    <div class="dashgrid">
+      ${items.slice(0,4).map(i=>`<div class="dashitem"><b>${esc(i.value)}</b><span>${esc(i.label)}</span></div>`).join("")}
+    </div>
+    ${items.map(i=>`<div class="todoitem ${i.ok?"ok":"warny"}"><span>${i.ok?"✓":"!"} ${esc(i.label)}</span><b style="color:${i.ok?"var(--green)":"var(--red)"}">${esc(i.value)}</b></div>`).join("")}
+  </div>`;
+}
+function roundFeedHTML(){
+  const all=APP.roundAllEntries||[];
+  const rooms=APP.roundRooms||[];
+  const mode=modeOf(APP.round);
+  const events=[];
+  const byUser={};
+  all.forEach(e=>{
+    if(!e.username)return;
+    byUser[e.username]=byUser[e.username]||{teams:0,conf:0,preds:0,chips:0,confirmed:false};
+    if(e.slots&&Object.values(e.slots).some(Boolean))byUser[e.username].teams++;
+    if(e.conf_rank!=null)byUser[e.username].conf++;
+    if(e.pred_home!=null&&e.pred_away!=null)byUser[e.username].preds++;
+    if(Array.isArray(e.boost_chips)&&e.boost_chips.length)byUser[e.username].chips+=e.boost_chips.length;
+    if(e.confirmed)byUser[e.username].confirmed=true;
+  });
+  Object.entries(byUser).forEach(([u,s])=>{
+    if(s.teams)events.push(`👤 ${u} montou ${s.teams}/${rooms.length} time(s)`);
+    if(mode==="confianca"&&s.conf)events.push(`📊 ${u} ordenou ${s.conf}/${rooms.length} jogo(s)`);
+    if(mode==="boost"&&s.chips)events.push(`⚡ ${u} distribuiu ${s.chips} ficha(s)`);
+    if(mode==="previsao"&&s.preds)events.push(`🔮 ${u} cravou ${s.preds}/${rooms.length} placar(es)`);
+    if(s.confirmed)events.push(`🔒 ${u} confirmou a mini rodada`);
+  });
+  rooms.forEach(rr=>{
+    if(rr.status==="locked")events.push(`🔒 ${matchName(rr.room_id)} foi travado pelo admin`);
+  });
+  const last=events.slice(-6).reverse();
+  if(!last.length)return"";
+  return `<div class="card"><div class="h2 disp">📡 Feed do grupo</div>${last.map(e=>`<div class="feeditem">${esc(e)}</div>`).join("")}</div>`;
+}
+function matchName(roomId){const j=APP.jogos.find(x=>x.room_id===roomId);return j?j.match_name:roomId;}
 async function addPhaseToLeague(phaseId){
   if(!isAdmin())return;
   try{await sbUpdate("phases",{league_id:APP.leagueId},`id=eq.${phaseId}`);await loadPhases();await loadLeague(APP.leagueId);toast("Rodada adicionada à liga.");render();}
@@ -2461,14 +2554,14 @@ function roundHTML(){
           if(APP.confOrderMode){
             extraCtrl=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
+                <span data-conf-pos="${rid}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
                 ${held?`<span class="confhint">arrastando...</span>`:`<span class="confhint">segure o card e arraste</span>`}
               </div>
               <div class="confgrab" style="border-color:${mm.color};color:${mm.color}">↕ Card inteiro arrastável</div>
             </div>`;
           }else{
             extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
+              <span data-conf-pos="${rid}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
               <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
               <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
               <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
@@ -2572,7 +2665,7 @@ function roundHTML(){
       ${mm.icon} <b>Modo Confiança.</b> Coloque os jogos em ordem de confiança: do 1º (mais confia) ao último — dá pra ordenar antes de escalar. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. A escalação de cada jogo é livre até aquela partida começar. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
       ${ordIds.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
       ${!bLocked?`<div class="conforderbar">
-        <div style="font-size:12px;line-height:1.35"><b>${APP.confOrderMode?"Modo ordenar ligado":"Quer ordenar mais fácil?"}</b><br><span style="color:var(--dim)">${APP.confOrderMode?"Segure em ↕ e arraste o card para cima/baixo.":"Toque aqui para transformar a lista em arrastável."}</span></div>
+        <div style="font-size:12px;line-height:1.35"><b>${APP.confOrderMode?"Modo ordenar ligado":"Quer ordenar mais fácil?"}</b><br><span style="color:var(--dim)">${APP.confOrderMode?"Segure qualquer card e arraste para cima/baixo.":"Toque aqui para transformar a lista em arrastável."}</span></div>
         <button class="btn sm" style="background:${APP.confOrderMode?"transparent":mm.color};color:${APP.confOrderMode?mm.color:"#0A0E1C"};border:${APP.confOrderMode?`1px solid ${mm.color}`:"none"};white-space:nowrap" onclick="${APP.confOrderMode?"confStopOrdering()":"confStartOrdering()"}">${APP.confOrderMode?"Sair":"Ordenar"}</button>
       </div>`:""}
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}
@@ -2605,6 +2698,8 @@ function roundHTML(){
     ${selWarn}
     ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
   </div>
+  ${roundTodoHTML()}
+  ${roundFeedHTML()}
   ${roundRankingHTML()}
   ${isAdmin()?`<div class="card">
     <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
@@ -2861,6 +2956,24 @@ function modePreviewHTML(mk){
 }
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
+  if(c.mode==="roundSummary"){
+    const s=roundStatusSnapshot();
+    const mm=modeMeta(APP.round);
+    const mode=modeOf(APP.round);
+    const lines=[
+      ["Escalações",`${s.mounted}/${s.total}`,s.mounted===s.total],
+      mode==="boost"?["Fichas restantes",String(s.chipsLeft),s.chipsLeft===0]:null,
+      mode==="confianca"?["Ordem",`${s.confDone}/${s.total}`,s.confDone===s.total]:null,
+      mode==="previsao"?["Palpites",`${s.predDone}/${s.total}`,s.predDone===s.total]:null,
+    ].filter(Boolean);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:${mm.color}">${mm.icon} Confirmar ${esc(mm.label)}</div>
+      <p class="p" style="margin:10px 0">Revise antes de travar sua decisão estratégica. Você ainda pode reabrir até a trava da rodada.</p>
+      ${lines.map(l=>`<div class="todoitem ${l[2]?"ok":"warny"}"><span>${l[2]?"✓":"!"} ${esc(l[0])}</span><b>${esc(l[1])}</b></div>`).join("")}
+      <button class="btn" style="margin-top:12px;background:${mm.color};color:#0A0E1C" onclick="confirmRoundSummary()">Confirmar agora</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Revisar</button>
+    </div></div>`;
+  }
   // modo: criar grupo (admin)
   if(c.mode==="createGroup"){
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
@@ -3981,6 +4094,8 @@ function resultHTML(){
     html+=`</div></div>`;
   });
   html+=`</div>`;
+  html+=resultBadgesHTML(scored);
+  html+=resultDuelHTML(scored,mine);
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
   html+=dreamTeamHTML();
   // minha apuração detalhada
@@ -4004,6 +4119,42 @@ function resultHTML(){
     html+=`<button class="btn ghost" style="border-color:${arq?"var(--green)":"var(--amber)"};color:${arq?"var(--green)":"var(--amber)"};margin-bottom:10px" onclick="${arq?`unarchiveGame('${APP.roomId}')`:`askArchive('${APP.roomId}')`}">${arq?"♻️ Desarquivar partida":"📥 Arquivar partida (mandar pro histórico)"}</button>`;
   }
   return html;
+}
+function resultBadgesHTML(scored){
+  if(!scored||!scored.length)return"";
+  const medals=[];
+  const winner=scored[0];
+  medals.push({icon:"🏆",title:"Maior pontuação",text:`${winner.username} fez ${winner.total.toFixed(1)} pts.`});
+  let bestCap=null,bestPlayer=null,biggestBench=null;
+  scored.forEach(s=>{
+    (s.view||[]).forEach(v=>{
+      if(v.slot==="BENCH"&&v.pts>0){if(!biggestBench||v.pts>biggestBench.pts)biggestBench={user:s.username,pts:v.pts};}
+      if(v.cap){if(!bestCap||v.pts>bestCap.pts)bestCap={user:s.username,pts:v.pts};}
+      if(v.slot!=="BENCH"&&(!bestPlayer||v.pts>bestPlayer.pts)){
+        const pl=APP._byId&&APP._byId[v.pid];
+        bestPlayer={user:s.username,pts:v.pts,name:pl?pl.name:"jogador"};
+      }
+    });
+  });
+  if(bestCap)medals.push({icon:"👑",title:"Melhor capitão",text:`${bestCap.user} tirou ${bestCap.pts.toFixed(1)} pts do capitão.`});
+  if(bestPlayer)medals.push({icon:"⭐",title:"Melhor carta",text:`${bestPlayer.name} carregou ${bestPlayer.user} com ${bestPlayer.pts.toFixed(1)} pts.`});
+  if(biggestBench)medals.push({icon:"🪑",title:"Banco salvou",text:`${biggestBench.user} ganhou ${biggestBench.pts.toFixed(1)} pts vindos do banco.`});
+  return `<div class="card"><div class="h2 disp">🏅 Medalhas da partida</div><div class="medalgrid">${medals.map(m=>`<div class="medalcard"><b>${m.icon} ${esc(m.title)}</b><small>${esc(m.text)}</small></div>`).join("")}</div></div>`;
+}
+function resultDuelHTML(scored,mine){
+  if(!mine||!scored||scored.length<2)return"";
+  const rival=scored[0].username===mine.username?scored[1]:scored[0];
+  if(!rival)return"";
+  const slots=["GK","DEF","MID","ATT","FLEX","BENCH"];
+  const row=(sl)=>{
+    const a=(mine.view||[]).find(v=>v.slot===sl);
+    const b=(rival.view||[]).find(v=>v.slot===sl);
+    const ap=a?Number(a.pts)||0:0,bp=b?Number(b.pts)||0:0;
+    const an=a&&APP._byId&&APP._byId[a.pid]?APP._byId[a.pid].name:"—";
+    const bn=b&&APP._byId&&APP._byId[b.pid]?APP._byId[b.pid].name:"—";
+    return `<div class="line" style="gap:8px"><span style="width:42%;color:${ap>=bp?"var(--green)":"var(--dim)"}"><b>${SLOT_LABEL[sl]}</b> ${esc(an)} (${ap.toFixed(1)})</span><span style="color:var(--dim)">×</span><span style="width:42%;text-align:right;color:${bp>ap?"var(--green)":"var(--dim)"}">${esc(bn)} (${bp.toFixed(1)})</span></div>`;
+  };
+  return `<div class="card"><div class="h2 disp">⚔️ Seu duelo contra ${esc(rival.username)}</div><p class="p" style="margin-bottom:8px">Comparação slot por slot contra ${rival.username===scored[0].username?"o líder":"o próximo rival"}.</p>${slots.map(row).join("")}</div>`;
 }
 let _openBaseAll=false;
 function toggleBaseAll(){_openBaseAll=!_openBaseAll;render();}
