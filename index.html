@@ -198,20 +198,33 @@ body{background:var(--bg)}
 .foot{font-size:10px;color:#5a6786;text-align:center;padding:14px 0 4px;line-height:1.7}
 .loading{text-align:center;padding:30px;color:var(--dim);font-size:13px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-start;justify-content:center;padding:18px 14px calc(88px + env(safe-area-inset-bottom));z-index:100;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;max-width:100vw}
-.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:430px;width:100%;min-width:0;max-height:none;animation:popin .18s ease-out;overflow:hidden}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:430px;width:100%;min-width:0;max-height:none;animation:popin .34s cubic-bezier(.16,1,.3,1);overflow:hidden}
 .draghandle{touch-action:none;user-select:none;cursor:grab;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:10px;border:1px solid currentColor;color:inherit;background:rgba(255,255,255,.03);font-weight:900}
 .draghandle:active{cursor:grabbing;transform:scale(.96)}
 .confdrop{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 16%,var(--panel2))}
 .confpick{user-select:none;-webkit-user-select:none}
 .confheld{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 18%,var(--panel2))}
 .confhint{font-size:10px;color:var(--purple);font-weight:800;margin-left:2px}
-@keyframes popin{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes popin{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:no-preference){
-  .card,.homehero,.navpanel,.roomrow,.slot,.tact{animation:softin .22s ease-out both}
-  .btn,.ptab,.navtab,.statuspill{transition:transform .12s,filter .12s,background .12s,border-color .12s}
-  .btn:active,.ptab:active,.navtab:active,.statuspill:active{transform:scale(.98);filter:brightness(1.08)}
+  .card,.homehero,.navpanel,.roomrow,.slot,.tact,.receipt,.rank,.modepreview{animation:softin .46s cubic-bezier(.16,1,.3,1) both}
+  .btn,.ptab,.navtab,.statuspill,.userchip,.cbtn,.daychip,.chip{transition:transform .22s cubic-bezier(.16,1,.3,1),filter .22s ease,background .26s ease,border-color .26s ease,box-shadow .32s ease}
+  .btn:active,.ptab:active,.navtab:active,.statuspill:active,.userchip:active,.cbtn:active,.daychip:active,.chip:active{transform:scale(.985);filter:brightness(1.04)}
+  .roomrow,.slot,.tact,.modepreview,.receipt{position:relative}
+  .roomrow::after,.slot::after,.tact::after,.receipt::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(120deg,transparent 0%,rgba(255,255,255,.045) 48%,transparent 76%);opacity:0;transform:translateX(-24%);transition:opacity .34s ease,transform .58s cubic-bezier(.16,1,.3,1);pointer-events:none}
+  .roomrow:active::after,.slot:active::after,.tact:active::after,.receipt:active::after{opacity:1;transform:translateX(18%)}
+  .slot.filled,.prow.sel{animation:selectedPop .38s cubic-bezier(.16,1,.3,1) both}
+  .btn.ready{animation:readyPulse 2.4s ease-in-out infinite}
 }
-@keyframes softin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes softin{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes selectedPop{0%{transform:scale(.992);box-shadow:0 0 0 rgba(255,194,71,0)}55%{transform:scale(1.006);box-shadow:0 0 0 2px rgba(255,194,71,.10)}100%{transform:scale(1);box-shadow:none}}
+@keyframes readyPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,194,71,.22)}50%{box-shadow:0 0 0 7px rgba(255,194,71,0)}}
+.expandable{display:grid;grid-template-rows:0fr;opacity:.35;overflow:hidden;transition:grid-template-rows .42s cubic-bezier(.16,1,.3,1),opacity .32s ease}
+.expandable.open{grid-template-rows:1fr;opacity:1}
+.expandable>div{min-height:0}
+.expandable:not(.open)>.rbody{padding-top:0;padding-bottom:0;border-top:0}
+.expandable:not(.open)>div{padding-top:0!important;padding-bottom:0!important;margin-top:0!important;margin-bottom:0!important;border-top:0!important}
+.roomrow:nth-of-type(1){animation-delay:0ms}.roomrow:nth-of-type(2){animation-delay:38ms}.roomrow:nth-of-type(3){animation-delay:76ms}.roomrow:nth-of-type(4){animation-delay:114ms}.roomrow:nth-of-type(5){animation-delay:152ms}.roomrow:nth-of-type(6){animation-delay:190ms}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--amber);color:var(--chalk);padding:11px 18px;border-radius:10px;font-size:13px;z-index:200;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:90vw;text-align:center;transition:opacity .2s}
 details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.08em}
 .metricbox{font-size:11px;color:var(--dim);line-height:1.8;border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px}
@@ -237,6 +250,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part5.js?v=20260621-2155"></script>
 <script src="games-part6.js?v=20260621-2155"></script>
 <script src="engine.js"></script>
-<script src="app.js?v=20260622-0038"></script>
+<script src="app.js?v=20260622-0115"></script>
 </body>
 </html>
