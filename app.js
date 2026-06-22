@@ -116,6 +116,7 @@ let APP={
   openModes:{},        // {full:true} = grupo de modo EXPANDIDO (padrão: fechado)
   homeNavTab:"partidas", // aba ativa da home: partidas|mini|rodadas|ligas
   compTab:{round:"live",phase:"live",league:"live"}, // aba "live"(andamento)/"done"(finalizadas) por seção
+  confOrderMode:false, confOrderDraft:null, confHover:null,
 };
 
 // ---------- Supabase REST helpers ----------
@@ -1024,6 +1025,57 @@ function confRankOf(roomId){const e=(APP.roundEntries||[]).find(x=>x.room_id===r
 function confRankedCount(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).length;}
 // lista de entries rankeadas, em ordem
 function confOrdered(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).slice().sort((a,b)=>a.conf_rank-b.conf_rank);}
+function confRoomOrderIds(){
+  const base=(APP.roundRooms||[]).map(rr=>rr.room_id);
+  if(APP.confOrderDraft&&APP.confOrderDraft.length)return APP.confOrderDraft.slice();
+  return base.slice().sort((a,b)=>{
+    const ia=base.indexOf(a),ib=base.indexOf(b);
+    const ra=confRankOf(a),rb=confRankOf(b);
+    if(ra==null&&rb==null)return ia-ib;
+    if(ra==null)return 1;
+    if(rb==null)return -1;
+    return ra-rb;
+  });
+}
+async function confStartOrdering(){
+  if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
+  const ids=confRoomOrderIds();
+  APP.confOrderMode=true;
+  APP.confOrderDraft=ids.slice();
+  try{
+    for(let i=0;i<ids.length;i++){
+      const e=await ensureEntry(ids[i]);
+      if(!e)continue;
+      if(e.conf_rank!==i)await sbUpdate("entries",{conf_rank:i,confirmed:false,updated_at:new Date().toISOString()},entryFilter(ids[i]));
+    }
+    await loadRound(APP.roundId);
+    APP.confOrderDraft=confRoomOrderIds();
+    render();restoreScroll(snap);
+    toast("Modo ordenar ligado. Segure em ↕ e arraste.");
+  }catch(e2){toast("Erro: "+e2.message);}
+}
+function confStopOrdering(){APP.confOrderMode=false;APP.confOrderDraft=null;confDragCancel();renderKeepScroll();}
+function confPreviewMove(targetRoomId){
+  if(!APP.confDrag||!targetRoomId||APP.confDrag===targetRoomId)return;
+  const ids=(APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:confRoomOrderIds()).slice();
+  const src=ids.indexOf(APP.confDrag),dst=ids.indexOf(targetRoomId);
+  if(src<0||dst<0||src===dst)return;
+  const moved=ids.splice(src,1)[0];
+  ids.splice(dst,0,moved);
+  APP.confOrderDraft=ids;
+  APP.confHover=targetRoomId;
+  renderKeepScroll();
+}
+async function confPersistOrder(ids){
+  if(boostLocked())return;
+  const order=(ids&&ids.length?ids:confRoomOrderIds()).slice();
+  for(let i=0;i<order.length;i++){
+    await sbUpdate("entries",{conf_rank:i,confirmed:false,updated_at:new Date().toISOString()},entryFilter(order[i]));
+  }
+  await loadRound(APP.roundId);
+  APP.confOrderDraft=confRoomOrderIds();
+}
 async function confAdd(roomId){
   if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
   const snap=scrollSnap();
@@ -1063,6 +1115,8 @@ async function confMove(roomId,delta){
 function confPick(roomId,ev){
   if(ev){ev.preventDefault&&ev.preventDefault();ev.stopPropagation&&ev.stopPropagation();}
   if(boostLocked())return;
+  if(!APP.confOrderMode)APP.confOrderMode=true;
+  if(!APP.confOrderDraft||!APP.confOrderDraft.length)APP.confOrderDraft=confRoomOrderIds();
   if(APP.confDrag===roomId){APP.confDrag=null;confTouchOff();renderKeepScroll();return;}
   if(APP.confDrag){confDropOn(roomId);return;}
   APP.confDrag=roomId;
@@ -1085,6 +1139,7 @@ function confDragCancel(){
   APP.confDrag=null;
   APP.confHover=null;
   confTouchOff();
+  confPointerOff();
   document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
 }
 let _confTouchBound=false;
@@ -1109,34 +1164,65 @@ function confTouchMove(ev){
   if(ev.cancelable)ev.preventDefault();
   const t=ev.touches&&ev.touches[0];
   if(!t)return;
-  const el=document.elementFromPoint(t.clientX,t.clientY);
+  confPointMove(t.clientX,t.clientY);
+}
+function confPointMove(x,y){
+  const el=document.elementFromPoint(x,y);
   const row=el&&el.closest?el.closest("[data-conf-room]"):null;
   const rid=row&&row.getAttribute("data-conf-room");
-  if(rid&&rid!==APP.confDrag)confDragOver(rid);
+  if(rid&&rid!==APP.confDrag&&rid!==APP.confHover)confPreviewMove(rid);
 }
 function confTouchEnd(ev){
   if(!APP.confDrag)return;
   if(ev&&ev.cancelable)ev.preventDefault();
-  const target=APP.confHover;
-  if(target&&target!==APP.confDrag)confDropOn(target);
-  else{confDragCancel();renderKeepScroll();}
+  const order=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft.slice():confRoomOrderIds();
+  confDragCancel();
+  confPersistOrder(order).then(()=>{renderKeepScroll();}).catch(e=>toast("Erro: "+e.message));
+}
+let _confPointerBound=false;
+function confPointerStart(roomId,ev){
+  if(ev){ev.preventDefault&&ev.preventDefault();ev.stopPropagation&&ev.stopPropagation();}
+  confPick(roomId,ev);
+  if(_confPointerBound)return;
+  document.addEventListener("pointermove",confPointerMove,{passive:false});
+  document.addEventListener("pointerup",confPointerEnd,{passive:false});
+  document.addEventListener("pointercancel",confPointerEnd,{passive:false});
+  _confPointerBound=true;
+}
+function confPointerOff(){
+  if(!_confPointerBound)return;
+  document.removeEventListener("pointermove",confPointerMove,{passive:false});
+  document.removeEventListener("pointerup",confPointerEnd,{passive:false});
+  document.removeEventListener("pointercancel",confPointerEnd,{passive:false});
+  _confPointerBound=false;
+}
+function confPointerMove(ev){
+  if(!APP.confDrag)return;
+  if(ev.cancelable)ev.preventDefault();
+  confPointMove(ev.clientX,ev.clientY);
+}
+function confPointerEnd(ev){
+  if(!APP.confDrag){confPointerOff();return;}
+  if(ev&&ev.cancelable)ev.preventDefault();
+  const order=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft.slice():confRoomOrderIds();
+  confPointerOff();
+  confDragCancel();
+  confPersistOrder(order).then(()=>{renderKeepScroll();}).catch(e=>toast("Erro: "+e.message));
 }
 async function confDropOn(roomId){
   const snap=scrollSnap();
   const from=APP.confDrag;
   confDragCancel();
   if(!from||from===roomId||boostLocked())return;
-  const ord=confOrdered();
-  const src=ord.findIndex(e=>e.room_id===from);
-  const dst=ord.findIndex(e=>e.room_id===roomId);
+  const ids=(APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:confRoomOrderIds()).slice();
+  const src=ids.indexOf(from);
+  const dst=ids.indexOf(roomId);
   if(src<0||dst<0)return;
-  const moved=ord.splice(src,1)[0];
-  ord.splice(dst,0,moved);
+  const moved=ids.splice(src,1)[0];
+  ids.splice(dst,0,moved);
   try{
-    for(let i=0;i<ord.length;i++){
-      if(ord[i].conf_rank!==i)await sbUpdate("entries",{conf_rank:i,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${ord[i].room_id}`);
-    }
-    await loadRound(APP.roundId);render();restoreScroll(snap);
+    await confPersistOrder(ids);
+    render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
 // ===== PREVISÃO =====
@@ -1398,7 +1484,7 @@ async function setDistribLock(lock){
 }
 // compat: chamadas antigas
 function toggleBoostReopen(){ setDistribLock(boostLocked()?false:true); }
-function enterRound(roundId){go("round",null,roundId);}
+function enterRound(roundId){APP.confOrderMode=false;APP.confOrderDraft=null;APP.confDrag=null;APP.confHover=null;go("round",null,roundId);}
 function leaveRound(){APP.roundId=null;APP.round=null;APP.view="home";render();window.scrollTo(0,0);}
 // toque num jogo da rodada → decide o que fazer
 async function askEnterRoundGame(roomId){
@@ -2292,7 +2378,8 @@ function roundHTML(){
   const left=picksLeft(), used=picksUsed();
   const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
   const bLocked=boostLocked();
-  const jogos=APP.roundRooms.map(rr=>APP.jogos.find(j=>j.room_id===rr.room_id)).filter(Boolean);
+  const roomOrder=(isConf&&(APP.confOrderMode||APP.confOrderDraft))?confRoomOrderIds():(APP.roundRooms||[]).map(rr=>rr.room_id);
+  const jogos=roomOrder.map(rid=>APP.jogos.find(j=>j.room_id===rid)).filter(Boolean);
   const rows=jogos.map(j=>{
     const rid=j.room_id;
     const g=window.GAMES.data[rid];
@@ -2364,14 +2451,22 @@ function roundHTML(){
         }else{
           const mult=confMultiplier(myRank,total);
           const held=APP.confDrag===rid;
-          extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span class="draghandle" style="color:${mm.color}" title="Toque para pegar; toque em outro card para soltar" onclick="confPick('${rid}',event)">↕</span>
-            <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
-            ${held?`<span class="confhint">toque em outro card para soltar</span>`:""}
-            <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
-            <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
-            <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
-          </div>`;
+          if(APP.confOrderMode){
+            extraCtrl=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
+                ${held?`<span class="confhint">arrastando...</span>`:`<span class="confhint">ordem editável</span>`}
+              </div>
+              <button class="confgrab" style="border-color:${mm.color};color:${mm.color}" title="Segure e arraste para mudar a ordem" onpointerdown="confPointerStart('${rid}',event)" onclick="event.stopPropagation()">↕ Segure e arraste este jogo</button>
+            </div>`;
+          }else{
+            extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
+              <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
+              <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
+              <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
+            </div>`;
+          }
         }
       }
     }
@@ -2405,11 +2500,17 @@ function roundHTML(){
         <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
       </div>`;
     }
+    const confOrdering=isConf&&!finished&&!bLocked&&APP.confOrderMode;
+    if(confOrdering){
+      clickable=false;
+      tag=`<span class="statuspill st-finished" style="cursor:pointer;color:var(--blue);border:1px solid var(--blue);background:color-mix(in srgb,var(--blue) 16%,transparent)" onclick="event.stopPropagation();askEnterRoundGame('${rid}')">${team?"EDITAR TIME":"MONTAR TIME"}</span>`;
+      meta=team?"time montado · arraste para mudar a confiança":"toque em montar time · arraste para ordenar";
+    }
     const lineCtrl=isBoost?boostCtrl:(isConf||isPred?extraCtrl:"");
     const hasLineCtrl=(isBoost||isConf||isPred)&&!finished&&lineCtrl;
     const confRanked=isConf&&confRankOf(rid)!=null&&!finished&&!bLocked;
     const confDragAttrs=confRanked?`data-conf-room="${rid}"`:"";
-    return `<div class="roomrow ${confRanked?"confpick":""} ${APP.confDrag===rid?"confheld":""}" ${confDragAttrs} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
+    return `<div class="roomrow ${confRanked?"confpick":""} ${confOrdering?"confordercard":""} ${APP.confDrag===rid?"confheld confghost":""}" ${confDragAttrs} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
       <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
         <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${(!isBoost&&!isConf&&!isPred)?boostCtrl:""}${devBlock}</div>
@@ -2462,6 +2563,10 @@ function roundHTML(){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Confiança.</b> Coloque os jogos em ordem de confiança: do 1º (mais confia) ao último — dá pra ordenar antes de escalar. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. A escalação de cada jogo é livre até aquela partida começar. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
       ${ord.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
+      ${!bLocked?`<div class="conforderbar">
+        <div style="font-size:12px;line-height:1.35"><b>${APP.confOrderMode?"Modo ordenar ligado":"Quer ordenar mais fácil?"}</b><br><span style="color:var(--dim)">${APP.confOrderMode?"Segure em ↕ e arraste o card para cima/baixo.":"Toque aqui para transformar a lista em arrastável."}</span></div>
+        <button class="btn sm" style="background:${APP.confOrderMode?"transparent":mm.color};color:${APP.confOrderMode?mm.color:"#0A0E1C"};border:${APP.confOrderMode?`1px solid ${mm.color}`:"none"};white-space:nowrap" onclick="${APP.confOrderMode?"confStopOrdering()":"confStartOrdering()"}">${APP.confOrderMode?"Sair":"Ordenar"}</button>
+      </div>`:""}
       ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}
       ${(!bLocked&&ranked<totalGames)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ordenou só <b>${ranked}/${totalGames}</b> jogos. Se a 1ª partida for fechada antes de você ordenar TODOS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Ordene todos os jogos!</div>`:""}`;
   }else if(isPred){
@@ -4232,7 +4337,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
     if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();}
-    if(view==="round"){await loadRound(roundId);_openPeekRound={};}
+    if(view==="round"){APP.confOrderMode=false;APP.confOrderDraft=null;APP.confDrag=null;APP.confHover=null;await loadRound(roundId);_openPeekRound={};}
     if(view==="league"){await loadLeague(leagueId);}
     if(view==="phase"){await loadPhase(phaseId);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
