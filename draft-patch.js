@@ -170,13 +170,16 @@
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
       var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
+      // a linha é SEMPRE clicável (a menos que já tenha dono): se não puder comprar,
+      // buyDraftPlayer mostra o motivo no toast em vez de ficar "travado" sem reação.
+      var clickable = !own;
       var devBtn=(own && typeof isAdmin==="function" && isAdmin())
         ? '<span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 7px;margin-left:6px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span>'
         : "";
-      return '<div class="prow '+(own?"dis":"")+'" style="'+(can?"cursor:pointer":"")+'" onclick="'+(can?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
+      return '<div class="prow '+(own?"dis":"")+'" style="'+(clickable?"cursor:pointer":"")+'" onclick="'+(clickable?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
-        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:(can?"":' <span style="font-size:9px;color:var(--dim)">·</span>'))+'</div>'+
         '<div class="pr mono">'+p.price+'</div>'+
       '</div>';
     }).join("");
