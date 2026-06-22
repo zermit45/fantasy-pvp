@@ -1063,9 +1063,11 @@ async function confMove(roomId,delta){
 function confPick(roomId,ev){
   if(ev){ev.preventDefault&&ev.preventDefault();ev.stopPropagation&&ev.stopPropagation();}
   if(boostLocked())return;
-  if(APP.confDrag===roomId){APP.confDrag=null;renderKeepScroll();return;}
+  if(APP.confDrag===roomId){APP.confDrag=null;confTouchOff();renderKeepScroll();return;}
   if(APP.confDrag){confDropOn(roomId);return;}
   APP.confDrag=roomId;
+  APP.confHover=null;
+  confTouchOn();
   try{navigator.vibrate&&navigator.vibrate(12);}catch(e){}
   renderKeepScroll();
 }
@@ -1074,13 +1076,50 @@ function confDragStart(roomId){
 }
 function confDragOver(roomId){
   if(!APP.confDrag||APP.confDrag===roomId)return;
+  APP.confHover=roomId;
   document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
   const el=document.querySelector(`[data-conf-room="${roomId}"]`);
   if(el)el.classList.add("confdrop");
 }
 function confDragCancel(){
   APP.confDrag=null;
+  APP.confHover=null;
+  confTouchOff();
   document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
+}
+let _confTouchBound=false;
+function confTouchOn(){
+  try{document.body.classList.add("confdragging");}catch(e){}
+  if(_confTouchBound)return;
+  document.addEventListener("touchmove",confTouchMove,{passive:false});
+  document.addEventListener("touchend",confTouchEnd,{passive:false});
+  document.addEventListener("touchcancel",confTouchEnd,{passive:false});
+  _confTouchBound=true;
+}
+function confTouchOff(){
+  try{document.body.classList.remove("confdragging");}catch(e){}
+  if(!_confTouchBound)return;
+  document.removeEventListener("touchmove",confTouchMove,{passive:false});
+  document.removeEventListener("touchend",confTouchEnd,{passive:false});
+  document.removeEventListener("touchcancel",confTouchEnd,{passive:false});
+  _confTouchBound=false;
+}
+function confTouchMove(ev){
+  if(!APP.confDrag)return;
+  if(ev.cancelable)ev.preventDefault();
+  const t=ev.touches&&ev.touches[0];
+  if(!t)return;
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  const row=el&&el.closest?el.closest("[data-conf-room]"):null;
+  const rid=row&&row.getAttribute("data-conf-room");
+  if(rid&&rid!==APP.confDrag)confDragOver(rid);
+}
+function confTouchEnd(ev){
+  if(!APP.confDrag)return;
+  if(ev&&ev.cancelable)ev.preventDefault();
+  const target=APP.confHover;
+  if(target&&target!==APP.confDrag)confDropOn(target);
+  else{confDragCancel();renderKeepScroll();}
 }
 async function confDropOn(roomId){
   const snap=scrollSnap();
