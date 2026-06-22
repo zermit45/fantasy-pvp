@@ -1026,25 +1026,28 @@ function confRankedCount(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=
 function confOrdered(){return (APP.roundEntries||[]).filter(e=>e.conf_rank!=null).slice().sort((a,b)=>a.conf_rank-b.conf_rank);}
 async function confAdd(roomId){
   if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
   let e=await ensureEntry(roomId);
   if(!e){toast("Erro ao preparar este jogo.");return;}
   if(e.conf_rank!=null)return;
   const next=confRankedCount(); // entra no fim
-  try{await sbUpdate("entries",{conf_rank:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));await loadRound(APP.roundId);render();}
+  try{await sbUpdate("entries",{conf_rank:next,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));await loadRound(APP.roundId);render();restoreScroll(snap);}
   catch(e2){toast("Erro: "+e2.message);}
 }
 async function confRemove(roomId){
   if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
   const ord=confOrdered().filter(e=>e.room_id!==roomId);
   try{
     // tira este e reindexa os demais
     await sbUpdate("entries",{conf_rank:null,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
     for(let i=0;i<ord.length;i++){if(ord[i].conf_rank!==i)await sbUpdate("entries",{conf_rank:i},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${ord[i].room_id}`);}
-    await loadRound(APP.roundId);render();
+    await loadRound(APP.roundId);render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
 async function confMove(roomId,delta){
   if(boostLocked()){toast("A ordem já travou (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
   const ord=confOrdered();
   const idx=ord.findIndex(e=>e.room_id===roomId);
   if(idx<0)return;
@@ -1054,13 +1057,20 @@ async function confMove(roomId,delta){
   try{
     await sbUpdate("entries",{conf_rank:swap,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${a.room_id}`);
     await sbUpdate("entries",{conf_rank:idx,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${b.room_id}`);
-    await loadRound(APP.roundId);render();
+    await loadRound(APP.roundId);render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
-function confDragStart(roomId){
+function confPick(roomId,ev){
+  if(ev){ev.preventDefault&&ev.preventDefault();ev.stopPropagation&&ev.stopPropagation();}
   if(boostLocked())return;
+  if(APP.confDrag===roomId){APP.confDrag=null;renderKeepScroll();return;}
+  if(APP.confDrag){confDropOn(roomId);return;}
   APP.confDrag=roomId;
   try{navigator.vibrate&&navigator.vibrate(12);}catch(e){}
+  renderKeepScroll();
+}
+function confDragStart(roomId){
+  confPick(roomId);
 }
 function confDragOver(roomId){
   if(!APP.confDrag||APP.confDrag===roomId)return;
@@ -1073,6 +1083,7 @@ function confDragCancel(){
   document.querySelectorAll(".confdrop").forEach(el=>el.classList.remove("confdrop"));
 }
 async function confDropOn(roomId){
+  const snap=scrollSnap();
   const from=APP.confDrag;
   confDragCancel();
   if(!from||from===roomId||boostLocked())return;
@@ -1086,7 +1097,7 @@ async function confDropOn(roomId){
     for(let i=0;i<ord.length;i++){
       if(ord[i].conf_rank!==i)await sbUpdate("entries",{conf_rank:i,confirmed:false,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}&room_id=eq.${ord[i].room_id}`);
     }
-    await loadRound(APP.roundId);render();
+    await loadRound(APP.roundId);render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
 // ===== PREVISÃO =====
@@ -1121,6 +1132,7 @@ function chipsOn(roomId){
 // atribui uma ficha (de um valor) a um jogo; ou remove (signRemove=valor a tirar)
 async function assignChip(roomId,value){
   if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
   let e=await ensureEntry(roomId);
   if(!e){toast("Erro ao preparar este jogo.");return;}
   // tem essa ficha disponível?
@@ -1139,16 +1151,17 @@ async function assignChip(roomId,value){
   cur.push(value);
   try{
     await sbUpdate("entries",{boost_chips:cur,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
-    await loadRound(APP.roundId);render();
+    await loadRound(APP.roundId);render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
 async function unassignChip(roomId,value){
   if(boostLocked()){toast("Os impulsos já travaram (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
   const cur=chipsOn(roomId).slice();
   const i=cur.indexOf(value);if(i<0)return;cur.splice(i,1);
   try{
     await sbUpdate("entries",{boost_chips:cur,confirmed:false,updated_at:new Date().toISOString()},entryFilter(roomId));
-    await loadRound(APP.roundId);render();
+    await loadRound(APP.roundId);render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
 // nº de tokens que ESTE usuário já gastou na rodada (retrocompat — usa a lista nova)
@@ -1180,6 +1193,7 @@ function boostConfirmed(){
 }
 async function toggleBoostConfirm(){
   if(boostLocked()){toast("Já travou (a 1ª partida foi fechada).");return;}
+  const snap=scrollSnap();
   const willConfirm=!boostConfirmed();
   const mode=modeOf(APP.round);
   if(willConfirm){
@@ -1215,7 +1229,7 @@ async function toggleBoostConfirm(){
     await sbUpdate("entries",{confirmed:willConfirm,updated_at:new Date().toISOString()},`group_id=eq.${APP.groupId}&round_id=eq.${APP.roundId}&username=eq.${encodeURIComponent(APP.user.username)}`);
     await loadRound(APP.roundId);
     toast(willConfirm?msgOn:msgOff);
-    render();
+    render();restoreScroll(snap);
   }catch(e2){toast("Erro: "+e2.message);}
 }
 async function selectRoundGame(roomId){
@@ -1302,7 +1316,7 @@ async function createRound(name,limit,phaseId,mode,boostTokens,cfg){
   toast("Mini rodada criada!");
   if(rows&&rows[0]){enterRound(rows[0].id);}else render();
 }
-function setAddGameTab(t){APP.addGameTab=t;render();}
+function setAddGameTab(t){APP.addGameTab=t;renderKeepScroll();}
 async function addRoomToRound(roomId){  if(!isAdmin())return;
   if(isArchived(roomId)){toast("Jogo arquivado não pode entrar em rodada.");return;}
   await sbInsert("round_rooms",{round_id:APP.roundId,room_id:roomId,status:"open"},true,"round_id,room_id");
@@ -1659,6 +1673,23 @@ function setHomeSearch(v){
 function normTxt(s){
   return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/ç/g,"c");
 }
+function scrollSnap(){
+  const m=document.querySelector(".modal");
+  return {y:window.scrollY||0,my:m?m.scrollTop:0,hasModal:!!m};
+}
+function restoreScroll(snap){
+  if(!snap)return;
+  requestAnimationFrame(()=>{
+    window.scrollTo(0,snap.y||0);
+    const m=document.querySelector(".modal");
+    if(m&&snap.hasModal)m.scrollTop=snap.my||0;
+  });
+}
+function renderKeepScroll(){
+  const snap=scrollSnap();
+  render();
+  restoreScroll(snap);
+}
 function homeHTML(){
   // jogos abertos NESTE grupo (status vem de group_rooms)
   const abertosRaw=APP.groupRooms.map(gr=>{
@@ -1945,7 +1976,7 @@ function compTabsHTML(kind,liveN,doneN){
   const tab=(k,label,n)=>`<button class="statuspill ${k===active?"st-open":"st-closed"}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="setCompTab('${kind}','${k}')">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin:4px 0 10px">${tab("live","Em andamento",liveN)}${tab("done","Finalizadas",doneN)}</div>`;
 }
-function setCompTab(kind,k){APP.compTab[kind]=k;render();}
+function setCompTab(kind,k){APP.compTab[kind]=k;renderKeepScroll();}
 // ----- MINI RODADAS: card na home (só as avulsas, sem phase) -----
 function roundRowHTML(r){
   const mm=modeMeta(r);
@@ -2000,8 +2031,8 @@ function roundsCardHTML(){
   </div>`;
 }
 function askCreateRound(){APP.confirm={mode:"createRound",newMode:"full",label:"Criar mini rodada"};render();}
-function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm.draftName=n.value;APP.confirm.newMode=mk;render();}}
-function toggleModeGroup(mk){APP.openModes[mk]=!APP.openModes[mk];render();}
+function setCreateMode(mk){if(APP.confirm){const n=$("rndName");if(n)APP.confirm.draftName=n.value;APP.confirm.newMode=mk;renderKeepScroll();}}
+function toggleModeGroup(mk){APP.openModes[mk]=!APP.openModes[mk];renderKeepScroll();}
 
 // ----- RODADAS (phases) avulsas: card na home -----
 function phaseRowHTML(p){
@@ -2169,7 +2200,11 @@ function setPhaseTab(t){APP.phaseTab=t;render();}
 function askCreatePhase(leagueId){APP.confirm={mode:"createPhase",leagueId,label:"Criar rodada"};render();}
 function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",newMode:"full",phaseId,label:"Criar mini rodada"};render();}
 function roundGameClick(roomId){
-  if(APP.confDrag){confDragCancel();return;}
+  if(APP.confDrag){
+    if(confRankOf(roomId)!=null)confDropOn(roomId);
+    else{confDragCancel();renderKeepScroll();}
+    return;
+  }
   askEnterRoundGame(roomId);
 }
 async function addPhaseToLeague(phaseId){
@@ -2286,9 +2321,11 @@ function roundHTML(){
           extraCtrl=`<button style="border-radius:8px;border:1px dashed ${mm.color};background:transparent;color:${mm.color};font-size:11px;font-weight:800;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();confAdd('${rid}')">+ pôr na minha ordem de confiança</button>`;
         }else{
           const mult=confMultiplier(myRank,total);
+          const held=APP.confDrag===rid;
           extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span class="draghandle" style="color:${mm.color}" title="Segure e arraste para mudar a ordem" draggable="true" onpointerdown="event.stopPropagation();confDragStart('${rid}')" ondragstart="event.stopPropagation();confDragStart('${rid}')">↕</span>
+            <span class="draghandle" style="color:${mm.color}" title="Toque para pegar; toque em outro card para soltar" onclick="confPick('${rid}',event)">↕</span>
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
+            ${held?`<span class="confhint">toque em outro card para soltar</span>`:""}
             <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
             <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
             <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
@@ -2328,8 +2365,9 @@ function roundHTML(){
     }
     const lineCtrl=isBoost?boostCtrl:(isConf||isPred?extraCtrl:"");
     const hasLineCtrl=(isBoost||isConf||isPred)&&!finished&&lineCtrl;
-    const confDragAttrs=isConf&&confRankOf(rid)!=null&&!finished&&!bLocked?`data-conf-room="${rid}" onpointerenter="confDragOver('${rid}')" onpointerup="event.stopPropagation();confDropOn('${rid}')" ondragover="event.preventDefault();confDragOver('${rid}')" ondrop="event.preventDefault();confDropOn('${rid}')" ondragend="confDragCancel()"`:"";
-    return `<div class="roomrow" ${confDragAttrs} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
+    const confRanked=isConf&&confRankOf(rid)!=null&&!finished&&!bLocked;
+    const confDragAttrs=confRanked?`data-conf-room="${rid}"`:"";
+    return `<div class="roomrow ${confRanked?"confpick":""} ${APP.confDrag===rid?"confheld":""}" ${confDragAttrs} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
       <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
         <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${(!isBoost&&!isConf&&!isPred)?boostCtrl:""}${devBlock}</div>
@@ -2614,8 +2652,8 @@ function boostBuilderHTML(c){
     </div>
     <p class="p" style="font-size:10px;margin:8px 0 4px;color:var(--dim)">${chips.length} ficha(s): ${totalPos} positiva(s)${totalNeg?`, ${totalNeg} negativa(s)`:""}.</p>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0;render()" /></div>
-      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Mín. de partidas (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${minG}" onchange="APP.confirm.boostMinGames=parseInt(this.value,10)||0" /></div>
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Máx. por partida (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${maxPer}" onchange="APP.confirm.boostMaxPerGame=parseInt(this.value,10)||0;renderKeepScroll()" /></div>
+      <div style="flex:1"><p class="p" style="font-size:10px;margin:0 0 2px">Mín. de partidas (0=livre)</p><input class="input" type="number" inputmode="numeric" min="0" style="margin:0" value="${minG}" onchange="APP.confirm.boostMinGames=parseInt(this.value,10)||0;renderKeepScroll()" /></div>
     </div>
     ${totalNeg?`<div onclick="toggleNoMix()" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
       <span style="width:34px;height:20px;border-radius:99px;background:${noMix?"#FF6B6B":"var(--line)"};position:relative;flex-shrink:0;transition:.15s"><span style="position:absolute;top:2px;left:${noMix?"16px":"2px"};width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s"></span></span>
@@ -2624,10 +2662,10 @@ function boostBuilderHTML(c){
     ${feasMsg}
   </div>`;
 }
-function addChip(v){if(!APP.confirm)return;_syncCreateName();(APP.confirm.chips=APP.confirm.chips||[]).push(v);render();}
-function removeChip(i){if(!APP.confirm||!APP.confirm.chips)return;_syncCreateName();APP.confirm.chips.splice(i,1);render();}
-function setChipValue(i,val){if(!APP.confirm||!APP.confirm.chips)return;let v=parseInt(val,10);if(isNaN(v))v=0;APP.confirm.chips[i]=v;render();}
-function toggleNoMix(){if(!APP.confirm)return;_syncCreateName();APP.confirm.boostNoMix=!APP.confirm.boostNoMix;render();}
+function addChip(v){if(!APP.confirm)return;_syncCreateName();(APP.confirm.chips=APP.confirm.chips||[]).push(v);renderKeepScroll();}
+function removeChip(i){if(!APP.confirm||!APP.confirm.chips)return;_syncCreateName();APP.confirm.chips.splice(i,1);renderKeepScroll();}
+function setChipValue(i,val){if(!APP.confirm||!APP.confirm.chips)return;let v=parseInt(val,10);if(isNaN(v))v=0;APP.confirm.chips[i]=v;renderKeepScroll();}
+function toggleNoMix(){if(!APP.confirm)return;_syncCreateName();APP.confirm.boostNoMix=!APP.confirm.boostNoMix;renderKeepScroll();}
 function _syncCreateName(){if(!APP.confirm)return;const n=$("rndName")||$("renameInput");if(n){if(APP.confirm.mode==="rename")APP.confirm.cur=n.value;else APP.confirm.draftName=n.value;}}
 function modePreviewHTML(mk){
   const mm=MODE_META[mk]||MODE_META.full;

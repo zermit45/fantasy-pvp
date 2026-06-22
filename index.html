@@ -201,6 +201,9 @@ body{background:var(--bg)}
 .draghandle{touch-action:none;user-select:none;cursor:grab;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:10px;border:1px solid currentColor;color:inherit;background:rgba(255,255,255,.03);font-weight:900}
 .draghandle:active{cursor:grabbing;transform:scale(.96)}
 .confdrop{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 16%,var(--panel2))}
+.confpick{user-select:none;-webkit-user-select:none}
+.confheld{outline:2px solid var(--purple);outline-offset:2px;background:color-mix(in srgb,var(--purple) 18%,var(--panel2))}
+.confhint{font-size:10px;color:var(--purple);font-weight:800;margin-left:2px}
 @keyframes popin{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:no-preference){
   .card,.homehero,.navpanel,.roomrow,.slot,.tact,.modepreview{animation:softin .22s ease-out both}
@@ -233,6 +236,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part5.js?v=20260621-2155"></script>
 <script src="games-part6.js?v=20260621-2155"></script>
 <script src="engine.js"></script>
-<script src="app.js?v=20260622-0005"></script>
+<script src="app.js?v=20260622-0025"></script>
 </body>
 </html>
