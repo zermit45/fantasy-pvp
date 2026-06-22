@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.8  (2026-06-21) · curva de normalização adaptativa (mira ~25 caros/jogo p/ dilema parelho)  ║
+// ║  FANTASY PvP — FÓRMULA DE PREÇO OFICIAL  ·  VERSÃO 6.10 (2026-06-21) · peso mercado por mv + trava anti-ruim-caro (margem 11) · regra automática  ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 //
 // Arquivo único e autossuficiente (sem require externo). Contém as 3 etapas:
@@ -44,13 +44,13 @@
 //     o time de bons". Dream team ~140; teto de linha 35; GK 22 (escala só 1).
 //
 // ─── PARÂMETROS (v6.0) ───────────────────────────────────────────────────────
-//   W_MERC_BASE   = 0.60   peso do mercado com volume de minutos
-//   W_MERC_POUCO  = 0.88   peso do mercado com pouquíssimos minutos
+//   W_MERC_BASE   = 0.75   peso do mercado com volume de minutos
+//   W_MERC_POUCO  = 0.90   peso do mercado com pouquíssimos minutos
 //   CONF_MIN      = 270    minutos (≈3 jogos) p/ confiança plena no desempenho
 //   CURVA         = 0.85   <1 infla o meio (base cara); =1 linear; >1 comprime
 //   DREAM_ALVO    = 140    soma do dream team (GK+DEF+MID+ATT+FLEX)
 //   TETO_LINHA    = 35     teto de DEF/MID/ATT
-//   TETO_GK       = 22     teto do goleiro (menor: força escolher 1)
+//   TETO_GK       = 26     teto do goleiro (menor: força escolher 1)
 //   CURVA_IDADE   = mult. por idade individual no mv (16a ×0.35 … 27a ×1.00 …
 //                   32a ×2.55 … 35a ×4.05 … 40a ×6.00). jovem↓, veterano↑.
 //
@@ -592,16 +592,37 @@ function computeHybrid(sofaPlayers, apiResponse) {
   //  - amostra pequena (Elliot 22min não dispara pro teto);
   //  - craque que jogou pouco (Marmoush/Salah sustentados pelo mercado do City);
   //  - quem jogou muito e rendeu (Wood) vale o desempenho cheio.
-  const W_MERC_BASE = 0.60;   // peso de mercado quando há volume de minutos
-  const W_MERC_POUCO = 0.88;  // peso de mercado quando jogou pouquíssimo
+  // v6.10: peso do mercado depende de DUAS coisas:
+  //  (a) confiança no desempenho (minutos jogados) — quem jogou pouco é ancorado no mv;
+  //  (b) o próprio valor de mercado — craque caro (mv alto) é avaliação madura e confiável,
+  //      então o mv manda quase tudo (95%); jogador de mv baixo deixa o desempenho diferenciar (68%).
+  // Isso corrige BONS-BARATOS (craque que rendeu pouco na seleção não é derrubado pelo desempenho).
+  const W_BASE_LO = 0.68;   // peso de mercado para mv baixo (<=10M) com volume de minutos
+  const W_BASE_HI = 0.95;   // peso de mercado para mv alto (>=60M)
+  const W_MERC_POUCO = 0.92; // peso de mercado quando jogou pouquíssimo (qualquer mv)
+  // trava anti-RUIM-CARO: o desempenho de seleção pode somar no máximo MARGEM acima do
+  // preço de mercado do jogador. Impede que 1-2 amistosos bons inflem quem o mercado diz fraco.
+  const MARGEM_DESEMP = 11;
+  function wBaseDeMv(mv){
+    const lo = 10e6, hi = 60e6;
+    if (mv <= lo) return W_BASE_LO;
+    if (mv >= hi) return W_BASE_HI;
+    return W_BASE_LO + (W_BASE_HI - W_BASE_LO) * ((mv - lo) / (hi - lo));
+  }
   for (const sp of matched) {
     const pDesempenho = sp._apiPrice;
     const pMercado = precoMercado(sp);
     // confiança 0..1 (plena a partir de ~270 min = 3 jogos)
     const conf = Math.max(0, Math.min(1, sp._min / 270));
+    // peso-base do mercado conforme o mv (craque caro -> mercado manda mais)
+    const wBase = wBaseDeMv(sp.mv || 0);
     // peso do mercado decresce conforme a confiança no desempenho cresce
-    const wMerc = W_MERC_POUCO + (W_MERC_BASE - W_MERC_POUCO) * conf;
-    sp.price = Math.round(wMerc * pMercado + (1 - wMerc) * pDesempenho);
+    const wMerc = W_MERC_POUCO + (wBase - W_MERC_POUCO) * conf;
+    let preco = wMerc * pMercado + (1 - wMerc) * pDesempenho;
+    // trava: desempenho não pode empurrar o preço muito acima do mercado do jogador
+    const tetoDesemp = pMercado + MARGEM_DESEMP;
+    if (preco > tetoDesemp) preco = tetoDesemp;
+    sp.price = Math.round(preco);
     sp.priceSource = 'v5';
     delete sp._apiPrice; delete sp._min;
   }
@@ -646,8 +667,13 @@ function computeHybrid(sofaPlayers, apiResponse) {
 function normalizeDream(players, alvo) {
   const ALVO = alvo || 140;
   const TETO_LINHA = 35;
-  const TETO_GK = 22;
+  const TETO_GK = 26;
   const PMIN = 3;
+  // v6.9: curva FIXA 0.75 — meio-termo entre destaque do craque (0.85 deixava o top
+  // bem destacado mas jogos contra fracos ficavam fáceis) e dilema de escolha (0.55-0.60
+  // criava muitos caros mas achatava tudo perto demais). 0.75 dá algum destaque ao topo
+  // E algum dilema de orçamento.
+  const CURVA = 0.85;
 
   function dreamDe(arr) {
     const bp = { GK: [], DEF: [], MID: [], ATT: [] };
@@ -661,39 +687,7 @@ function normalizeDream(players, alvo) {
   const maxLinha = linhaPrices.length ? Math.max(...linhaPrices) : 0;
   if (maxLinha <= 0) return players;
 
-  // v6.8: CURVA ADAPTATIVA. A curva <1 infla o meio-pelotão (mais jogadores na faixa cara,
-  // logo mais "dilema de escolha"). Jogos contra adversário fraco têm poucos jogadores caros
-  // (o time forte concentra os pontos) e ficam FÁCEIS de montar. Para equilibrar, busca-se a
-  // curva que faz o jogo ter ~ALVO_CAROS jogadores na faixa cara (>=22), criando tensão de
-  // orçamento parecida em todos os jogos. Jogos já equilibrados mantêm curva ~0.85 (suave);
-  // jogos desequilibrados recebem curva mais baixa (~0.55) que espalha os pontos.
-  const ALVO_CAROS = 25;
-  const LIMIAR_CARO = 22;
-  function carosCom(curva) {
-    const mx = maxLinha;
-    let n = 0;
-    // simula a normalização rápida só pra contar caros
-    const tmps = players.map(p => Math.pow((p.price || 0) / mx, curva) * mx);
-    // dream e fator
-    const arrTmp = players.map((p, i) => ({ pos: p.pos, _tmp: tmps[i] }));
-    const dr = dreamDe(arrTmp);
-    const fat = dr > 0 ? ALVO / dr : 1;
-    players.forEach((p, i) => {
-      let np = Math.round(tmps[i] * fat);
-      const teto = p.pos === 'GK' ? TETO_GK : TETO_LINHA;
-      if (np > teto) np = teto;
-      if (np >= LIMIAR_CARO) n++;
-    });
-    return n;
-  }
-  // busca a curva (0.50..0.85) que mais aproxima ALVO_CAROS
-  let CURVA = 0.85, melhorDist = Infinity;
-  for (let c = 0.50; c <= 0.851; c += 0.02) {
-    const d = Math.abs(carosCom(c) - ALVO_CAROS);
-    if (d < melhorDist) { melhorDist = d; CURVA = Math.round(c * 100) / 100; }
-  }
-
-  // 1) aplica a curva escolhida (infla o meio), guarda em _tmp
+  // 1) aplica a curva (infla o meio), guarda em _tmp
   players.forEach(p => { p._tmp = Math.pow((p.price || 0) / maxLinha, CURVA) * maxLinha; });
   // 2) escala pra cravar o dream em 140
   const dream = dreamDe(players);

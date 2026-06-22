@@ -1,0 +1,113 @@
+## ESTADO ATUAL: v6.10 — REGRA AUTOMÁTICA que corrige bons-baratos E ruins-caros
+Substituiu o 75/25 fixo por DUAS regras combinadas (tudo automático, ZERO ajuste à mão):
+1. PESO DO MERCADO POR MV: craque caro (mv alto) é avaliação madura -> mv manda 95%;
+   jogador de mv baixo deixa desempenho diferenciar (68%). Interpola entre 10M e 60M.
+   Corrige BONS-BARATOS: Rodri 17->24, Enzo ->26, Bruno ->24 (não são mais derrubados por
+   desempenho fraco de seleção, pois o mv deles é alto e confiável).
+2. TRAVA ANTI-RUIM-CARO (margem 11): desempenho de seleção só pode somar 11 acima do preço
+   de MERCADO do jogador. Corrige Adé 33->20, Leckie/Behich (mv ~0 que tinham preço inflado
+   por 1-2 amistosos bons). Craques de mv alto não são afetados (preço já < mercado+11).
+Parâmetros (na fórmula, função computeHybrid): W_BASE_LO=0.68, W_BASE_HI=0.95, W_MERC_POUCO=0.92,
+   MARGEM_DESEMP=11. Faixa mv da interpolação: 10M..60M.
+Resultado: bons-baratos 24->6 (só jovens-promessa legítimos: Endrick etc), ruins-caros ->2.
+Craques intactos (Mbappé/Messi/Vini/Salah 35). Veteranos protegidos (Mané 27, Modrić 31).
+nor-sen ficou dream 133 (1 abaixo do piso 134, efeito de borda por tetos, cosmético, aceito).
+backups: /tmp/backup-v67 (60/40 original, FONTE p/ reprocessar), /tmp/backup-v610 (atual).
+
+## DECISÕES FINAIS DESTA SESSÃO (importante!)
+1. ELO DE CLUBE: testado (40% e 70%), efeito MÍNIMO (1-2 pts). Causa: a normalização (dream 140)
+   anula o aumento coletivo quando quase todos da seleção jogam em clube bom. ABANDONADO.
+   nzl-egy foi processado com elo e DEPOIS revertido pro 75/25, pra consistência.
+2. AJUSTES PONTUAIS (Bruno 28, Rodri 27): REVERTIDOS. Usuário não quer ajuste à mão (parece roubar).
+   Tudo agora sai 100% da regra automática 75/25. Bruno voltou a 22, Rodri a 21 (baratos, mas da regra).
+3. BONS-BARATOS RESTANTES (~15): NÃO são bugs. São jovens-promessa (Endrick, Rayan, Sučić - mv por
+   potencial, curva de idade desconta certo) e reservas. Subir mercado p/ 85-95% NÃO reduz (aumenta).
+   Sistema considerado JUSTO. Os erros reais (Enzo, Rodri, Bruno como capitão) já tinham sido pegos pelo 75/25.
+
+## ESTADO ATUAL: v6.7c (peso mercado 75/25 + teto GK 26 + curva 0.85)
+A versão boa (v6.7, curva 0.85) + 2 ajustes que o usuário pediu:
+1. Teto GK 22->26 (goleiro bom se destaca; efeito colateral: linha 35->34, aceito)
+2. Peso mercado 60%->75% (W_MERC_BASE=0.75, W_MERC_POUCO=0.90). Resolve de forma ESTRUTURAL
+   bons-baratos (Enzo 16->21, Bruno F 19->22, Rodri 18->21) E ruins-caros (Adé 33->26).
+   O mv passa a mandar mais que o desempenho de seleção (que era ruído de 1-2 amistosos).
+   Trade-off: bons-baratos caíram de 24 p/ 12 casos (gritantes resolvidos, brandos suavizados).
+NÃO mexer na curva 0.85 (usuário testou e preferiu ela). Pontuação (engine) intacta.
+backups: /tmp/backup-v67 (original 60/40), /tmp/backup-v67c (atual 75/25).
+
+## ESTADO ATUAL: v6.7b (curva 0.85 + teto GK 26)
+Voltamos pra v6.7 (que o usuário gostava: Mbappé 35, média boa, curva FIXA 0.85).
+Único ajuste: teto GK 22->26. Efeito colateral aceito: como o GK entra no dream 140,
+subir o teto GK puxou a linha de leve (Mbappé 35->34, GK melhores 22->23). Usuário OK com isso.
+NÃO mexer mais na curva (tentamos adaptativa v6.8 e 0.75 v6.9, usuário preferiu a 0.85 original).
+PENDENTE: ~5 bugs pontuais de mv baixíssimo caros (Adé 33, Lacroix, Velázquez) - usuário ainda não mandou corrigir.
+backups: /tmp/backup-v67 (original), /tmp/backup-v67b (com teto GK 26).
+
+## v6.9 (MAIS RECENTE): curva fixa 0.75
+Tentei curva adaptativa (v6.8) mas achatou tudo (spread 6, craques todos ~31). Revertido.
+0.75 é o meio-termo: craque se destaca (Mbappé/Kane 33) E há dilema de escolha (França tem
+6 jogadores 27-33, Iraque subiu p/ 19-21). Os 24 jogos reprocessados a partir do backup v6.7.
+Spread topo-10º ~8-9 nos jogos com craque. dreams 134-144.
+
+## v6.8 (mais recente): CURVA ADAPTATIVA DE DIFICULDADE
+A normalizeDream agora ajusta a curva por jogo pra mirar ~25 jogadores caros (>=22).
+Resolve jogos contra adversário fraco (França×Iraque) que ficavam FÁCEIS: antes o time
+forte tinha 1 craque destacado + resto barato (pegava 5 e sobrava). Agora o elenco fica
+parelho (8 jogadores 26-31) e o time fraco sobe (Iraque 21-23), criando dilema de escolha.
+Topos caem de 35 pra ~30-33 (espalhamento). Dreams seguem 134-144.
+
+# Fantasy PvP — Estado v6.8 (cole isto no início do próximo chat)
+
+## Onde paramos
+Fórmula de preço na **v6.7**: o preço de cada jogador combina mercado (mv), idade
+(com atenuação p/ prodígios), posição, liga de clube + **elo de clube** e desempenho recente.
+
+## O que mudou nesta sessão (v6.4 → v6.7)
+- **v6.7**: ATENUAÇÃO DE IDADE para prodígios. O desconto de idade do jovem (ex: 19a ×0.47)
+  é devolvido proporcionalmente ao mv. Yamal (215M, 19a) subiu de 28→31 (topo da Espanha).
+  Jovem comum de mv baixo quase não muda. Fórmula: multIdadeMv(age,mv) na função precoMercado.
+- **v6.4**: liga de clube virou multiplicador sobre o mv (`mv × clubLw`). A normalização
+  pra dream 140 anula o desconto no total → liga muda só a **distribuição relativa** (escolha do usuário).
+- **v6.5**: curva de mercado corrigida. Antes `sqrt(mv/80M)` saturava aos 80M (Mbappé=80M).
+  Agora `(mv/250M)^0.62` — mv alto descola. Mbappé/Yamal/Pedri/Kane voltam ao topo.
+  Trade-off aceito: Messi (mv 16M, 39a) e jovens-promessa (Doué/Cherki) descem.
+- **v6.6**: **elo de clube** (footballdatabase.com, 3069 clubes) entra COMBINADO com a liga:
+  `clubLw = 0.6×ligaLw + 0.4×eloMult(elo)`. Liga dá estabilidade, elo ajusta pela forma real
+  do clube (Arsenal 2055 ≠ Bournemouth 1833 na mesma Premier). Se o clube não casa no banco → usa só liga.
+
+## Decisões importantes (não reabrir)
+- **Bug do Adé** (mv 310k custando 33): DECIDIDO NÃO CORRIGIR. Qualquer teto de desempenho
+  que pegasse o Adé também cortava craques de mv baixo (Modric, Mahrez). Risco não compensa.
+- Elo COMPLEMENTA a liga (60/40), não substitui. Modelo escolhido pela cobertura 100% confiável da liga.
+
+## Arquivos entregues (subir no GitHub, raiz)
+- `formula-preco-v6.js` — fórmula v6.6 (tem clubMultiplier, eloDeClube, eloMult)
+- `club-elo-map.js` — **NOVO**, banco de 3069 clubes (norm(nome)→elo) + aliases dos grandes
+- `games-part1.js` ... `games-part6.js` — 25 jogos, na v6.8 (curva adaptativa de dificuldade). bel-irn NÃO reprocessar (já começou)
+- `engine.js`, `app.js` — inalterados nesta sessão
+- `club-elo-database.json` — banco bruto (referência, não precisa subir)
+
+ORDEM no index.html: config.js → games-part1..6 → engine.js → app.js
+(se a fórmula rodar no front, club-elo-map.js ANTES de formula-preco-v6.js)
+
+## PENDÊNCIAS
+1. **Recolar SofaScore jogo a jogo** pra ativar o elo de clube. Hoje só URU/CPV/BEL têm
+   o clube por jogador. Os outros 22 jogos estão na v6.5 (curva nova) mas SEM elo de clube
+   (clubLw neutro). Formato necessário: SofaScore "players" com mv + team.tournament (clube).
+   Extrator pronto: `/tmp/extrai-sofa-v66.py <arquivo> <TEAM> <saida.json>` (relê banco de elo).
+2. **Duplicação inofensiva**: part1 tem eng-cro/gha-pan/uzb-col/por-cod gravados 2× (idênticos).
+   Não quebra nada, mas pode limpar depois.
+3. **Subir no GitHub** + testar aba anônima (cache!).
+4. **SQL Supabase** (salas pending): rooms uru-cpv, nzl-egy, arg-aut, fra-irq, nor-sen,
+   jor-alg, por-uzb, eng-gha, pan-cro, col-cod (todos -2026), status 'pending'.
+
+## Como reprocessar um jogo com elo (próximo chat)
+1. Usuário cola SofaScore das 2 seleções (formato "players" com clube).
+2. `python3 /tmp/extrai-sofa-v66.py arquivo.txt TEAM /tmp/x.json` (gera clubLw combinado).
+3. Recalcular preços do jogo e regravar no games-part certo (room_id COMPLETO com -2026).
+4. node --check + validar dream ~140 + topo coerente.
+
+## Workflow técnico
+- Trabalho em /home/claude/fantasy-pvp/, entregas em /mnt/user-data/outputs/fantasy-pvp-simples/
+- Backup do estado v6.5 bom: /tmp/backup-v65/
+- regrava usa room_id COMPLETO (com -2026). apply-v65-safe.js relê disco a cada jogo (sem cache).
+- LIÇÃO: nunca reprocessar em massa com offsets em cache → corrompe. Reler disco a cada jogo.
