@@ -611,7 +611,22 @@ function draftOwnerMap(){
   (APP.draftRosters||[]).forEach(r=>{out[r.player_key]=r.username;});
   return out;
 }
-async function createDraftSeason(name,budget,rosterLimit){
+function draftSettingsDefault(){
+  return {
+    required:{create_competition:true,exclusive_players:true,season_ranking:true,transaction_history:true},
+    games_scope:true,budget_enabled:true,ordered_draft:true,roster_limit_enabled:true,lineup_enabled:true,free_market:true,
+    dynamic_prices:true,sell_at_current_price:true,purchase_limit_enabled:true,purchases_per_round:2,
+    auto_windows:false,eliminated_player_rule:"discount",waiver_enabled:true,
+    trades_enabled:true,pending_offers:true,admin_veto:true,loans_enabled:false,release_clause_enabled:true,free_agent_auction:false,
+    lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},sell_tax_pct:10
+  };
+}
+function draftSetting(s,key,fb){
+  const st=(s&&s.settings)||{};
+  return st[key]!==undefined?st[key]:fb;
+}
+async function createDraftSeason(name,budget,rosterLimit,settings){
+  const st={...draftSettingsDefault(),...(settings||{})};
   const row={
     group_id:APP.groupId,
     name,
@@ -621,13 +636,7 @@ async function createDraftSeason(name,budget,rosterLimit){
     budget:Number(budget)||100,
     roster_limit:Number(rosterLimit)||12,
     created_by:APP.user.username,
-    settings:{
-      lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},
-      waiver:true,
-      trades:true,
-      dynamic_prices:true,
-      sell_tax_pct:10
-    }
+    settings:st
   };
   const rows=await sbInsert("draft_seasons",row);
   await loadDraftSeasons();
@@ -648,20 +657,21 @@ async function joinDraftSeason(){
 async function buyDraftPlayer(playerKey){
   const s=APP.draftSeason, me=myDraftTeam();
   if(!s||!me){toast("Entre na temporada antes.");return;}
+  if(!draftSetting(s,"free_market",true)){toast("Mercado de livres desligado nesta temporada.");return;}
   if(s.market_status!=="open"){toast("Mercado fechado.");return;}
   const owner=draftOwnerMap()[playerKey];
   if(owner){toast("Esse jogador já tem dono.");return;}
   const cat=draftPlayerCatalog().find(p=>p.key===playerKey);
   if(!cat){toast("Jogador não encontrado.");return;}
   const mine=(APP.draftRosters||[]).filter(r=>r.username===APP.user.username);
-  if(mine.length>=Number(s.roster_limit||12)){toast("Elenco cheio.");return;}
-  if(Number(me.budget_left||0)<cat.price){toast("Sem moedas suficientes.");return;}
+  if(draftSetting(s,"roster_limit_enabled",true)&&mine.length>=Number(s.roster_limit||12)){toast("Elenco cheio.");return;}
+  if(draftSetting(s,"budget_enabled",true)&&Number(me.budget_left||0)<cat.price){toast("Sem moedas suficientes.");return;}
   try{
     await sbInsert("draft_rosters",{
       season_id:s.id,username:APP.user.username,player_key:cat.key,player_name:cat.name,
       player_team:cat.team,pos:cat.pos,base_price:cat.price,current_price:cat.price,acquired_price:cat.price,status:"owned"
     });
-    await sbUpdate("draft_teams",{budget_left:Number(me.budget_left||0)-cat.price},`season_id=eq.${s.id}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    if(draftSetting(s,"budget_enabled",true))await sbUpdate("draft_teams",{budget_left:Number(me.budget_left||0)-cat.price},`season_id=eq.${s.id}&username=eq.${encodeURIComponent(APP.user.username)}`);
     await sbInsert("draft_transactions",{season_id:s.id,username:APP.user.username,type:"buy",player_key:cat.key,player_name:cat.name,amount:cat.price,meta:{team:cat.team,pos:cat.pos}});
     await loadDraftSeason(s.id);
     toast(`${cat.name} comprado!`);
@@ -2494,6 +2504,7 @@ function draftHTML(){
   const tabs=[["visao","Visão"],["mercado","Mercado"],["elencos","Elencos"],["movs","Transações"]];
   const tab=APP.draftTab||"visao";
   const tabbar=`<div class="postabs" style="margin:12px 0">${tabs.map(([k,l])=>`<div class="ptab${tab===k?" on":""}" onclick="setDraftTab('${k}')">${l}</div>`).join("")}</div>`;
+  const mod=(label,key,fb=true)=>`<span class="chip" style="border-color:${draftSetting(s,key,fb)?"var(--green)":"var(--line)"};color:${draftSetting(s,key,fb)?"var(--green)":"var(--dim)"}">${draftSetting(s,key,fb)?"✓":"×"} ${esc(label)}</span>`;
   let body="";
   if(tab==="visao"){
     body=`<div class="dashgrid">
@@ -2505,7 +2516,12 @@ function draftHTML(){
     ${me?`<div class="prebox" style="border-color:#FF8A4C;color:#FF8A4C;background:color-mix(in srgb,#FF8A4C 10%,transparent)">Você está dentro como <b>${esc(me.team_name)}</b>. Gastou <b>${spent}</b> de <b>${s.budget||100}</b> moedas.</div>`:
       `<button class="btn" style="background:#FF8A4C;color:#0A0E1C" onclick="joinDraftSeason()">Entrar como manager</button>`}
     <div class="card" style="margin-top:12px"><div class="h2 disp">Regras desta temporada</div>
-      <p class="p">Elenco exclusivo, mercado aberto por janela, orçamento compartilhado e histórico de transações. Esta tela já está separada dos modos de mini rodada.</p>
+      <p class="p">Elenco exclusivo, ranking e histórico são o núcleo obrigatório. O resto foi escolhido na criação.</p>
+      <div class="chips" style="margin-top:10px">
+        ${mod("jogos/rodadas","games_scope")}${mod("orçamento","budget_enabled")}${mod("draft por ordem","ordered_draft")}${mod("limite de elenco","roster_limit_enabled")}${mod("escalação","lineup_enabled")}${mod("mercado livre","free_market")}
+        ${mod("valorização","dynamic_prices")}${mod("venda atualizada","sell_at_current_price")}${mod("limite compras","purchase_limit_enabled")}${mod("janela automática","auto_windows",false)}${mod("waiver","waiver_enabled")}
+        ${mod("trocas","trades_enabled")}${mod("propostas","pending_offers")}${mod("veto admin","admin_veto")}${mod("empréstimos","loans_enabled",false)}${mod("multa","release_clause_enabled")}${mod("leilão","free_agent_auction",false)}
+      </div>
     </div>`;
   }else if(tab==="mercado"){
     const q=normTxt(APP.draftSearch||"");
@@ -2516,7 +2532,9 @@ function draftHTML(){
     <p class="p" style="font-size:11px;margin-bottom:8px">Preço inicial vem do fantasy atual. Jogador comprado fica exclusivo do dono nesta temporada.</p>
     <div class="poolbox">${cat.map(p=>{
       const own=owner[p.key];
-      const can=me&&!own&&Number(me.budget_left||0)>=p.price&&myRoster.length<Number(s.roster_limit||12)&&s.market_status==="open";
+      const moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
+      const rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
+      const can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
       return `<div class="prow ${own?"dis":""}" style="${can?"cursor:pointer":""}" onclick="${can?`buyDraftPlayer('${esc(p.key)}')`:""}">
         <div class="posbar pb-${p.pos}"></div>
         <div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div>
@@ -3449,12 +3467,42 @@ function confirmModalHTML(){
     </div></div>`;
   }
   if(c.mode==="createDraftSeason"){
+    const ck=(id,label,on=true,req=false,desc="")=>`<label style="display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:8px;background:rgba(255,255,255,.025);margin:6px 0">
+      <input id="${id}" type="checkbox" ${on?"checked":""} ${req?"disabled":""} style="margin-top:3px;transform:scale(1.15)" />
+      <span style="flex:1"><b style="color:${req?"var(--amber)":"var(--chalk)"}">${esc(label)}${req?" · obrigatório":""}</b>${desc?`<small style="display:block;color:var(--dim);font-size:10px;margin-top:2px">${esc(desc)}</small>`:""}</span>
+    </label>`;
     return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
       <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
-      <p class="p" style="margin:10px 0">Modo separado de temporada: cada jogador comprado fica exclusivo do manager até ser vendido/trocado.</p>
+      <p class="p" style="margin:10px 0">Modo separado e full customizável. As opções obrigatórias são o núcleo do Draft; o resto você liga/desliga.</p>
       <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
       <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 100)" value="100" />
       <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" />
+      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">BASE DO MODO</div>
+      ${ck("dm_create","Criar campeonato Draft",true,true,"Sem temporada não existe modo.")}
+      ${ck("dm_scope","Escolher jogos/rodadas que fazem parte",true,false,"Ativa vínculo da temporada com jogos/rodadas.")}
+      ${ck("dm_budget","Cada usuário tem orçamento",true,false,"Se desligar, compras não descontam moedas.")}
+      ${ck("dm_unique","Cada jogador real só pode ter um dono",true,true,"Essência do Draft; o banco também protege isso.")}
+      ${ck("dm_ordered","Draft inicial por ordem",true,false,"Liga a etapa de draft antes do mercado.")}
+      ${ck("dm_roster","Elenco limitado",true,false,"Usa o limite acima, recomendado 8 a 12.")}
+      ${ck("dm_lineup","Escalação de 5 + banco por rodada",true,false,"Base competitiva do modo temporada.")}
+      ${ck("dm_market","Mercado de livres entre rodadas",true,false,"Permite comprar jogadores sem dono.")}
+      ${ck("dm_ranking","Ranking geral da temporada",true,true,"Sem ranking não tem competição.")}
+      ${ck("dm_history","Histórico de compras/vendas",true,true,"Ajuda auditoria e zoeira saudável.")}
+      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">MERCADO AVANÇADO</div>
+      ${ck("dm_dynamic","Valorização dinâmica",true,false,"Preço muda conforme desempenho e contexto.")}
+      ${ck("dm_sell_current","Venda por preço atualizado",true,false,"Venda usa current_price, não preço original.")}
+      ${ck("dm_buy_limit","Limite de compras por rodada",true,false,"Controla spam de mercado.")}
+      <input id="draftBuyLimit" class="input" type="number" inputmode="numeric" placeholder="Compras por rodada" value="2" />
+      ${ck("dm_auto_window","Janela abre/fecha automático",false,false,"Para automatizar mercado por rodada no futuro.")}
+      ${ck("dm_eliminated","Eliminados perdem valor ou travam",true,false,"Seleções eliminadas sofrem regra de mercado.")}
+      ${ck("dm_waiver","Waiver: pior colocado tem prioridade",true,false,"Resolve disputa por jogador concorrido.")}
+      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">SOCIAL / PVP</div>
+      ${ck("dm_trades","Trocas entre usuários",true,false,"Permite negociar jogador/moedas.")}
+      ${ck("dm_pending","Propostas pendentes",true,false,"Troca precisa ser aceita.")}
+      ${ck("dm_veto","Veto/admin",true,false,"Admin pode barrar troca suspeita.")}
+      ${ck("dm_loans","Empréstimos",false,false,"Jogador vai e volta por período definido.")}
+      ${ck("dm_clause","Multa rescisória",true,false,"Permite comprar pagando cláusula configurada.")}
+      ${ck("dm_auction","Leilão por jogadores livres",false,false,"Ao invés de compra direta, jogador livre vai a leilão.")}
       <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
@@ -3555,10 +3603,36 @@ function submitCreateDraftSeason(){
   const name=n?n.value.trim():"";
   const budget=b?parseInt(b.value,10):100;
   const roster=r?parseInt(r.value,10):12;
+  const on=id=>{const el=$(id);return !!(el&&el.checked);};
+  const buyLim=$("draftBuyLimit")?parseInt($("draftBuyLimit").value,10):2;
   if(!name){toast("Dê um nome à temporada.");return;}
   if(!budget||budget<20){toast("Orçamento precisa ser pelo menos 20.");return;}
   if(!roster||roster<6){toast("Elenco precisa ter pelo menos 6 jogadores.");return;}
-  APP.confirm=null;createDraftSeason(name,budget,roster).catch(e=>toast("Erro: "+e.message));
+  const settings={
+    required:{create_competition:true,exclusive_players:true,season_ranking:true,transaction_history:true},
+    games_scope:on("dm_scope"),
+    budget_enabled:on("dm_budget"),
+    ordered_draft:on("dm_ordered"),
+    roster_limit_enabled:on("dm_roster"),
+    lineup_enabled:on("dm_lineup"),
+    free_market:on("dm_market"),
+    dynamic_prices:on("dm_dynamic"),
+    sell_at_current_price:on("dm_sell_current"),
+    purchase_limit_enabled:on("dm_buy_limit"),
+    purchases_per_round:buyLim&&buyLim>0?buyLim:2,
+    auto_windows:on("dm_auto_window"),
+    eliminated_player_rule:on("dm_eliminated")?"discount":"none",
+    waiver_enabled:on("dm_waiver"),
+    trades_enabled:on("dm_trades"),
+    pending_offers:on("dm_pending"),
+    admin_veto:on("dm_veto"),
+    loans_enabled:on("dm_loans"),
+    release_clause_enabled:on("dm_clause"),
+    free_agent_auction:on("dm_auction"),
+    lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},
+    sell_tax_pct:10
+  };
+  APP.confirm=null;createDraftSeason(name,budget,roster,settings).catch(e=>toast("Erro: "+e.message));
 }
 async function deleteLeague(id){
   if(!isAdmin())return;
