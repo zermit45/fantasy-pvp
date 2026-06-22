@@ -1656,6 +1656,22 @@ function homeHTML(){
   if(diaSel!=="todos"&&!diasDisp.includes(diaSel))diaSel="todos";
   const lista=baseLista.filter(matchQ).filter(j=>diaSel==="todos"||j.dayKey===diaSel);
   const nToplay=toplay.filter(matchQ).length, nFinished=finished.filter(matchQ).length;
+  const nextGame=toplay.slice().sort((a,b)=>a.ts-b.ts)[0]||finished.slice().sort((a,b)=>b.ts-a.ts)[0]||null;
+  const heroAction=nextGame?(nextGame.isFinished?"Ver resultado":(nextGame.status==="open"?"Montar escalação":"Acompanhar")):"Sem partidas";
+  const heroMeta=nextGame?(nextGame.ki?nextGame.ki.full:"horário a definir"):"Abra jogos no grupo para começar.";
+  const gameScore=j=>{
+    const g=window.GAMES.data[j.room_id];
+    const sc=g&&g.match&&g.match.score;
+    if(Array.isArray(sc)&&sc.length>=2)return `${sc[0]} × ${sc[1]}`;
+    if(sc&&typeof sc==="object"&&sc.home!=null&&sc.away!=null)return `${sc.home} × ${sc.away}`;
+    return "";
+  };
+  const gameActionText=j=>j.isFinished?"resultado disponível":(j.status==="open"?"toque para escalar":"travado até finalizar");
+  const statusLegend=`<div class="legendbar">
+    <span><b style="color:var(--green)">ABERTA</b> ainda dá para montar/editar</span>
+    <span><b style="color:var(--amber)">FECHADA</b> escalação travada</span>
+    <span><b style="color:var(--blue)">FINALIZADA</b> resultado liberado</span>
+  </div>`;
   let diaChips="";
   if(diasDisp.length>1){
     diaChips=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
@@ -1691,6 +1707,7 @@ function homeHTML(){
       grupos[dia].forEach(j=>{
         const pill=j.isFinished?'<span class="statuspill st-finished">FINALIZADA</span>':(j.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>');
         const onclick=j.isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
+        const score=gameScore(j);
         let adminBtn="";
         if(isAdmin()){
           if(j.archived)adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
@@ -1698,9 +1715,11 @@ function homeHTML(){
         }
         // linha de horário: "🕐 13:00" + (Hoje/Amanhã) já no título do dia
         const hora=j.ki?`<span style="color:var(--chalk)">🕐 ${j.ki.hh}</span>`:`<span style="color:var(--dim)">horário a definir</span>`;
-        listaHTML+=`<div class="roomrow" onclick="${onclick}">
+        listaHTML+=`<div class="roomrow gamecard ${j.isFinished?"fin":(j.status==="open"?"open":"closed")}" onclick="${onclick}">
           <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${hora} · ${esc(j.comp)}${j.archived?" · arquivado":""}</div></div>
-          ${pill}${adminBtn}
+          ${score?`<div class="scoremini mono">${score}</div>`:""}
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">${pill}${adminBtn}</div>
+          <div class="actionhint">${gameActionText(j)}</div>
         </div>`;
       });
     });
@@ -1721,6 +1740,7 @@ function homeHTML(){
       <input id="homeSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar partida pelo nome do time…" value="${esc(APP.homeSearch||"")}" oninput="setHomeSearch(this.value)" autocorrect="off" />
       ${q?`<span onclick="setHomeSearch('')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim)">✕</span>`:""}
     </div>
+    ${statusLegend}
     <div class="postabs" style="margin-bottom:8px">
       <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar</div>
       <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados</div>
@@ -1733,12 +1753,29 @@ function homeHTML(){
   else if(navTab==="mini")navPanel=roundsCardHTML()||`<div class="card"><p class="p">Nenhuma mini rodada ainda.</p></div>`;
   else if(navTab==="rodadas")navPanel=phasesCardHTML()||`<div class="card"><p class="p">Nenhuma rodada ainda.</p></div>`;
   else if(navTab==="ligas")navPanel=leaguesCardHTML()||`<div class="card"><p class="p">Nenhuma liga ainda.</p></div>`;
-  return `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <div class="h1 disp" style="color:var(--amber)">${esc(APP.groupName||"Salas")}</div>
+  return `<div class="homehero">
+    <div class="heroTop">
+      <div>
+        <div class="tag">FANTASY PvP</div>
+        <div class="heroTitle disp">${esc(APP.groupName||"Salas")}</div>
+        <div class="heroSub">Escolha as partidas, monte seu time e acompanhe os resultados do grupo.</div>
+      </div>
       <div class="userchip" onclick="leaveGroupView()" style="cursor:pointer">⇄ trocar grupo</div>
     </div>
-    <div onclick="event.stopPropagation();go('members')" style="display:flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:6px 12px;width:fit-content">
+    <div class="quickgrid">
+      <div class="quickstat"><b>${nToplay}</b><span>A jogar</span></div>
+      <div class="quickstat"><b>${nFinished}</b><span>Finalizadas</span></div>
+      <div class="quickstat"><b>${APP.entries?APP.entries.length:0}</b><span>Escalações</span></div>
+    </div>
+    ${nextGame?`<div class="nextbox" onclick="${nextGame.isFinished?`go('result','${nextGame.room_id}')`:`go('room','${nextGame.room_id}')`}">
+      <div class="nextIcon">${nextGame.isFinished?"✓":"⚽"}</div>
+      <div style="min-width:0;flex:1">
+        <div class="nextTitle">${esc(nextGame.match_name)}</div>
+        <div class="nextMeta">${esc(heroMeta)} · ${esc(nextGame.comp)}</div>
+      </div>
+      <div class="nextGo">${heroAction}</div>
+    </div>`:""}
+    <div onclick="event.stopPropagation();go('members')" style="display:flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:6px 12px;width:fit-content;margin-top:10px">
       <span style="font-size:13px">👥</span><span style="font-size:12px;font-weight:700;color:var(--chalk)">Membros do grupo</span><span style="color:var(--dim);font-size:12px">›</span>
     </div>
   </div>
@@ -2894,6 +2931,11 @@ function buildHTML(){
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
   const hasSomeFilled=Object.values(s).some(Boolean);
   const canReplicate=hasSomeFilled&&!gameLocked;
+  const filledCount=Object.values(s).filter(Boolean).length;
+  const starterFilled=["GK","DEF","MID","ATT","FLEX"].filter(sl=>s[sl]).length;
+  const budgetPct=Math.max(0,Math.min(100,spent));
+  const capName=APP.captain&&s[APP.captain]&&byId[s[APP.captain]]?byId[s[APP.captain]].name:null;
+  const tacticName=APP.tactic&&TAC[APP.tactic]?TAC[APP.tactic].name:null;
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
@@ -2947,7 +2989,9 @@ function buildHTML(){
       else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
     }
     const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
-    return `<div class="prow${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
+    const priceClass=p.price>=30?"star":(p.price<=10?"value":"");
+    const hint=p.price>=30?"estrela":(p.price<=10?"aposta":(p.price<=18?"valor":"equilíbrio"));
+    return `<div class="prow playerpick ${priceClass}${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}<div class="pricehint">${hint}${reason==="banco"?" · teto do banco":(reason==="orc"?" · orçamento":"")}</div></div><div class="pr mono">${p.price}</div></div>`;
   }).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){
@@ -2970,17 +3014,31 @@ function buildHTML(){
       <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)${helpBtn("capitao")}</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
     </div>`;
   }
-  return `<div class="card">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer">← voltar</div></div>
+  return `<div class="card buildhero">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="tag">${esc(pp.comp)}</div>
+        <div class="buildtitle disp">${esc(pp.home.name)} × ${esc(pp.away.name)}</div>
+        <div class="heroSub">Monte 5 titulares, 1 banco, capitão e tática antes do jogo travar.</div>
+      </div>
+      <div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer;flex-shrink:0">← voltar</div>
+    </div>
     <div class="budget"><div class="h2 disp">Seu time${helpBtn("slots")}</div><div><span class="tag">RESTANTE${helpBtn("orcamento")} </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
+    <div class="budgetbar"><div class="fill" style="width:${budgetPct}%"></div></div>
+    <div class="lineupMeta">
+      <div class="mini"><b>${starterFilled}/5</b><span>titulares</span></div>
+      <div class="mini"><b>${s.BENCH?"ok":"-"}</b><span>banco</span></div>
+      <div class="mini"><b>${capName?esc(capName):"-"}</b><span>capitão</span></div>
+      <div class="mini"><b>${tacticName?esc(tacticName):"-"}</b><span>tática</span></div>
+    </div>
     <div class="slots">${slotsHTML}</div>
     <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
-    <div class="tag" style="margin-bottom:4px">ESCOLHA 1 TÁTICA${helpBtn("tatica")}</div>
+    <div class="sectionhead"><span>Escolha 1 tática${helpBtn("tatica")}</span><span>${APP.tactic?"selecionada":"pendente"}</span></div>
     <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
   <div class="card">
-    <div class="h2 disp">Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</div>
+    <div class="sectionhead"><span>Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</span><span>${filledCount}/6 escolhidos</span></div>
     ${tabsHTML}
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
