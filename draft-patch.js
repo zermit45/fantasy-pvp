@@ -16,6 +16,24 @@
 (function(){
   if(typeof window==="undefined")return;
 
+  // CONSERTO GLOBAL DE FONTE: o toast e os modais injetados no body herdavam a
+  // fonte serif do navegador (o CSS .toast do app não define font-family).
+  // Forçamos Inter em todos eles, igual ao resto do app.
+  try{
+    if(typeof document!=="undefined" && document.head && !document.getElementById("draftPatchFont")){
+      var st=document.createElement("style");
+      st.id="draftPatchFont";
+      st.textContent=
+        // raiz do problema: body não tinha font-family, então tudo fora de .app
+        // (toasts, modais injetados) herdava a serif do navegador. Forçamos Inter.
+        "body,.toast,#toast,#dMktInfoHost,#dCapsHost{font-family:Inter,system-ui,sans-serif!important}"+
+        "#dMktInfoHost *,#dCapsHost *,.toast *{font-family:Inter,system-ui,sans-serif!important}"+
+        // títulos display continuam Saira (proposital)
+        "#dMktInfoHost .disp,#dCapsHost .disp{font-family:'Saira Condensed',Inter,sans-serif!important}";
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+
   // mesma normalização de nome do app (fallback caso _normName não exista ainda)
   var norm = (typeof _normName==="function")
     ? _normName
@@ -362,7 +380,26 @@
     ) : "";
 
     var r=computeResults(s,me,owner,myRoster);
+    // barra de saldo: moedas restantes + tamanho do elenco (só se entrou como manager)
+    var saldoBar="";
+    if(me){
+      var moedas=Number(me.budget_left||0);
+      var nRoster=myRoster.length;
+      var limite=Number(s.roster_limit||12);
+      var budgetOn=draftSetting(s,"budget_enabled",true);
+      saldoBar='<div style="display:flex;gap:8px;margin-bottom:10px">'+
+        (budgetOn?'<div style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
+          '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Suas moedas</div>'+
+          '<div class="mono" style="font-size:20px;font-weight:800;color:var(--amber)">'+moedas+'</div>'+
+        '</div>':"")+
+        '<div style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
+          '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Elenco</div>'+
+          '<div class="mono" style="font-size:20px;font-weight:800;color:var(--chalk)">'+nRoster+'<span style="font-size:13px;color:var(--dim)">/'+limite+'</span></div>'+
+        '</div>'+
+      '</div>';
+    }
     return '<div id="dMktTop"></div>'+
+      saldoBar+
       '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">'+
         search+
         panelToggle+
