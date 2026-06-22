@@ -8,9 +8,12 @@ const MODE_META={
   boost:{label:"IMPULSO",icon:"⚡",color:"#FFC247",desc:"Estratégico impulsionado: distribua suas fichas de impulso nas partidas (pode fazer isso antes mesmo de escalar) e monte o time de cada jogo. Cada pool tem suas próprias fichas (valores e regras definidos pelo dev — pode até ter fichas negativas). A escalação de cada jogo trava quando aquele jogo é fechado; a distribuição de fichas trava quando a 1ª partida da rodada é fechada."},
   confianca:{label:"CONFIANÇA",icon:"📊",color:"#C77DFF",desc:"Coloque os jogos em ordem: do que você MAIS confia (1º) pro que menos confia (último) — dá pra ordenar antes mesmo de escalar. Os primeiros da sua ordem multiplicam os pontos pra cima; os últimos, pra baixo. Quanto mais jogos na rodada, maior a diferença entre o 1º e o último. A escalação de cada jogo é livre e trava quando aquele jogo é fechado; a ordem de confiança trava quando a 1ª partida da rodada é fechada."},
   previsao:{label:"PREVISÃO",icon:"🔮",color:"#54E0A8",desc:"Escale todos os jogos e crave o placar de cada um. Além dos pontos da escalação, ganhe um bônus por acertar o resultado — e um maior por cravar o placar exato. A escalação e o palpite de cada jogo travam quando aquela partida for fechada (cada jogo é independente)."},
+  zebra:{label:"ZEBRA",icon:"🐎",color:"#FF8A4C",desc:"Escale todos os jogos apostando nos azarões. Jogadores do time mais fraco pelo ELO recebem bônus extra no placar da mini rodada. Favorito ainda pontua, mas a glória mora na zebra."},
+  sobrevivencia:{label:"SOBREVIVÊNCIA",icon:"🛡️",color:"#7EE787",desc:"Escale todos os jogos. Se algum jogo seu terminar negativo, você zera a mini rodada. Se sobreviver, seu pior jogo é descartado e soma o resto."},
+  capitaoduplo:{label:"CAPITÃO DUPLO",icon:"👑",color:"#FF7EC4",desc:"Escale todos os jogos. O capitão fica ainda mais decisivo: na mini rodada ele recebe um reforço extra, funcionando como 1.4x no total."},
 };
 // modos oferecidos ao dev (select fica oculto: existe na base, mas sai do visual)
-const MODE_LIST=["full","boost","confianca","previsao"];
+const MODE_LIST=["full","boost","confianca","previsao","zebra","sobrevivencia","capitaoduplo"];
 const modeOf=r=>(r&&r.mode)||"full";
 const modeMeta=r=>MODE_META[modeOf(r)]||MODE_META.full;
 // multiplicador de confiança: alcance cresce com o nº de jogos (poucos jogos = suave).
@@ -102,6 +105,7 @@ let APP={
   rounds:[], roundId:null, round:null, roundRooms:[], roundEntries:[], roundAllEntries:[], roundRanking:null,
   leagues:[], leagueId:null, league:null, leaguePhases:[], leagueStanding:null, leagueTab:"table", homeTab:"toplay", homeSearch:"", homeDay:"todos",
   phases:[], phaseId:null, phase:null, phaseRounds:[], phaseStanding:null, phaseTab:"table",
+  draftSeasons:[], draftSeasonId:null, draftSeason:null, draftTeams:[], draftRosters:[], draftTransactions:[], draftTab:"visao", draftSearch:"",
   archived:[],          // room_ids de jogos arquivados (global) — só aparecem em Resultados
   compArchived:[],      // "kind:id" de competições arquivadas manualmente (mini rodada/rodada/liga)
   roundRoomsByRound:{}, // round_id → [round_rooms] (pra detectar rodada finalizada)
@@ -114,7 +118,7 @@ let APP={
   avulsaLineup:null, members:null, memberView:null, memberProfile:null, memberHistory:null,
   collapsedModes:{},   // (legado)
   openModes:{},        // {full:true} = grupo de modo EXPANDIDO (padrão: fechado)
-  homeNavTab:"partidas", // aba ativa da home: partidas|mini|rodadas|ligas
+  homeNavTab:"partidas", // aba ativa da home: partidas|mini|rodadas|ligas|draft
   compTab:{round:"live",phase:"live",league:"live"}, // aba "live"(andamento)/"done"(finalizadas) por seção
   confOrderMode:false, confOrderDraft:null, confHover:null,
 };
@@ -362,7 +366,17 @@ async function loadAllFinishedEntries(){
 function clearEntriesCache(){_entriesCache=null;_entriesCacheKey=null;}
 async function loadProfileStats(username){
   // baldes: geral + por modo. modo: avulsa | select | full | boost
-  const buckets={geral:_blankStats(),avulsa:_blankStats(),full:_blankStats(),boost:_blankStats(),confianca:_blankStats(),previsao:_blankStats()};
+  const buckets={
+    geral:_blankStats(),
+    avulsa:_blankStats(),
+    full:_blankStats(),
+    boost:_blankStats(),
+    confianca:_blankStats(),
+    previsao:_blankStats(),
+    zebra:_blankStats(),
+    sobrevivencia:_blankStats(),
+    capitaoduplo:_blankStats()
+  };
   if(!SUPA.ready()||!APP.groupId)return _finalizeStats(buckets.geral)&&{...buckets,_byMode:true};
   // mapa round_id → modo
   const roundById={};
@@ -555,6 +569,108 @@ async function loadLeagues(){
   try{APP.leagues=await sb("leagues?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
   catch(e){APP.leagues=[];}
 }
+// ── MERCADO DRAFT (modo separado de temporada) ─────────────────────────────
+async function loadDraftSeasons(){
+  if(!APP.groupId)return;
+  try{APP.draftSeasons=await sb("draft_seasons?group_id=eq."+APP.groupId+"&select=*&order=created_at.desc");}
+  catch(e){APP.draftSeasons=[];APP.draftSchemaMissing=true;}
+}
+async function loadDraftSeason(seasonId){
+  APP.draftSeasonId=seasonId;
+  APP.draftSeason=null;APP.draftTeams=[];APP.draftRosters=[];APP.draftTransactions=[];
+  try{
+    const ss=await sb("draft_seasons?id=eq."+seasonId+"&group_id=eq."+APP.groupId+"&select=*");
+    APP.draftSeason=ss&&ss[0]?ss[0]:null;
+    APP.draftTeams=await sb("draft_teams?season_id=eq."+seasonId+"&select=*&order=created_at");
+    APP.draftRosters=await sb("draft_rosters?season_id=eq."+seasonId+"&select=*&order=player_name");
+    APP.draftTransactions=await sb("draft_transactions?season_id=eq."+seasonId+"&select=*&order=created_at.desc&limit=40");
+  }catch(e){
+    APP.draftSchemaMissing=true;
+    toast("Mercado Draft ainda precisa do SQL.");
+  }
+}
+function draftPlayerKey(p){return `${p.team||"?"}:${_normName(p.name)}:${p.pos||"MID"}`;}
+function draftPlayerCatalog(){
+  const seen={};
+  for(const j of (APP.jogos||[])){
+    const g=window.GAMES&&window.GAMES.data?window.GAMES.data[j.room_id]:null;
+    const pp=g&&g.prepool;
+    if(!pp||!Array.isArray(pp.players))continue;
+    pp.players.forEach(p=>{
+      const key=draftPlayerKey(p);
+      const cur=seen[key];
+      const item={key,name:p.name,team:p.team,pos:p.pos,age:p.age||null,price:Number(p.price)||3,mv:p.mv||0,room_id:j.room_id,match_name:j.match_name};
+      if(!cur||item.price>cur.price)seen[key]=item;
+    });
+  }
+  return Object.values(seen).sort((a,b)=>b.price-a.price||a.name.localeCompare(b.name));
+}
+function myDraftTeam(){return (APP.draftTeams||[]).find(t=>t.username===APP.user?.username)||null;}
+function draftOwnerMap(){
+  const out={};
+  (APP.draftRosters||[]).forEach(r=>{out[r.player_key]=r.username;});
+  return out;
+}
+async function createDraftSeason(name,budget,rosterLimit){
+  const row={
+    group_id:APP.groupId,
+    name,
+    status:"setup",
+    market_status:"open",
+    draft_status:"setup",
+    budget:Number(budget)||100,
+    roster_limit:Number(rosterLimit)||12,
+    created_by:APP.user.username,
+    settings:{
+      lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},
+      waiver:true,
+      trades:true,
+      dynamic_prices:true,
+      sell_tax_pct:10
+    }
+  };
+  const rows=await sbInsert("draft_seasons",row);
+  await loadDraftSeasons();
+  toast("Temporada Mercado Draft criada!");
+  if(rows&&rows[0])go("draft",null,null,null,null,null,rows[0].id);
+  else render();
+}
+async function joinDraftSeason(){
+  const s=APP.draftSeason;if(!s||!APP.user)return;
+  const name=`${APP.user.username} FC`;
+  try{
+    await sbInsert("draft_teams",{season_id:s.id,username:APP.user.username,team_name:name,budget_left:s.budget,waiver_priority:(APP.draftTeams||[]).length+1},true,"season_id,username");
+    await loadDraftSeason(s.id);
+    toast("Você entrou no Mercado Draft.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+async function buyDraftPlayer(playerKey){
+  const s=APP.draftSeason, me=myDraftTeam();
+  if(!s||!me){toast("Entre na temporada antes.");return;}
+  if(s.market_status!=="open"){toast("Mercado fechado.");return;}
+  const owner=draftOwnerMap()[playerKey];
+  if(owner){toast("Esse jogador já tem dono.");return;}
+  const cat=draftPlayerCatalog().find(p=>p.key===playerKey);
+  if(!cat){toast("Jogador não encontrado.");return;}
+  const mine=(APP.draftRosters||[]).filter(r=>r.username===APP.user.username);
+  if(mine.length>=Number(s.roster_limit||12)){toast("Elenco cheio.");return;}
+  if(Number(me.budget_left||0)<cat.price){toast("Sem moedas suficientes.");return;}
+  try{
+    await sbInsert("draft_rosters",{
+      season_id:s.id,username:APP.user.username,player_key:cat.key,player_name:cat.name,
+      player_team:cat.team,pos:cat.pos,base_price:cat.price,current_price:cat.price,acquired_price:cat.price,status:"owned"
+    });
+    await sbUpdate("draft_teams",{budget_left:Number(me.budget_left||0)-cat.price},`season_id=eq.${s.id}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    await sbInsert("draft_transactions",{season_id:s.id,username:APP.user.username,type:"buy",player_key:cat.key,player_name:cat.name,amount:cat.price,meta:{team:cat.team,pos:cat.pos}});
+    await loadDraftSeason(s.id);
+    toast(`${cat.name} comprado!`);
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+function askCreateDraftSeason(){APP.confirm={mode:"createDraftSeason",label:"Criar Mercado Draft"};render();}
+function setDraftTab(t){APP.draftTab=t;renderKeepScroll();}
+function setDraftSearch(v){APP.draftSearch=v;renderKeepScroll();}
 async function loadPhases(){
   if(!APP.groupId)return;
   try{APP.phases=await sb("phases?group_id=eq."+APP.groupId+"&select=*&order=created_at");}
@@ -664,7 +780,11 @@ async function computeRoundRanking(roundId){
     const isSelect=mode==="select";
     const isConf=mode==="confianca";
     const isPred=mode==="previsao";
+    const isZebra=mode==="zebra";
+    const isSurvival=mode==="sobrevivencia";
+    const isCaptainDouble=mode==="capitaoduplo";
     const byUser={};
+    const userGamePts={};
     // CONFIANÇA: preciso saber o total de jogos rankeados por usuário (pra escala do multiplicador)
     const confTotalByUser={};
     if(isConf){
@@ -727,15 +847,44 @@ async function computeRoundRanking(roundId){
           const tot=confTotalByUser[e.username]||1;
           pts=Math.round(pts*confMultiplier(e.conf_rank,tot)*10)/10;
         }
+        if(isZebra){
+          const uCode=underdogCode(ctx);
+          let bonus=0;
+          (sc.view||[]).forEach(v=>{
+            if(!v||v.slot==="BENCH")return;
+            const pl=ctx.byId&&ctx.byId[v.pid];
+            if(pl&&pl.team===uCode)bonus+=Math.max(0,v.pts)*0.25;
+          });
+          pts=Math.round((pts+bonus)*10)/10;
+        }
+        if(isCaptainDouble){
+          const cap=(sc.view||[]).find(v=>v&&v.cap);
+          if(cap)pts=Math.round((pts+(cap.pts/6))*10)/10; // cap já tem 1.2x; +pts/6 transforma em ~1.4x
+        }
         if(!byUser[e.username])byUser[e.username]={username:e.username,total:0,games:0,predBonus:0};
         byUser[e.username].total+=pts;
         byUser[e.username].games++;
+        (userGamePts[e.username]=userGamePts[e.username]||[]).push(pts);
         // PREVISÃO: bônus em % sobre os pontos da escalação naquele jogo
         if(isPred&&e.pred_home!=null&&e.pred_away!=null){
           const pct=predBonusPct(e,g.match);
           const b=Math.round(sc.total*(pct/100)*10)/10;
           byUser[e.username].total+=b;
           byUser[e.username].predBonus+=b;
+        }
+      }
+    }
+    if(isSurvival){
+      for(const [u,ptsList] of Object.entries(userGamePts)){
+        if(!byUser[u])continue;
+        if(ptsList.some(p=>p<0)){
+          byUser[u].total=0;
+          byUser[u].eliminated=true;
+          byUser[u].survivalNote="caiu";
+        }else if(ptsList.length>1){
+          const cut=Math.min(...ptsList);
+          byUser[u].total-=cut;
+          byUser[u].survivalCut=Math.round(cut*10)/10;
         }
       }
     }
@@ -752,6 +901,11 @@ async function computeRoundRanking(roundId){
       return b.total-a.total;
     });
   }catch(e){return [];}
+}
+function underdogCode(ctx){
+  const pp=ctx&&ctx.prepool;
+  if(!pp||!pp.home||!pp.away)return null;
+  return Number(pp.home.elo||0)<=Number(pp.away.elo||0)?pp.home.code:pp.away.code;
 }
 // % de bônus de previsão: compara o placar cravado com o real do match
 function predBonusPct(entry,match){
@@ -1986,6 +2140,7 @@ function homeHTML(){
   const nMini=APP.rounds.filter(r=>!r.phase_id).length;
   const nRod=(APP.phases||[]).filter(p=>!p.league_id).length;
   const nLig=(APP.leagues||[]).length;
+  const nDraft=(APP.draftSeasons||[]).length;
   const navBtn=(t,ic,label,n)=>`<div class="navtab${navTab===t?" on":""}" onclick="setHomeNav('${t}')"><span class="ic">${ic}</span> ${label}${n?` <span class="ct">(${n})</span>`:""}</div>`;
   // painel da aba PARTIDAS (busca + lista de jogos)
   const partidasPanel=`<div class="card">
@@ -2006,6 +2161,7 @@ function homeHTML(){
   else if(navTab==="mini")navPanel=roundsCardHTML()||`<div class="card"><p class="p">Nenhuma mini rodada ainda.</p></div>`;
   else if(navTab==="rodadas")navPanel=phasesCardHTML()||`<div class="card"><p class="p">Nenhuma rodada ainda.</p></div>`;
   else if(navTab==="ligas")navPanel=leaguesCardHTML()||`<div class="card"><p class="p">Nenhuma liga ainda.</p></div>`;
+  else if(navTab==="draft")navPanel=draftSeasonsCardHTML();
   return `<div class="homehero">
     <div class="heroTop">
       <div>
@@ -2037,6 +2193,7 @@ function homeHTML(){
     ${navBtn("mini","🎯","Mini-rodadas",nMini)}
     ${navBtn("rodadas","📅","Rodadas",nRod)}
     ${navBtn("ligas","🏆","Ligas",nLig)}
+    ${navBtn("draft","🏟️","Mercado Draft",nDraft)}
   </div>
   <div class="navpanel">${navPanel}</div>
   ${isAdmin()&&naoAbertos.length?`<div class="card">
@@ -2086,12 +2243,15 @@ function roundRankingHTML(){
       const me=u.username===APP.user?.username;
       const open=APP._openRoundUser===u.username;
       if(u.eliminated){
-        const motivo=modeOf(APP.round)==="confianca"?"não ordenou todos os jogos":"não distribuiu todas as fichas";
+        const motivo=modeOf(APP.round)==="confianca"?"não ordenou todos os jogos":
+          modeOf(APP.round)==="sobrevivencia"?"teve jogo negativo":
+          "não distribuiu todas as fichas";
         html+=`<div class="rank${me?" me":""}" style="opacity:.7"><div class="po mono" style="color:var(--red)">✗</div><div class="nm">${esc(u.username)}<small style="color:var(--red)">eliminado · ${motivo}</small></div><div class="pt mono" style="color:var(--red)">0.0</div></div>`;
         return;
       }
       posN++;
-      html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${posN}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
+      const survNote=modeOf(APP.round)==="sobrevivencia"&&u.survivalCut!=null?` · descartou ${u.survivalCut.toFixed(1)}`:"";
+      html+=`<div class="rank${me?" me":""}" onclick="toggleRoundUser('${encodeURIComponent(u.username)}')" style="cursor:pointer"><div class="po mono">${posN}º</div><div class="nm">${esc(u.username)}<small>${u.games} jogo${u.games>1?"s":""} apurado${u.games>1?"s":""}${survNote} · toque pra ${open?"fechar":"ver time"}</small></div><div class="pt mono">${u.total.toFixed(1)}</div></div>`;
       if(open)html+=roundUserTeamsHTML(u.username);
     });
   }else{
@@ -2178,6 +2338,9 @@ function roundRowHTML(r){
   else if(modeOf(r)==="boost"){const nc=Array.isArray(r.boost_chips)&&r.boost_chips.length?r.boost_chips.length:(r.boost_tokens||0);metaTxt=`todos os jogos · ${nc} ficha(s) de impulso`;}
   else if(modeOf(r)==="confianca")metaTxt="todos os jogos · ordene por confiança";
   else if(modeOf(r)==="previsao")metaTxt="todos os jogos · crave os placares";
+  else if(modeOf(r)==="zebra")metaTxt="todos os jogos · bônus para azarões";
+  else if(modeOf(r)==="sobrevivencia")metaTxt="todos os jogos · não pode negativar";
+  else if(modeOf(r)==="capitaoduplo")metaTxt="todos os jogos · capitão turbinado";
   else metaTxt=`escolha ${r.pick_limit} jogos`;
   // botão admin de mover entre andamento/finalizada (manual)
   const arch=compIsArchived("round",r.id);
@@ -2196,7 +2359,7 @@ function roundsCardHTML(){
   const doneList=avulsasAll.filter(r=>compIsFinishedView("round",r.id));
   const avulsas=tab==="done"?doneList:liveList;
   // agrupar por modo
-  const order=["full","boost","confianca","previsao"];
+  const order=MODE_LIST;
   let groupsHTML="";
   for(const mk of order){
     const list=avulsas.filter(r=>modeOf(r)===mk);
@@ -2292,6 +2455,96 @@ function leaguesCardHTML(){
 }
 function askCreateLeague(){APP.confirm={mode:"createLeague",label:"Criar liga"};render();}
 function askDeleteLeague(id){APP.confirm={mode:"deleteLeague",leagueId:id,label:"Excluir liga"};render();}
+// ----- MERCADO DRAFT: modo avançado separado -----
+function draftSeasonsCardHTML(){
+  if(APP.draftSchemaMissing){
+    return `<div class="card" style="border-color:var(--amber)">
+      <div class="h2 disp">🏟️ Mercado Draft</div>
+      <p class="p" style="margin-top:8px">O modo já está no app, mas precisa criar as tabelas novas no Supabase antes de funcionar.</p>
+      <p class="p" style="font-size:11px;margin-top:8px">Use o arquivo <b style="color:var(--chalk)">draft-market-schema.sql</b> no SQL Editor do Supabase.</p>
+    </div>`;
+  }
+  const list=APP.draftSeasons||[];
+  let rows="";
+  if(!list.length)rows=`<p class="p" style="margin-top:8px">Nenhuma temporada Mercado Draft criada ainda.</p>`;
+  else rows=list.map(s=>{
+    const live=s.status==="active"||s.status==="setup";
+    return `<div class="roomrow" style="border-left:3px solid #FF8A4C" onclick="go('draft',null,null,null,null,null,'${s.id}')">
+      <div class="info"><div class="nm">${esc(s.name)}</div><div class="meta">${esc(s.status||"setup")} · orçamento ${s.budget||100} · elenco ${s.roster_limit||12}</div></div>
+      <span class="statuspill ${live?"st-open":"st-finished"}">${live?"ABERTA":"FINALIZADA"}</span>
+    </div>`;
+  }).join("");
+  return `<div class="card">
+    <div class="tag" style="margin-bottom:6px">MODO AVANÇADO · TEMPORADA</div>
+    <div class="h2 disp">🏟️ Mercado Draft</div>
+    <p class="p" style="margin:8px 0">Modo separado: elenco exclusivo, orçamento, mercado de livres, transações e temporada longa.</p>
+    ${rows}
+    ${isAdmin()?`<button class="btn" style="margin-top:14px;background:#FF8A4C;color:#0A0E1C" onclick="askCreateDraftSeason()">+ Criar Mercado Draft</button>`:""}
+  </div>`;
+}
+function draftHTML(){
+  const s=APP.draftSeason;
+  if(APP.draftSchemaMissing)return draftSeasonsCardHTML();
+  if(!s)return `<div class="card"><p class="p">Temporada não encontrada.</p><button class="btn ghost" onclick="go('home')">← Voltar</button></div>`;
+  const me=myDraftTeam();
+  const myRoster=(APP.draftRosters||[]).filter(r=>r.username===APP.user?.username);
+  const owner=draftOwnerMap();
+  const teams=APP.draftTeams||[];
+  const spent=Number(s.budget||100)-Number(me?me.budget_left:s.budget||100);
+  const tabs=[["visao","Visão"],["mercado","Mercado"],["elencos","Elencos"],["movs","Transações"]];
+  const tab=APP.draftTab||"visao";
+  const tabbar=`<div class="postabs" style="margin:12px 0">${tabs.map(([k,l])=>`<div class="ptab${tab===k?" on":""}" onclick="setDraftTab('${k}')">${l}</div>`).join("")}</div>`;
+  let body="";
+  if(tab==="visao"){
+    body=`<div class="dashgrid">
+      <div class="dashitem"><b>${teams.length}</b><span>Managers</span></div>
+      <div class="dashitem"><b>${APP.draftRosters.length}</b><span>Jogadores com dono</span></div>
+      <div class="dashitem"><b>${me?Number(me.budget_left||0):"-"}</b><span>Suas moedas</span></div>
+      <div class="dashitem"><b>${myRoster.length}/${s.roster_limit||12}</b><span>Seu elenco</span></div>
+    </div>
+    ${me?`<div class="prebox" style="border-color:#FF8A4C;color:#FF8A4C;background:color-mix(in srgb,#FF8A4C 10%,transparent)">Você está dentro como <b>${esc(me.team_name)}</b>. Gastou <b>${spent}</b> de <b>${s.budget||100}</b> moedas.</div>`:
+      `<button class="btn" style="background:#FF8A4C;color:#0A0E1C" onclick="joinDraftSeason()">Entrar como manager</button>`}
+    <div class="card" style="margin-top:12px"><div class="h2 disp">Regras desta temporada</div>
+      <p class="p">Elenco exclusivo, mercado aberto por janela, orçamento compartilhado e histórico de transações. Esta tela já está separada dos modos de mini rodada.</p>
+    </div>`;
+  }else if(tab==="mercado"){
+    const q=normTxt(APP.draftSearch||"");
+    const cat=draftPlayerCatalog().filter(p=>!q||normTxt(p.name+" "+p.team+" "+p.pos).includes(q)).slice(0,80);
+    body=`<div style="position:relative;margin-bottom:10px">
+      <input class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar jogador no mercado…" value="${esc(APP.draftSearch||"")}" oninput="setDraftSearch(this.value)" autocorrect="off" />
+    </div>
+    <p class="p" style="font-size:11px;margin-bottom:8px">Preço inicial vem do fantasy atual. Jogador comprado fica exclusivo do dono nesta temporada.</p>
+    <div class="poolbox">${cat.map(p=>{
+      const own=owner[p.key];
+      const can=me&&!own&&Number(me.budget_left||0)>=p.price&&myRoster.length<Number(s.roster_limit||12)&&s.market_status==="open";
+      return `<div class="prow ${own?"dis":""}" style="${can?"cursor:pointer":""}" onclick="${can?`buyDraftPlayer('${esc(p.key)}')`:""}">
+        <div class="posbar pb-${p.pos}"></div>
+        <div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div>
+        <div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${esc(p.team)}</span>${own?` <span style="font-size:9px;color:var(--amber)">dono: ${esc(own)}</span>`:""}</div>
+        <div class="pr mono">${p.price}</div>
+      </div>`;
+    }).join("")}</div>`;
+  }else if(tab==="elencos"){
+    body=teams.length?teams.map(t=>{
+      const rs=(APP.draftRosters||[]).filter(r=>r.username===t.username);
+      return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${t.username===APP.user?.username?"var(--amber)":"#FF8A4C"}">
+        <div class="h2 disp">${esc(t.team_name||t.username)}</div>
+        <p class="p" style="font-size:11px;margin:4px 0">${esc(t.username)} · ${Number(t.budget_left||0)} moedas · ${rs.length}/${s.roster_limit||12} jogadores</p>
+        ${rs.length?rs.map(r=>`<div class="line"><span><b style="color:var(--dim);font-size:10px">${SLOT_LABEL[r.pos]||r.pos}</b> ${esc(r.player_name)} <span class="teamtag" style="--tc:${teamColor(r.player_team)}">${esc(r.player_team)}</span></span><span class="mono" style="color:#FF8A4C">${r.current_price}</span></div>`).join(""):`<p class="p">Sem jogadores ainda.</p>`}
+      </div>`;
+    }).join(""):`<p class="p">Nenhum manager entrou ainda.</p>`;
+  }else{
+    body=APP.draftTransactions.length?APP.draftTransactions.map(tr=>`<div class="line"><span><b style="color:#FF8A4C">${esc(tr.username)}</b> ${esc(tr.type)} · ${esc(tr.player_name||"")}</span><span class="mono">${tr.amount||0}</span></div>`).join(""):`<p class="p">Nenhuma transação ainda.</p>`;
+  }
+  return `<div class="card" style="border-color:#FF8A4C">
+    <button class="btn ghost" style="margin-bottom:10px" onclick="go('home')">← Voltar</button>
+    <div class="tag">MERCADO DRAFT · TEMPORADA</div>
+    <div class="h2 disp" style="color:#FF8A4C">🏟️ ${esc(s.name)}</div>
+    <p class="p" style="margin:8px 0">Status: <b style="color:var(--chalk)">${esc(s.status)}</b> · Mercado: <b style="color:${s.market_status==="open"?"var(--green)":"var(--red)"}">${esc(s.market_status)}</b></p>
+    ${tabbar}
+    ${body}
+  </div>`;
+}
 // ----- LIGAS: tela de uma liga -----
 function leagueHTML(){
   const l=APP.league;
@@ -2407,10 +2660,11 @@ function roundStatusSnapshot(){
   const chipsLeft=mode==="boost"?chipsAvailable().length:0;
   const confDone=mode==="confianca"?confRankedCount():0;
   const predDone=mode==="previsao"?entries.filter(e=>e.pred_home!=null&&e.pred_away!=null).length:0;
+  const allGamesModes=new Set(["full","zebra","sobrevivencia","capitaoduplo"]);
   const ready=mode==="boost"?mounted===total&&chipsLeft===0&&confirmed:
     mode==="confianca"?mounted===total&&confDone===total&&confirmed:
     mode==="previsao"?mounted===total&&predDone===total&&confirmed:
-    mode==="full"?mounted===total:
+    allGamesModes.has(mode)?mounted===total:
     true;
   return {mode,total,mounted,confirmed,chipsLeft,confDone,predDone,ready};
 }
@@ -2502,7 +2756,7 @@ function roundHTML(){
   const isConf=mode==="confianca";
   const isPred=mode==="previsao";
   // confiança e previsão se comportam como o impulso na escalação: escala todos, trava no 1º jogo
-  const isAllGames=isBoost||isConf||isPred||mode==="full";
+  const isAllGames=isBoost||isConf||isPred||mode==="full"||mode==="zebra"||mode==="sobrevivencia"||mode==="capitaoduplo";
   const left=picksLeft(), used=picksUsed();
   const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
   const bLocked=boostLocked();
@@ -2705,6 +2959,12 @@ function roundHTML(){
     const feitos=(APP.roundEntries||[]).filter(e=>e.pred_home!=null&&e.pred_away!=null).length;
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
       ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. Você cravou <b>${feitos}/${totalGames}</b>. A escalação e o palpite de cada jogo travam quando aquela partida for fechada.</div>`;
+  }else if(mode==="zebra"){
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Zebra.</b> Escale TODOS os jogos. Jogadores do time com menor ELO em cada partida ganham <b>+25%</b> sobre seus pontos positivos na classificação da mini rodada.</div>`;
+  }else if(mode==="sobrevivencia"){
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Sobrevivência.</b> Escale TODOS os jogos. Se algum jogo seu terminar negativo, você zera a mini rodada. Se todos sobreviverem, seu pior jogo é descartado.</div>`;
+  }else if(mode==="capitaoduplo"){
+    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Capitão Duplo.</b> Escale TODOS os jogos. Seu capitão recebe reforço extra na classificação, funcionando como <b>1.4x</b> no total.</div>`;
   }else if(mode==="full"){
     banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
   }else{
@@ -2979,6 +3239,36 @@ function modePreviewHTML(mk){
       <div class="previewcalc">Exemplo: 38.0 pts com placar exato viram <b style="color:${mm.color}">53.2 pts</b>. Com só vencedor certo, viram <b style="color:${mm.color}">41.8 pts</b>.</div>
     </div>`;
   }
+  if(mk==="zebra"){
+    return `<div class="modepreview" style="border-color:${mm.color}">
+      <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview realista · Zebra</div>
+      <div class="pvtext">A graça é ganhar pontos com jogador de time mais fraco. O favorito ainda vale, mas o azarão dá tempero.</div>
+      <div class="previewgame"><div class="pvname"><div>França × Iraque</div><div class="pvmeta">jogadores do Iraque recebem bônus</div></div><span class="previewpill" style="background:#3b2417;color:${mm.color}">+25%</span></div>
+      <div class="previewgame"><div class="pvname"><div>Noruega × Senegal</div><div class="pvmeta">quem for menor pelo ELO vira zebra</div></div><span class="previewpill" style="background:#3b2417;color:${mm.color}">azarão</span></div>
+      <div class="previewgame"><div class="pvname"><div>Argentina × Áustria</div><div class="pvmeta">favorito pontua normal</div></div><span class="previewpill" style="background:#1b263b;color:var(--blue)">normal</span></div>
+      <div class="previewcalc">Exemplo: um jogador da zebra fez 16.0 pts. Ele vira <b style="color:${mm.color}">20.0 pts</b> na classificação da mini rodada.</div>
+    </div>`;
+  }
+  if(mk==="sobrevivencia"){
+    return `<div class="modepreview" style="border-color:${mm.color}">
+      <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview realista · Sobrevivência</div>
+      <div class="pvtext">Aqui não basta explodir em um jogo: você precisa passar vivo por todos.</div>
+      <div class="previewgame"><div class="pvname"><div>Espanha × Arábia Saudita</div><div class="pvmeta">boa escalação</div></div><span class="previewpill" style="background:#123326;color:${mm.color}">34.0</span></div>
+      <div class="previewgame"><div class="pvname"><div>Bélgica × Irã</div><div class="pvmeta">jogo mais fraco, mas positivo</div></div><span class="previewpill" style="background:#123326;color:${mm.color}">8.0</span></div>
+      <div class="previewgame"><div class="pvname"><div>Noruega × Senegal</div><div class="pvmeta">se ficar negativo, zera tudo</div></div><span class="previewpill" style="background:#35191f;color:var(--red)">risco</span></div>
+      <div class="previewcalc">Se ninguém negativar, o pior jogo é descartado. Se um jogo fechar em negativo, a rodada vira <b style="color:var(--red)">0 pt</b>.</div>
+    </div>`;
+  }
+  if(mk==="capitaoduplo"){
+    return `<div class="modepreview" style="border-color:${mm.color}">
+      <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview realista · Capitão Duplo</div>
+      <div class="pvtext">O modo para quem quer braçadeira valendo mais. Errar o capitão dói; acertar vira diferencial.</div>
+      <div class="previewgame"><div class="pvname"><div>Capitão marcou e assistiu</div><div class="pvmeta">pontuação do capitão recebe reforço</div></div><span class="previewpill" style="background:#331a2f;color:${mm.color}">1.4x</span></div>
+      <div class="previewgame"><div class="pvname"><div>Capitão apagado</div><div class="pvmeta">o bônus quase não aparece</div></div><span class="previewpill" style="background:#35191f;color:var(--red)">risco</span></div>
+      <div class="previewgame"><div class="pvname"><div>Sem craque óbvio</div><div class="pvmeta">a escolha vira parte do jogo</div></div><span class="previewpill" style="background:#1b263b;color:var(--blue)">decisão</span></div>
+      <div class="previewcalc">Exemplo: capitão de 18.0 pts ganha reforço extra e adiciona mais <b style="color:${mm.color}">3.0 pts</b> na mini rodada.</div>
+    </div>`;
+  }
   return `<div class="modepreview" style="border-color:${mm.color}">
     <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview · Completo</div>
     <div class="pvtext">Todos escalam todos os jogos. Vence quem soma mais pontos na rodada inteira, sem bônus extra.</div>
@@ -3115,6 +3405,9 @@ function confirmModalHTML(){
       ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
       ${selMode==="confianca"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e ordenam os jogos por confiança: o 1º vale 2x, o último 0,5x.</p>`:""}
       ${selMode==="previsao"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e cravam o placar de cada jogo. Bônus: +${PRED_RESULT_PCT}% pelo resultado, +${PRED_EXACT_PCT}% pelo placar exato.</p>`:""}
+      ${selMode==="zebra"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. Em cada jogo, atletas do time com menor ELO recebem +25% em cima dos pontos positivos.</p>`:""}
+      ${selMode==="sobrevivencia"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. Negativou em qualquer jogo finalizado: zera a mini rodada. Se sobreviver, o pior jogo é descartado.</p>`:""}
+      ${selMode==="capitaoduplo"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. O capitão recebe reforço extra na classificação da mini rodada, chegando perto de 1.4x no total.</p>`:""}
       <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
@@ -3152,6 +3445,17 @@ function confirmModalHTML(){
       <p class="p" style="margin:10px 0">Uma liga agrupa várias rodadas numa classificação geral (pontos de tabela + pontuação clássica). Você adiciona as rodadas depois, dentro da liga.</p>
       <input id="lgName" class="input" placeholder="Nome (ex: Liga Copa 2026)" autocorrect="off" />
       <button class="btn" style="margin-top:4px" onclick="submitCreateLeague()">Criar liga</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createDraftSeason"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
+      <p class="p" style="margin:10px 0">Modo separado de temporada: cada jogador comprado fica exclusivo do manager até ser vendido/trocado.</p>
+      <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
+      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 100)" value="100" />
+      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" />
+      <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
   }
@@ -3217,8 +3521,8 @@ function submitCreateRound(){
     const l=$("rndLimit");limit=l?parseInt(l.value,10):3;
     if(!limit||limit<1)limit=1;
     if(poolMax>0&&limit>poolMax){toast("Só há "+poolMax+" jogo(s) no catálogo. Escolha no máximo "+poolMax+".");return;}
-  }else if(mk==="full"){
-    limit=poolMax||999; // completo = todos
+  }else if(["full","zebra","sobrevivencia","capitaoduplo"].includes(mk)){
+    limit=poolMax||999; // modos de rodada inteira = todos
   }else if(mk==="boost"){
     limit=poolMax||999; // impulso = escala todos
     const chips=(c.chips||[]).map(v=>Number(v)||0).filter(v=>v!==0);
@@ -3245,6 +3549,16 @@ function submitCreateLeague(){
   const name=n?n.value.trim():"";
   if(!name){toast("Dê um nome à liga.");return;}
   APP.confirm=null;createLeague(name).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreateDraftSeason(){
+  const n=$("draftName"),b=$("draftBudget"),r=$("draftRoster");
+  const name=n?n.value.trim():"";
+  const budget=b?parseInt(b.value,10):100;
+  const roster=r?parseInt(r.value,10):12;
+  if(!name){toast("Dê um nome à temporada.");return;}
+  if(!budget||budget<20){toast("Orçamento precisa ser pelo menos 20.");return;}
+  if(!roster||roster<6){toast("Elenco precisa ter pelo menos 6 jogadores.");return;}
+  APP.confirm=null;createDraftSeason(name,budget,roster).catch(e=>toast("Erro: "+e.message));
 }
 async function deleteLeague(id){
   if(!isAdmin())return;
@@ -3850,7 +4164,17 @@ function collectionHTML(archObj){
   return html;
 }
 function profileTabsHTML(active,onclickFn){
-  const tabs=[["geral","Geral"],["avulsa","Avulsa"],["full","🏆 Completo"],["boost","⚡ Impulso"],["confianca","📊 Confiança"],["previsao","🔮 Previsão"]];
+  const tabs=[
+    ["geral","Geral"],
+    ["avulsa","Avulsa"],
+    ["full","🏆 Completo"],
+    ["boost","⚡ Impulso"],
+    ["confianca","📊 Confiança"],
+    ["previsao","🔮 Previsão"],
+    ["zebra","🐎 Zebra"],
+    ["sobrevivencia","🛡️ Sobrevivência"],
+    ["capitaoduplo","👑 Capitão Duplo"]
+  ];
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,l])=>`<button class="statuspill ${k===active?"st-open":""}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="${onclickFn}('${k}')">${l}</button>`).join("")}</div>`;
 }
 function setProfileTab(t){APP.profileTab=t;render();}
@@ -4023,8 +4347,28 @@ function memberHTML(){
 // prefix distingue contexto ("m"=membro, "p"=perfil próprio) pra estados de toggle separados
 function histGameHTML(h,hi,prefix){
   const open=_openHistGame[prefix+hi];
-  const MODECOLOR={avulsa:"var(--mid)",select:"#5CA8FF",full:MODE_META.full.color,boost:MODE_META.boost.color,confianca:MODE_META.confianca.color,previsao:MODE_META.previsao.color};
-  const MODELABEL={avulsa:"AVULSA",select:"🎯 SELECIONE",full:"🏆 COMPLETO",boost:"⚡ IMPULSO",confianca:"📊 CONFIANÇA",previsao:"🔮 PREVISÃO"};
+  const MODECOLOR={
+    avulsa:"var(--mid)",
+    select:"#5CA8FF",
+    full:MODE_META.full.color,
+    boost:MODE_META.boost.color,
+    confianca:MODE_META.confianca.color,
+    previsao:MODE_META.previsao.color,
+    zebra:MODE_META.zebra.color,
+    sobrevivencia:MODE_META.sobrevivencia.color,
+    capitaoduplo:MODE_META.capitaoduplo.color
+  };
+  const MODELABEL={
+    avulsa:"AVULSA",
+    select:"🎯 SELECIONE",
+    full:"🏆 COMPLETO",
+    boost:"⚡ IMPULSO",
+    confianca:"📊 CONFIANÇA",
+    previsao:"🔮 PREVISÃO",
+    zebra:"🐎 ZEBRA",
+    sobrevivencia:"🛡️ SOBREVIVÊNCIA",
+    capitaoduplo:"👑 CAPITÃO DUPLO"
+  };
   const e=h.entry;
   // cor da nota principal: normal se for avulsa; cor do modo + aviso se não tem avulsa
   const headColor=h.isAvulsa?(e.total<0?"var(--red)":"var(--amber)"):MODECOLOR[h.principalMode];
@@ -4354,6 +4698,7 @@ function render(){
   else if(APP.view==="member")panel=memberHTML();
   else if(APP.view==="league")panel=leagueHTML();
   else if(APP.view==="phase")panel=phaseHTML();
+  else if(APP.view==="draft")panel=draftHTML();
   root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
 }
 function topbarHTML(){
@@ -4525,10 +4870,11 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
    try{
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
-    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();}
+    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();await loadDraftSeasons();}
     if(view==="round"){APP.confOrderMode=false;APP.confOrderDraft=null;APP.confDrag=null;APP.confHover=null;await loadRound(roundId);_openPeekRound={};}
     if(view==="league"){await loadLeague(leagueId);}
     if(view==="phase"){await loadPhase(phaseId);}
+    if(view==="draft"){await loadDraftSeason(arguments[6]);}
     if(view==="room"){APP.roundId=null;APP.round=null;APP.roundRooms=[];APP.roundEntries=[];}
     if(view==="room"||view==="build"||view==="result"){await loadRoom(APP.roomId);}
     if(view==="room"){APP.entries=await loadEntries();_openPeek={};}
