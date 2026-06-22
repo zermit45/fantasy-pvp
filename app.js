@@ -2584,8 +2584,8 @@ function peekTeamsHTML(){
     html+=`<div class="receipt"><div class="rhead" onclick="togglePeek(${i})">
       <div class="nm">${esc(e.username)}${isMe?" <small>(você)</small>":""}${stratTag}<small>· cap ${SLOT_LABEL[e.captain]||"?"} · ${TAC[e.tactic]?.name||e.tactic||"—"}</small></div>
       <div class="tot mono" style="color:var(--dim);font-size:14px">${open?"▲":"▼"}</div></div>`;
+    html+=`<div class="expandable ${open?"open":""}"><div class="rbody">`;
     if(open){
-      html+=`<div class="rbody">`;
       ["GK","DEF","MID","ATT","FLEX","BENCH"].forEach(sl=>{
         const pid=e.slots[sl];const pl=pid?byId[pid]:null;
         if(!pl){html+=`<div class="line" style="padding:5px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> <span style="color:#46537a">—</span></span></div>`;return;}
@@ -2593,8 +2593,8 @@ function peekTeamsHTML(){
         const posKey=sl==="BENCH"?pl.pos:sl;
         html+=`<div class="line" style="padding:5px 0"><span><b class="pc-${posKey}" style="font-size:9px">${SLOT_LABEL[sl]}</b> ${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</span></div>`;
       });
-      html+=`</div>`;
     }
+    html+=`</div></div>`;
     html+=`</div>`;
   });
   html+=`</div>`;
@@ -3164,9 +3164,9 @@ function buildHTML(){
       ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 O jogo já começou — escalação travada. Não dá mais pra editar.</div>
          <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
       : inRound
-        ? `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar escalação":"Complete 6 slots, capitão e tática"}</button>
+        ? `<button class="btn ${ready?"ready":""}" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar escalação":"Complete 6 slots, capitão e tática"}</button>
            <p class="p" style="margin-top:8px;font-size:12px;color:var(--dim)">Pode ajustar quantas vezes quiser até o jogo começar. O que está garantido é a <b>vaga neste jogo</b> (ficha gasta) — a escalação trava sozinha no apito inicial.</p>`
-        : `<button class="btn" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
+        : `<button class="btn ${ready?"ready":""}" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
   </div>`;
 }
 function askConfirmTeam(){
@@ -3738,8 +3738,8 @@ function histGameHTML(h,hi,prefix){
     <div class="sl mono" style="width:auto;color:var(--amber)">${h.pos}º/${h.of}</div>
     <div class="nm">${esc(h.match_name)}${noAvulsaTag}<small>${esc(h.comp||"")} · ${h.variants.length} modo${h.variants.length>1?"s":""} jogado${h.variants.length>1?"s":""} · toque p/ ver</small></div>
     <div class="tot mono" style="color:${headColor}">${e.total.toFixed(1)}</div></div>`;
+  html+=`<div class="expandable ${open?"open":""}"><div class="rbody">`;
   if(open){
-    html+=`<div class="rbody">`;
     // uma seção por modo (variante)
     h.variants.forEach((v,mi)=>{
       const col=MODECOLOR[v.mode]||"var(--mid)";
@@ -3778,8 +3778,8 @@ function histGameHTML(h,hi,prefix){
       });
       html+=`</div>`;
     });
-    html+=`</div>`;
   }
+  html+=`</div></div>`;
   html+=`</div>`;
   return html;
 }
@@ -3803,8 +3803,8 @@ function resultHTML(){
     const isMe=s.username===APP.user?.username;
     const op=_openRank[i];
     html+=`<div class="rank${isMe?" me":""}" style="cursor:pointer" onclick="toggleRank(${i})"><div class="po mono">${i+1}º</div><div class="nm">${esc(s.username)}<small>cap: ${esc(SLOT_LABEL[s.captain])} · ${TAC[s.tactic]?.name||s.tactic} · toque p/ ver time</small></div><div class="pt mono">${s.total.toFixed(1)}</div></div>`;
+    html+=`<div class="expandable ${op?"open":""}"><div style="border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;margin:-8px 0 10px;padding:6px 12px 10px;background:var(--panel2)">`;
     if(op){
-      html+=`<div style="border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;margin:-8px 0 10px;padding:6px 12px 10px;background:var(--panel2)">`;
       html+=`<p class="p" style="font-size:10px;margin:0 0 4px">toque num jogador p/ ver o cálculo</p>`;
       s.view.filter(Boolean).forEach(v=>{
         const pl=APP._byId[v.pid];
@@ -3825,8 +3825,8 @@ function resultHTML(){
           </div>`;
         }
       });
-      html+=`</div>`;
     }
+    html+=`</div></div>`;
   });
   html+=`</div>`;
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
@@ -3869,7 +3869,7 @@ function baseAllHTML(eng){
     const r=row.r;
     let body="";
     if(open){
-      body=`<div class="rbody">
+      body=`
         <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 Estatísticas · ${r.minutes}' em campo${helpBtn("apuracao")}</div>
         ${r.statLines.length===0?`<div class="line"><span>Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`:""}
         ${r.statLines.map(([l,c,u,pts])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
@@ -3878,12 +3878,12 @@ function baseAllHTML(eng){
         <div class="line total"><span>NOTA BASE</span><span class="v mono">${r.total.toFixed(1)}</span></div>
         ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
         <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${helpBtn("arquetipo")}${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span>${helpBtn("raridade")}</div>
-      </div>`;
+      `;
     }
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
       <div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
-      <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div>${body}</div>`;
+      <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
   }).join("");
 }
 let _openBase={};
@@ -3967,7 +3967,7 @@ function receiptHTML(v,idx){
   const byId=APP._byId,p=byId[v.pid],r=v.r,open=_openRec[idx];
   let body="";
   if(open){
-    body=`<div class="rbody">
+    body=`
       <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 Estatísticas · ${r.minutes}' em campo</div>
       ${r.statLines.length===0?`<div class="line"><span>Sem ações pontuáveis</span><span class="v mono">0.0</span></div>`:""}
       ${r.statLines.map(([l,c,u,pts])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
@@ -3978,13 +3978,13 @@ function receiptHTML(v,idx){
       ${r.evNote.length?`<div class="metricbox">${r.evNote.map(e=>`<div>${esc(e)}</div>`).join("")}</div>`:""}
       <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>
       ${archHistoryHTML(p?p.name:"")}
-    </div>`;
+    `;
   }
   return `<div class="receipt"><div class="rhead" onclick="toggleRec(${idx})">
     <div class="sl mono">${SLOT_LABEL[v.slot]}</div>
     <div class="nm">${esc(p.name)}<small>${p.team} · ${p.pos}${v.subIn?' · ↑ entrou do banco (×0,8)':''}</small></div>
     ${v.cap?'<span class="badgeC">C ×1.20</span>':''}
-    <div class="tot mono${v.pts<0?" neg":""}">${v.pts.toFixed(1)}</div></div>${body}</div>`;
+    <div class="tot mono${v.pts<0?" neg":""}">${v.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
 }
 function toggleRec(i){_openRec[i]=!_openRec[i];render();}
 // histórico colecionável do atleta nos jogos JÁ encerrados (arquivados)
