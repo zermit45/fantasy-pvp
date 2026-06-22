@@ -160,6 +160,15 @@
   }
   // liveUpdateFull = só atualiza lista/contador/pager (usado por toggles sem input de texto)
   function liveUpdateFull(){ return liveUpdate(); }
+  // exposto pra Camada 1 (sincronização ao vivo) atualizar a lista sem piscar.
+  // também atualiza a barra de saldo se a aba mercado estiver montada.
+  window.__draftLiveRefresh=function(){
+    var okList=liveUpdate();
+    // a barra de saldo (moedas/elenco) está fora dos contêineres da lista;
+    // se ela existe, um render leve a atualiza. Mas só re-renderiza tudo se a
+    // lista NÃO pôde ser atualizada isoladamente (ex: aba não é o mercado).
+    return okList;
+  };
   var _numTimer=null;
   function liveDeb(){ if(_numTimer)clearTimeout(_numTimer); _numTimer=setTimeout(function(){liveUpdate();},120); }
   window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;liveDeb();};
@@ -767,4 +776,182 @@
     }catch(e){}
   }
   setInterval(injectCapsButton, 700);
+})();
+
+// ============================================================
+// CAMADA 1: SINCRONIZAÇÃO AO VIVO (polling)
+// Enquanto você está na temporada do Draft, o app verifica o servidor a cada
+// X segundos e atualiza a tela SOZINHO se alguém comprou/devolveu — sem F5,
+// sem piscar, e sem interromper se você está digitando na busca.
+// ============================================================
+(function(){
+  if(typeof window==="undefined")return;
+
+  // intervalo configurável: settings.live_refresh_secs (padrão 5s). 0 = desligado.
+  function refreshSecs(){
+    try{
+      var s=APP.draftSeason;
+      var v=s&&s.settings&&s.settings.live_refresh_secs;
+      v=Number(v);
+      if(!v||v<2)return 5; // padrão 5s; mínimo 2s pra não martelar o servidor
+      return v;
+    }catch(e){return 5;}
+  }
+
+  // "impressão digital" do estado: quantos rosters e suas chaves+donos + saldos.
+  // Se mudar, algo aconteceu e atualizamos.
+  function fingerprint(rosters,teams){
+    try{
+      var a=(rosters||[]).map(function(r){return r.player_key+">"+r.username;}).sort().join("|");
+      var b=(teams||[]).map(function(t){return t.username+":"+t.budget_left;}).sort().join("|");
+      return a+"#"+b;
+    }catch(e){return "";}
+  }
+
+  var _lastFp=null, _busy=false;
+
+  function digitando(){
+    // se o foco está num input/textarea, NÃO re-renderiza (não rouba o teclado)
+    try{
+      var el=document.activeElement;
+      if(!el)return false;
+      var tag=(el.tagName||"").toLowerCase();
+      return tag==="input"||tag==="textarea"||tag==="select";
+    }catch(e){return false;}
+  }
+
+  async function tick(){
+    try{
+      if(_busy)return;
+      // só roda na tela do Draft com temporada aberta
+      if(APP.view!=="draft"||!APP.draftSeason||!APP.draftSeasonId)return;
+      if(typeof sb!=="function")return;
+      _busy=true;
+      var sid=APP.draftSeasonId;
+      // busca leve: só rosters e teams (o que muda em compras/devoluções)
+      var rosters=await sb("draft_rosters?season_id=eq."+sid+"&select=*&order=player_name");
+      var teams=await sb("draft_teams?season_id=eq."+sid+"&select=*&order=created_at");
+      // se trocou de tela enquanto buscava, aborta
+      if(APP.view!=="draft"||APP.draftSeasonId!==sid){_busy=false;return;}
+      var fp=fingerprint(rosters,teams);
+      if(_lastFp===null){ _lastFp=fp; _busy=false; return; } // primeira leitura: só registra
+      if(fp!==_lastFp){
+        _lastFp=fp;
+        APP.draftRosters=rosters||[];
+        APP.draftTeams=teams||[];
+        // atualiza sem piscar: se estou na aba mercado e NÃO estou digitando,
+        // tenta o update leve da lista; senão, re-render normal (mas não enquanto digita).
+        if(!digitando()){
+          var did=false;
+          try{ if(typeof window.__draftLiveRefresh==="function"){ did=window.__draftLiveRefresh(); } }catch(e){}
+          if(!did && typeof renderKeepScroll==="function") renderKeepScroll();
+          else if(!did && typeof render==="function") render();
+        }
+      }
+    }catch(e){ /* silencioso: rede instável não deve quebrar a tela */ }
+    finally{ _busy=false; }
+  }
+
+  // loop com intervalo dinâmico (relê refreshSecs a cada ciclo)
+  function loop(){
+    tick();
+    setTimeout(loop, Math.max(2000, refreshSecs()*1000));
+  }
+  // começa após 3s (dá tempo do app carregar)
+  setTimeout(loop, 3000);
+
+  // quando troco de temporada, zera a impressão digital
+  var _lastSid=null;
+  setInterval(function(){
+    if(APP.draftSeasonId!==_lastSid){ _lastSid=APP.draftSeasonId; _lastFp=null; }
+  }, 1000);
+})();
+
+// ============================================================
+// MODO MANUTENÇÃO (site inteiro) — controlado por app_config no Supabase
+// Liga/desliga por botão no painel DEV. Quando ligado, TODOS veem a tela de
+// manutenção (via polling). O admin (você) continua acessando pra poder desligar.
+// ============================================================
+(function(){
+  if(typeof window==="undefined")return;
+
+  var _maint={on:false,msg:""}, _maintTimer=null;
+
+  async function fetchMaint(){
+    try{
+      if(typeof sb!=="function")return;
+      var rows=await sb("app_config?id=eq.global&select=*");
+      if(rows&&rows[0]){
+        var was=_maint.on;
+        _maint.on=!!rows[0].maintenance;
+        _maint.msg=rows[0].message||"Site em manutenção. Voltamos em instantes!";
+        if(was!==_maint.on) renderMaint();
+      }
+    }catch(e){ /* se a tabela não existe ainda, ignora silenciosamente */ }
+  }
+
+  function isAdminNow(){ try{ return typeof isAdmin==="function" && isAdmin(); }catch(e){ return false; } }
+
+  function renderMaint(){
+    var host=document.getElementById("maintHost");
+    // mostra a tela só pra NÃO-admin quando ligado
+    if(_maint.on && !isAdminNow()){
+      if(!host){host=document.createElement("div");host.id="maintHost";document.body.appendChild(host);}
+      host.style.cssText="position:fixed;inset:0;z-index:99999;background:linear-gradient(180deg,#0A0E1C,#0B1020);display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;padding:24px";
+      host.innerHTML='<div style="text-align:center;max-width:340px">'+
+        '<div style="font-size:54px;margin-bottom:12px">🛠️</div>'+
+        '<div style="font-family:\'Saira Condensed\',Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:24px;font-weight:800;color:#EEF2FB;margin-bottom:10px">Em manutenção</div>'+
+        '<p style="color:#8B97B8;font-size:14px;line-height:1.5">'+esc(_maint.msg)+'</p>'+
+        '<p style="color:#586187;font-size:11px;margin-top:18px">A página volta sozinha quando terminar.</p>'+
+      '</div>';
+    } else {
+      // desligado ou sou admin: remove a tela e (se admin) mostra um aviso discreto
+      if(host)host.innerHTML="";
+      renderAdminBanner();
+    }
+  }
+
+  // faixa de aviso pro admin saber que a manutenção está LIGADA (senão esquece ligada)
+  function renderAdminBanner(){
+    var b=document.getElementById("maintAdminBanner");
+    if(_maint.on && isAdminNow()){
+      if(!b){b=document.createElement("div");b.id="maintAdminBanner";document.body.appendChild(b);}
+      b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99998;background:#FF8A4C;color:#0A0E1C;font-family:Inter,system-ui,sans-serif;font-weight:700;font-size:12px;text-align:center;padding:5px 10px";
+      b.textContent="⚠️ MANUTENÇÃO LIGADA — só você (admin) vê o site. Os outros veem a tela de manutenção.";
+    } else if(b){ b.remove(); }
+  }
+
+  // ligar/desligar (admin)
+  window.toggleMaintenance=async function(turnOn,msg){
+    if(!isAdminNow()){toast&&toast("Só admin.");return;}
+    try{
+      var patch={maintenance:!!turnOn, updated_at:new Date().toISOString()};
+      if(msg!=null)patch.message=msg;
+      await sbUpdate("app_config",patch,"id=eq.global");
+      _maint.on=!!turnOn; if(msg!=null)_maint.msg=msg;
+      toast&&toast(turnOn?"Manutenção LIGADA.":"Manutenção desligada.");
+      renderMaint();
+    }catch(e){toast&&toast("Erro: "+e.message+" (rodou o SQL da tabela app_config?)");}
+  };
+
+  // botão no painel DEV (junto dos outros botões dev)
+  function injectMaintButton(){
+    try{
+      if(!isAdminNow())return;
+      if(document.getElementById("maintBtn"))return;
+      // procura a seção de manutenção do site (botão "Limpar todos os times" = resetAll())
+      var anchor=document.querySelector('[onclick*="resetAll"]')||document.querySelector('[onclick*="reboot"]')||document.querySelector('[onclick*="wipeAll"]');
+      if(!anchor)return;
+      var btn=document.createElement("button");
+      btn.id="maintBtn"; btn.className="btn ghost";
+      btn.style.cssText="margin-bottom:10px;border-color:#FF8A4C;color:#FF8A4C";
+      btn.textContent=_maint.on?"🟢 Desligar manutenção":"🛠️ Ligar modo manutenção";
+      btn.onclick=function(){ window.toggleMaintenance(!_maint.on); setTimeout(function(){btn.textContent=_maint.on?"🟢 Desligar manutenção":"🛠️ Ligar modo manutenção";},300); };
+      anchor.parentNode.insertBefore(btn, anchor);
+    }catch(e){}
+  }
+
+  // checa o estado a cada 5s (independente da tela do draft) + injeta o botão
+  setTimeout(function(){ fetchMaint(); setInterval(fetchMaint, 5000); }, 2500);
+  setInterval(injectMaintButton, 800);
 })();
