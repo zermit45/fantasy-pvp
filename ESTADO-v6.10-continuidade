@@ -1,3 +1,14 @@
+## AJUSTE v6.11 — preços menos grudados, piso real 3
+Problema observado pelo usuário: a qualidade/hierarquia foi corrigida, mas os preços ficaram muito juntos
+(ex: ARG x AUT com quase todo mundo entre 18 e 24 e pior jogador custando 15).
+Mudança aplicada:
+1. `normalizeDream()` agora ancora o pior jogador do jogo em 3 depois da normalização.
+2. O topo do jogo é preservado (craque continua no mesmo teto).
+3. Usa `CURVA_PISO = 0.72` para abrir a escala sem derrubar demais o miolo.
+4. `games-part1.js` ... `games-part6.js` foram regravados com a mesma regra.
+Exemplo ARG x AUT depois do ajuste: piso 3, topo 35; Messi 35, Lautaro 31, Julián 27,
+Mac Allister 25, Enzo/Nico Paz 24; base baixa 13/11/7/3.
+
 ## ESTADO ATUAL: v6.10 — REGRA AUTOMÁTICA que corrige bons-baratos E ruins-caros
 Substituiu o 75/25 fixo por DUAS regras combinadas (tudo automático, ZERO ajuste à mão):
 1. PESO DO MERCADO POR MV: craque caro (mv alto) é avaliação madura -> mv manda 95%;

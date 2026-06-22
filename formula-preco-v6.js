@@ -656,12 +656,11 @@ function computeHybrid(sofaPlayers, apiResponse) {
 }
 
 // Normaliza os preços de um JOGO (os dois times juntos). Objetivo de design:
-//  - dream team ~140 (dificuldade consistente);
+//  - dream team ~140 antes do ajuste de piso (dificuldade consistente);
 //  - teto de linha 35 (craque destacado do jogo pode bater, mas sem disparar);
-//  - BASE CARA: muitos jogadores na faixa 22-35 e poucos baratos, pra ser difícil
-//    "encher o time de bons" — você é forçado a aceitar alguns fracos. Isso se faz
-//    com CURVA < 1 (infla o meio: puxa medianos pra cima, deixa poucos lá embaixo).
-//  - GK teto menor (22): você escala só 1 GK por jogo, força a escolha.
+//  - piso real 3 para o jogador mais barato do confronto;
+//  - escala mais aberta: mantém a hierarquia/qualidade, mas evita todo mundo grudado
+//    em 18-24 quando o jogo tem elencos parelhos.
 // A curva também dilui craque-fantasma (jogador caro por mercado mas com pouquíssimos
 // minutos): ele fica no meio do pelotão de caros, não é coroado sozinho no topo.
 function normalizeDream(players, alvo) {
@@ -700,6 +699,20 @@ function normalizeDream(players, alvo) {
     p.price = np;
     delete p._tmp;
   });
+
+  // 3) ancora o piso real do jogo em 3. O PMIN acima só impede preço abaixo de 3;
+  // em jogos muito comprimidos, o fator do dream elevava o pior jogador para 15-18.
+  // Esta remapagem preserva o topo e a ordem relativa, mas abre o range.
+  const finais = players.map(p => p.price).filter(v => v != null);
+  const minFinal = finais.length ? Math.min(...finais) : PMIN;
+  const maxFinal = finais.length ? Math.max(...finais) : PMIN;
+  if (minFinal > PMIN && maxFinal > minFinal) {
+    const CURVA_PISO = 0.72; // <1 preserva o meio/topo enquanto ancora o pior em 3
+    players.forEach(p => {
+      const q = ((p.price || 0) - minFinal) / (maxFinal - minFinal);
+      p.price = Math.round(PMIN + Math.pow(q, CURVA_PISO) * (maxFinal - PMIN));
+    });
+  }
   return players;
 }
 
