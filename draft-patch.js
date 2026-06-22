@@ -87,23 +87,36 @@
   APP.dMkt = APP.dMkt || { pos:"", team:"", pmin:"", pmax:"", page:1, perPage:50 };
 
   // setters expostos pro HTML.
-  // IMPORTANTE: inputs de texto NÃO podem chamar render direto, senão o campo
-  // é recriado e o teclado fecha. Guardamos qual input estava focado e
-  // devolvemos o foco depois do render (mesmo truque do setDraftSearch do app).
-  function reFocus(id){
+  // Inputs de texto: render() recria o campo (some o teclado) E reseta o scroll
+  // pro topo. Resolvemos os dois: salvamos a posição do scroll do contêiner que
+  // rola, redesenhamos com render(), e depois restauramos scroll + foco + cursor.
+  function findScroller(){
+    // o app rola no elemento da "shell"/root ou no próprio window; tentamos achar
+    var cand=document.getElementById("root")||document.querySelector(".shell")||document.scrollingElement||document.documentElement;
+    return cand;
+  }
+  function renderKeepFocus(id){
+    var sc=findScroller();
+    var top=sc?sc.scrollTop:0;
+    var winY=window.scrollY||window.pageYOffset||0;
+    (typeof render==="function"?render:renderKeepScroll)();
     requestAnimationFrame(function(){
+      // restaura scroll (tanto do contêiner quanto da janela, o que estiver valendo)
+      try{ if(sc)sc.scrollTop=top; }catch(e){}
+      try{ window.scrollTo(0,winY); }catch(e){}
       var inp=document.getElementById(id);
       if(inp){inp.focus();try{var n=inp.value.length;inp.setSelectionRange(n,n);}catch(e){}}
     });
   }
+  function reFocus(id){renderKeepFocus(id);} // alias retrocompat
   function reRender(){ (typeof render==="function"?render:renderKeepScroll)(); }
   window.dMktPos=function(v){APP.dMkt.pos=(APP.dMkt.pos===v?"":v);APP.dMkt.page=1;renderKeepScroll();};
   window.dMktTeam=function(v){APP.dMkt.team=v;APP.dMkt.page=1;renderKeepScroll();};
-  window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;reRender();reFocus("dMktMinInput");};
-  window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;reRender();reFocus("dMktMaxInput");};
+  window.dMktMin=function(v){APP.dMkt.pmin=v;APP.dMkt.page=1;renderKeepFocus("dMktMinInput");};
+  window.dMktMax=function(v){APP.dMkt.pmax=v;APP.dMkt.page=1;renderKeepFocus("dMktMaxInput");};
   window.dMktPage=function(n){APP.dMkt.page=n;renderKeepScroll();
     var el=document.getElementById("dMktTop"); if(el&&el.scrollIntoView)el.scrollIntoView({block:"start"});};
-  window.dMktSearch=function(v){APP.draftSearch=v;APP.dMkt.page=1;reRender();reFocus("draftSearchInput");};
+  window.dMktSearch=function(v){APP.draftSearch=v;APP.dMkt.page=1;renderKeepFocus("draftSearchInput");};
   window.dMktClear=function(){APP.dMkt={pos:"",team:"",pmin:"",pmax:"",page:1,perPage:50};
     APP.draftSearch="";reRender();};
 
@@ -128,11 +141,14 @@
       return true;
     });
     var total=filtered.length;
+    // se há busca por texto, mostra TODOS os resultados numa lista só (sem paginar),
+    // pra nunca "esconder" um jogador em outra página. Filtros/sem-busca paginam normal.
+    var searching = !!q;
     var perPage=f.perPage||50;
-    var pages=Math.max(1,Math.ceil(total/perPage));
+    var pages=searching?1:Math.max(1,Math.ceil(total/perPage));
     if(f.page>pages)f.page=pages;
-    var start=(f.page-1)*perPage;
-    var pageItems=filtered.slice(start,start+perPage);
+    var start=searching?0:(f.page-1)*perPage;
+    var pageItems=searching?filtered:filtered.slice(start,start+perPage);
 
     // chips de posição
     var posList=[["","Todas"],["GK","GOL"],["DEF","DEF"],["MID","MEI"],["ATT","ATA"]];
@@ -202,7 +218,7 @@
         priceRange+
         (activeFilters?'<div class="daychip" style="align-self:flex-start;border-color:var(--red);color:var(--red)" onclick="dMktClear()">✕ limpar filtros</div>':"")+
       '</div>'+
-      '<p class="p" style="font-size:11px;margin-bottom:8px"><b style="color:var(--chalk)">'+total+'</b> jogadores · página '+f.page+'/'+pages+'</p>'+
+      '<p class="p" style="font-size:11px;margin-bottom:8px"><b style="color:var(--chalk)">'+total+'</b> '+(total===1?"jogador":"jogadores")+(searching?" encontrados":" · página "+f.page+"/"+pages)+'</p>'+
       '<div class="poolbox">'+rows+'</div>'+
       pager;
   }
