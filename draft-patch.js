@@ -9,7 +9,7 @@
 //   1) carrega dinamicamente o banco master (draft-master-players.js)
 //      só quando o modo Draft é aberto (não pesa o boot do app);
 //   2) substitui draftPlayerCatalog() para usar esse banco
-//      (1251 jogadores, draftPrice calibrado 1-50, independente das partidas).
+//      (1251 jogadores, draftPrice calibrado 3-100, independente das partidas).
 //   3) mantém a MESMA chave de jogador do app, então elencos já salvos
 //      no Supabase continuam compatíveis.
 // ============================================================
@@ -48,7 +48,7 @@
     if(_promise)return _promise;
     _promise=new Promise(function(res){
       var s=document.createElement("script");
-      s.src="draft-master-players.js?v=20260623-draftv2";
+      s.src="draft-master-players.js?v=20260623-draftv3";
       s.onload=function(){res();};
       s.onerror=function(){_promise=null;res();}; // falhou → catálogo cai no original
       document.head.appendChild(s);
@@ -589,7 +589,7 @@
     try{
       await sbDelete("draft_rosters","season_id=eq."+s.id);
       // devolve budget cheio a todos os times
-      var budget=Number(s.budget||100);
+      var budget=Number(s.budget||300);
       var teams=APP.draftTeams||[];
       for(var i=0;i<teams.length;i++){
         await sbUpdate("draft_teams",{budget_left:budget},
@@ -959,10 +959,12 @@
       if(typeof sb!=="function")return;
       var rows=await sb("app_config?id=eq.global&select=*");
       if(rows&&rows[0]){
-        var was=_maint.on;
         _maint.on=!!rows[0].maintenance;
         _maint.msg=rows[0].message||"Site em manutenção. Voltamos em instantes!";
-        if(was!==_maint.on) renderMaint();
+        // re-renderiza SEMPRE (não só quando o flag muda): assim, se o admin
+        // caiu na tela porque o login ainda não tinha carregado, ela some
+        // automaticamente no próximo ciclo, sem depender de mudança de estado.
+        renderMaint();
       }
     }catch(e){ /* se a tabela não existe ainda, ignora silenciosamente */ }
   }
@@ -1028,7 +1030,12 @@
     }catch(e){}
   }
 
-  // checa o estado a cada 5s (independente da tela do draft) + injeta o botão
+  // checa o estado no servidor a cada 5s (independente da tela do draft) + injeta o botão
   setTimeout(function(){ fetchMaint(); setInterval(fetchMaint, 5000); }, 2500);
   setInterval(injectMaintButton, 800);
+  // re-avalia a tela a cada 1s usando o estado já conhecido. Isto NÃO consulta o
+  // servidor — só re-checa isAdminNow() localmente. Resolve a corrida em que o
+  // admin via a tela porque APP.user/devMode ainda não tinham carregado no 1º fetch:
+  // assim que o login resolve, a tela é removida sozinha (e vice-versa).
+  setInterval(function(){ try{ renderMaint(); }catch(e){} }, 1000);
 })();
