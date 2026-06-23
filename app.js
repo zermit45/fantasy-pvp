@@ -4937,7 +4937,7 @@ function superManualHTML(){
       p(`${b("Por posição:")} o mesmo critério vale pra goleiro, defensor, meia e atacante, então um zagueiro caro tende a valer tanto quanto um atacante caro.`))}
 
     ${sec("5. Pontuação",
-      p(`${b("Ações que somam:")} gol (+4,2), assistência (+3,3), finalização no gol (+1,7), defesa do goleiro (+1,35), pênalti defendido (+6), desarme/interceptação, drible, corte, bola recuperada. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch, até +8). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
+      p(`${b("Ações que somam:")} gol (+4,2), assistência (+3,3), finalização no gol (+1,7), defesa do goleiro (+1,6), pênalti defendido (+6), desarme/interceptação, drible, corte, bola recuperada. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch, até +8). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
       p(`${b("Clean sheet (não sofrer gol):")} goleiro ganha +2,0 por tempo sem levar gol; defensores +1,5 por tempo. Assim o goleiro favorito não pontua alto só por estar protegido — ele ainda precisa de defesas, PSxG ou clutch pra explodir.`)+
       p(`${b("Penalidades")} tiram pontos: amarelo (-2), vermelho (-7 no 1º tempo / -5 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-6), faltas e ser driblado. O gol contra conta no placar e ainda desconta de quem o fez.`)+
       p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`)+

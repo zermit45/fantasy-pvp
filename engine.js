@@ -9,7 +9,7 @@
 // pra não recalcular pontuações que já valeram.
 const BASE = { goal:4.2, assist:3.3, sot:1.7, dribble:.6, prgp:.13, pib:0, tib:0, sca:.75, gca:2.0,
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
-  save:1.35, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
+  save:1.6, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
   wasFouled:.08, longBall:.12, prgCarry:.10, penaltyWon:2.5,
   yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, dispossessed:-.25, foul:-.45, concededGk:-2, ownGoal:-6 };
 // pesos ANTIGOS — CONGELADOS (jogos já apurados / tacticRules v1). NÃO herdam da BASE pra não alterar jogos finalizados.
