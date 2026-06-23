@@ -85,7 +85,7 @@ const BOOST_PCT=15;            // % por ficha
 const BOOST_MAX_PER_GAME=2;    // máximo de fichas empilháveis numa mesma partida
 // paleta de cores por seleção/clube (código → hex). Fallback para um cinza-azulado.
 const TEAM_COLOR={POR:"#E63946",COD:"#5CA8FF",AUT:"#FF6B6B",JOR:"#54E0A8",NED:"#FF7A1A",JPN:"#4D7BFF",UZB:"#3DC1D3",COL:"#FFD23F",GHA:"#54E0A8",PAN:"#E63946",ENG:"#5CA8FF",CRO:"#E63946",BRA:"#FFC247",ARG:"#62C9F5",FRA:"#5C6BFF",ESP:"#E63946",GER:"#EEF2FB",
-  CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF",ECU:"#FFD23F",CUW:"#3D54FF",CIV:"#FF7A1A",SWE:"#4D7BFF",TUN:"#E63946",BEL:"#E63946",IRN:"#54E0A8",NZL:"#EEF2FB",EGY:"#E63946",SAU:"#1FA85A",URU:"#62C9F5",CPV:"#3DA35D",NOR:"#E63946",SEN:"#3DA35D",ALG:"#1FA85A",IRQ:"#54E0A8",KSA:"#16A34A"};
+  CZE:"#5CA8FF",RSA:"#54E0A8",MEX:"#1FA85A",KOR:"#FF6B6B",SUI:"#E63946",BIH:"#FFD23F",CAN:"#FF4D4D",QAT:"#B98BFF",SCO:"#5CA8FF",MAR:"#E63946",HAI:"#5C6BFF",USA:"#5CA8FF",AUS:"#54E0A8",TUR:"#E63946",PAR:"#5CA8FF",ECU:"#FFD23F",CUW:"#3D54FF",CIV:"#FF7A1A",SWE:"#4D7BFF",TUN:"#E63946",BEL:"#E63946",IRN:"#54E0A8",NZL:"#EEF2FB",EGY:"#E63946",SAU:"#1FA85A",URU:"#62C9F5",CPV:"#3DA35D"};
 const teamColor=code=>TEAM_COLOR[code]||"#8B97B8";
 // devs: a conta que tem acesso ao "modo DEV" (poderes de admin).
 const ADMINS=["Lucchini"];
@@ -592,12 +592,34 @@ async function loadDraftSeason(seasonId){
 function draftPlayerKey(p){return `${p.team||"?"}:${_normName(p.name)}:${p.pos||"MID"}`;}
 function draftPlayerCatalog(){
   const seen={};
+  const master=Array.isArray(window.DRAFT_MASTER_PLAYERS)?window.DRAFT_MASTER_PLAYERS:[];
+  master.forEach(p=>{
+    const key=p.key||draftPlayerKey(p);
+    if(!seen[key]){
+      seen[key]={
+        key,
+        name:p.name,
+        team:p.team,
+        pos:p.pos||"MID",
+        age:p.age||null,
+        price:Math.max(3,Math.min(35,Number(p.price)||3)),
+        mv:Number(p.mv)||0,
+        club:p.club||"",
+        shirt:p.shirt||null,
+        source:p.source||"master",
+        master:true,
+        prices:[],
+        rooms:[]
+      };
+    }
+  });
   for(const j of (APP.jogos||[])){
     const g=window.GAMES&&window.GAMES.data?window.GAMES.data[j.room_id]:null;
     const pp=g&&g.prepool;
     if(!pp||!Array.isArray(pp.players))continue;
     pp.players.forEach(p=>{
       const key=draftPlayerKey(p);
+      if(seen[key]?.master)return;
       if(!seen[key])seen[key]={key,name:p.name,team:p.team,pos:p.pos,age:p.age||null,mv:0,prices:[],rooms:[]};
       seen[key].mv=Math.max(seen[key].mv||0,Number(p.mv)||0);
       if(p.price!=null)seen[key].prices.push(Number(p.price)||3);
@@ -614,6 +636,11 @@ function draftPlayerCatalog(){
     return Math.round(3+Math.pow(q,0.56)*32);
   };
   arr.forEach(p=>{
+    if(p.master){
+      p.room_id=null;
+      p.match_name="Catálogo master";
+      return;
+    }
     const sorted=p.prices.slice().sort((a,b)=>a-b);
     const med=sorted.length?sorted[Math.floor(sorted.length/2)]:3;
     const byMv=mvPrice(p.mv);
@@ -651,7 +678,7 @@ async function createDraftSeason(name,budget,rosterLimit,settings){
     status:"setup",
     market_status:"open",
     draft_status:"setup",
-    budget:Number(budget)||100,
+    budget:Number(budget)||300,
     roster_limit:Number(rosterLimit)||12,
     created_by:APP.user.username,
     settings:st
@@ -1248,7 +1275,8 @@ function confStopOrdering(){APP.confOrderMode=false;APP.confOrderDraft=null;conf
 function confPreviewMove(targetRoomId){
   if(!APP.confDrag||!targetRoomId||APP.confDrag===targetRoomId)return;
   const ids=(APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:confRoomOrderIds()).slice();
-  const src=ids.indexOf(APP.confDrag),dst=ids.indexOf(targetRoomId);  if(src<0||dst<0||src===dst)return;
+  const src=ids.indexOf(APP.confDrag),dst=ids.indexOf(targetRoomId);
+  if(src<0||dst<0||src===dst)return;
   const moved=ids.splice(src,1)[0];
   ids.splice(dst,0,moved);
   APP.confOrderDraft=ids;
@@ -2498,12 +2526,13 @@ function draftSeasonsCardHTML(){
       <p class="p" style="font-size:11px;margin-top:8px">Use o arquivo <b style="color:var(--chalk)">draft-market-schema.sql</b> no SQL Editor do Supabase.</p>
     </div>`;
   }
-  const list=APP.draftSeasons||[];  let rows="";
+  const list=APP.draftSeasons||[];
+  let rows="";
   if(!list.length)rows=`<p class="p" style="margin-top:8px">Nenhuma temporada Mercado Draft criada ainda.</p>`;
   else rows=list.map(s=>{
     const live=s.status==="active"||s.status==="setup";
     return `<div class="roomrow" style="border-left:3px solid #FF8A4C" onclick="go('draft',null,null,null,null,null,'${s.id}')">
-      <div class="info"><div class="nm">${esc(s.name)}</div><div class="meta">${esc(s.status||"setup")} · orçamento ${s.budget||100} · elenco ${s.roster_limit||12}</div></div>
+      <div class="info"><div class="nm">${esc(s.name)}</div><div class="meta">${esc(s.status||"setup")} · orçamento ${s.budget||300} · elenco ${s.roster_limit||12}</div></div>
       <span class="statuspill ${live?"st-open":"st-finished"}">${live?"ABERTA":"FINALIZADA"}</span>
     </div>`;
   }).join("");
@@ -2523,7 +2552,7 @@ function draftHTML(){
   const myRoster=(APP.draftRosters||[]).filter(r=>r.username===APP.user?.username);
   const owner=draftOwnerMap();
   const teams=APP.draftTeams||[];
-  const spent=Number(s.budget||100)-Number(me?me.budget_left:s.budget||100);
+  const spent=Number(s.budget||300)-Number(me?me.budget_left:s.budget||300);
   const tabs=[["visao","Visão"],["mercado","Mercado"],["elencos","Elencos"],["movs","Transações"]];
   const tab=APP.draftTab||"visao";
   const tabbar=`<div class="postabs" style="margin:12px 0">${tabs.map(([k,l])=>`<div class="ptab${tab===k?" on":""}" onclick="setDraftTab('${k}')">${l}</div>`).join("")}</div>`;
@@ -2536,7 +2565,7 @@ function draftHTML(){
       <div class="dashitem"><b>${me?Number(me.budget_left||0):"-"}</b><span>Suas moedas</span></div>
       <div class="dashitem"><b>${myRoster.length}/${s.roster_limit||12}</b><span>Seu elenco</span></div>
     </div>
-    ${me?`<div class="prebox" style="border-color:#FF8A4C;color:#FF8A4C;background:color-mix(in srgb,#FF8A4C 10%,transparent)">Você está dentro como <b>${esc(me.team_name)}</b>. Gastou <b>${spent}</b> de <b>${s.budget||100}</b> moedas.</div>`:
+    ${me?`<div class="prebox" style="border-color:#FF8A4C;color:#FF8A4C;background:color-mix(in srgb,#FF8A4C 10%,transparent)">Você está dentro como <b>${esc(me.team_name)}</b>. Gastou <b>${spent}</b> de <b>${s.budget||300}</b> moedas.</div>`:
       `<button class="btn" style="background:#FF8A4C;color:#0A0E1C" onclick="joinDraftSeason()">Entrar como manager</button>`}
     <div class="card" style="margin-top:12px"><div class="h2 disp">Regras desta temporada</div>
       <p class="p">Elenco exclusivo, ranking e histórico são o núcleo obrigatório. O resto foi escolhido na criação.</p>
@@ -3498,7 +3527,7 @@ function confirmModalHTML(){
       <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
       <p class="p" style="margin:10px 0">Modo separado e full customizável. As opções obrigatórias são o núcleo do Draft; o resto você liga/desliga.</p>
       <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
-      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 100)" value="100" />
+      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" />
       <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" />
       <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">BASE DO MODO</div>
       ${ck("dm_create","Criar campeonato Draft",true,true,"Sem temporada não existe modo.")}
@@ -3624,7 +3653,7 @@ function submitCreateLeague(){
 function submitCreateDraftSeason(){
   const n=$("draftName"),b=$("draftBudget"),r=$("draftRoster");
   const name=n?n.value.trim():"";
-  const budget=b?parseInt(b.value,10):100;
+  const budget=b?parseInt(b.value,10):300;
   const roster=r?parseInt(r.value,10):12;
   const on=id=>{const el=$(id);return !!(el&&el.checked);};
   const buyLim=$("draftBuyLimit")?parseInt($("draftBuyLimit").value,10):2;
@@ -3748,7 +3777,8 @@ function buildHTML(){
   const poolClosedOutOfRound = !inRound && APP.roomMeta && APP.roomMeta.status!=="open" && !(APP.match&&APP.match.status==="finished");
   const gameLocked=(inRound&&roomLockedInRound(APP.roomId)) || poolClosedOutOfRound;
   const filt=pp.players.filter(p=>
-    (APP.tabTeam==="ALL"||p.team===APP.tabTeam) &&    (APP.tabPos==="ALL"||p.pos===APP.tabPos)
+    (APP.tabTeam==="ALL"||p.team===APP.tabTeam) &&
+    (APP.tabPos==="ALL"||p.pos===APP.tabPos)
   ).sort((a,b)=>b.price-a.price);
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
   const hasSomeFilled=Object.values(s).some(Boolean);
@@ -4908,7 +4938,7 @@ function superManualHTML(){
 
     ${sec("5. Pontuação",
       p(`${b("Ações que somam:")} gol (+4,2), assistência (+3,3), finalização no gol (+1,7), defesa do goleiro (+1,35), pênalti defendido (+6), desarme/interceptação, drible, corte, bola recuperada. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch, até +8). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
-      p(`${b("Clean sheet (não sofrer gol):")} goleiro ganha +3,0 por tempo sem levar gol; defensores +1,5 por tempo.`)+
+      p(`${b("Clean sheet (não sofrer gol):")} goleiro ganha +2,0 por tempo sem levar gol; defensores +1,5 por tempo. Assim o goleiro favorito não pontua alto só por estar protegido — ele ainda precisa de defesas, PSxG ou clutch pra explodir.`)+
       p(`${b("Penalidades")} tiram pontos: amarelo (-2), vermelho (-7 no 1º tempo / -5 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-6), faltas e ser driblado. O gol contra conta no placar e ainda desconta de quem o fez.`)+
       p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`)+
       p(`${b("Tetos por jogo:")} a nota de um jogador na partida vai de -9 (piso) a +28 (teto), pra ninguém disparar sozinho.`))}
@@ -4997,6 +5027,3 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>'+String(err&&err.message?err.message:err)+'<br><br><span style="color:#8FA89A">Tire um print desta tela.</span></div>';
  }
 })();
-
-
-
