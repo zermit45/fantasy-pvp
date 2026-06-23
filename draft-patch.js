@@ -969,7 +969,14 @@
     }catch(e){ /* se a tabela não existe ainda, ignora silenciosamente */ }
   }
 
-  function isAdminNow(){ try{ return typeof isAdmin==="function" && isAdmin(); }catch(e){ return false; } }
+  // Libera o DONO do site da tela de manutenção. Usa isDev() (conta autorizada,
+  // imutável) e NÃO isAdmin() — porque isAdmin exige devMode ligado, e se o dono
+  // tiver alternado pro "modo jogador" (devMode=false salvo no localStorage), ele
+  // ficaria preso na própria tela de manutenção. O dono nunca deve ser bloqueado.
+  function isAdminNow(){
+    try{ if(typeof isDev==="function" && isDev()) return true; }catch(e){}
+    try{ return typeof isAdmin==="function" && isAdmin(); }catch(e){ return false; }
+  }
 
   function renderMaint(){
     var host=document.getElementById("maintHost");
