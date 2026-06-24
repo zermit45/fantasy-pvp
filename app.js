@@ -724,36 +724,6 @@ async function buyDraftPlayer(playerKey){
   }catch(e){toast("Erro: "+e.message);}
 }
 function askCreateDraftSeason(){APP.confirm={mode:"createDraftSeason",label:"Criar Mercado Draft"};render();}
-// Ajuda visual: sugere o teto ideal do craque a partir do orçamento + elenco.
-// Regra: craque ideal ≈ 1/3 do orçamento (25%–33%); banco de jogadores vai até 100.
-function updDraftHint(){
-  var el=document.getElementById("draftHint"); if(!el) return;
-  var orc=parseInt((document.getElementById("draftBudget")||{}).value,10);
-  var elenco=parseInt((document.getElementById("draftRoster")||{}).value,10);
-  if(!orc||orc<=0||!elenco||elenco<=0){ el.innerHTML="💡 Preencha orçamento e elenco para ver a sugestão de teto."; return; }
-  var media=Math.round(orc/elenco);
-  var tetoMin=Math.round(orc*0.25), tetoMax=Math.round(orc*0.33);
-  // o banco do draft vai até 100
-  var TETO_BANCO=100;
-  var razao=TETO_BANCO/orc; // quanto o craque de 100 representa do orçamento
-  var msg="💡 Média por jogador: <b>"+media+"</b> moedas. "
-        +"Teto ideal do craque: <b style='color:#FFC247'>"+tetoMin+"–"+tetoMax+"</b> (≈ 1/3 do orçamento).";
-  // diagnóstico pela razão teto-do-banco / orçamento:
-  //  - equilíbrio bom quando o craque de 100 custa ~28% a 40% do orçamento
-  if(razao>=0.28 && razao<=0.42){
-    msg+="<br>✅ Equilíbrio ideal: dá para ter <b>1–2 estrelas + resto barato</b>. O teto de 100 do banco encaixa bem aqui.";
-  } else if(razao>0.42){
-    // orçamento baixo: craque come muito do orçamento
-    msg+="<br>⚠️ Orçamento baixo para o teto do banco (100): o craque sozinho come mais de 40% do orçamento — "
-       +"tende a sobrar pouco (<b>1 estrela + resto bem barato</b>, escolha dura). "
-       +"Para 1–2 estrelas com folga, suba para ~<b>300</b>.";
-  } else {
-    // orçamento alto: craque é barato demais em proporção
-    msg+="<br>⚠️ Orçamento alto para o teto do banco (100): o craque custa menos de ~28% do orçamento — "
-       +"fica fácil ter <b>2–3 estrelas</b>. Para deixar mais disputado, baixe para ~<b>300</b> ou aumente o elenco.";
-  }
-  el.innerHTML=msg;
-}
 function setDraftTab(t){APP.draftTab=t;renderKeepScroll();}
 function setDraftSearch(v){
   APP.draftSearch=v;
@@ -1057,6 +1027,7 @@ function roundUserTeamsHTML(username){
   html+=`</div>`;
   return html;
 }
+
 let _openTeamPlayer={};
 function toggleTeamPlayer(k){_openTeamPlayer[k]=!_openTeamPlayer[k];render();}
 let _openPeekRound={};
@@ -2090,6 +2061,7 @@ function kickoffInfo(iso){
     dayKey:`${dow} ${dd}/${mm2}`,
     full:`${rel?rel+" · ":""}${dow} ${dd}/${mm2}/${Y} · ${hh}:${mm}`};
 }
+
 function setHomeTab(t){APP.homeTab=t;APP.homeDay="todos";render();}
 function setHomeNav(t){APP.homeNavTab=t;render();}
 function setHomeDay(d){APP.homeDay=decodeURIComponent(d);APP.calOpen=false;render();}
@@ -3142,6 +3114,7 @@ function roundHTML(){
     ${foraAll.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${addTabsHTML}${foraRows||`<p class="p" style="font-size:11px;color:var(--dim)">Nenhum jogo ${addTab==="done"?"finalizado":"em aberto"} pra adicionar.</p>`}`:""}
   </div>`:""}`;
 }
+
 function roomHTML(){
   const pp=APP.prepool, m=APP.match, meta=APP.roomMeta;
   const finished=m&&m.status==="finished";
@@ -3579,9 +3552,8 @@ function confirmModalHTML(){
       <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
       <p class="p" style="margin:10px 0">Modo separado e full customizável. As opções obrigatórias são o núcleo do Draft; o resto você liga/desliga.</p>
       <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
-      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" oninput="updDraftHint()" />
-      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" oninput="updDraftHint()" />
-      <div id="draftHint" style="margin:2px 0 8px;padding:10px 12px;border:1px solid #2a3550;border-radius:10px;background:#10182C;font-size:12.5px;line-height:1.5;color:#9fb0d0"></div>
+      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" />
+      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" />
       <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">BASE DO MODO</div>
       ${ck("dm_create","Criar campeonato Draft",true,true,"Sem temporada não existe modo.")}
       ${ck("dm_scope","Escolher jogos/rodadas que fazem parte",true,false,"Ativa vínculo da temporada com jogos/rodadas.")}
@@ -4171,6 +4143,7 @@ function scoreEntryFor(entry,eng,ctx){
   const finalTotal=Math.round(sum*boostMult*10)/10;
   return {username:entry.username,total:finalTotal,boost:boostTokens,boostPct,boostChips:Array.isArray(chips)?chips:null,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
+
 // ============================================================
 // TIME IDEAL — a escalação que teria dado a MAIOR pontuação possível
 // (respeita 100 moedas, formação GK/DEF/MID/ATT/FLEX, melhor tática e capitão)
@@ -4879,8 +4852,6 @@ function render(){
   else if(APP.view==="phase")panel=phaseHTML();
   else if(APP.view==="draft")panel=draftHTML();
   root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
-  // ajuda visual do teto do draft: preenche assim que o modal renderiza
-  if(APP.confirm&&APP.confirm.mode==="createDraftSeason"){ try{ requestAnimationFrame(updDraftHint); }catch(e){ try{updDraftHint();}catch(_){} } }
 }
 function topbarHTML(){
   const inGroup=APP.groupId&&APP.user;
@@ -5144,4 +5115,3 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>'+String(err&&err.message?err.message:err)+'<br><br><span style="color:#8FA89A">Tire um print desta tela.</span></div>';
  }
 })();
-
