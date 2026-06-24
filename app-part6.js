@@ -354,7 +354,7 @@ function render(){
   else if(APP.view==="league")panel=leagueHTML();
   else if(APP.view==="phase")panel=phaseHTML();
   else if(APP.view==="draft")panel=draftHTML();
-  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
+  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML()+(APP.apurar&&typeof apuracaoHTML==="function"?apuracaoHTML():"");
   // ajuda visual do teto do draft: preenche assim que o modal renderiza
   if(APP.confirm&&APP.confirm.mode==="createDraftSeason"){ try{ requestAnimationFrame(updDraftHint); }catch(e){ try{updDraftHint();}catch(_){} } }
 }
@@ -579,6 +579,7 @@ async function boot(){
   try{
     APP.jogos=window.GAMES.index;
   }catch(e){APP.jogos=[];}
+  try{ if(typeof loadMatchResults==="function") await loadMatchResults(); }catch(e){}
   await loadArchived();
   await tryAutoLogin();
   // restaura preferência do modo DEV (padrão: ligado)

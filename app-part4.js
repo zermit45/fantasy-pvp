@@ -575,6 +575,7 @@ function roomHTML(){
         ?`<button class="btn ghost" onclick="setPoolStatus('closed')">🔒 Fechar pool (trava as escalações)</button>`
         :`<button class="btn ghost" onclick="setPoolStatus('open')">🔓 Reabrir pool</button>`}
       <button class="btn ghost" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="resetRoom()">🧹 Limpar times desta sala</button>
+      <button class="btn" style="margin-top:8px;background:var(--green);color:#04140d;font-weight:800" onclick="abrirApuracao('${APP.roomId}')">⚙️ Apurar jogo (colar resultado)</button>
     </div>`:""}
   </div>`;
 }
