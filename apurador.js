@@ -67,21 +67,26 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
 
   // ---- incidents: gols, assists, cartões, substituições ----
   const goals_tl=[];
-  let scoreH=0, scoreA=0, endMin=90;
+  let scoreH=0, scoreA=0, endMin=90, _lastGoalMin=-1;
   (I.incidents||[]).forEach(inc=>{
     const t=inc.time||0;
     if(inc.incidentType==="injuryTime"){ endMin=Math.max(endMin, 45*(inc.isLive?1:0)); }
     if(inc.incidentType==="period" && inc.text==="FT"){ /* fim */ }
     if(inc.incidentType==="goal"){
+      // SofaScore: inc.isHome = lado QUE MARCOU (já considera gol contra).
+      // placar acumulado vem em inc.homeScore/awayScore; incidents podem vir em ordem
+      // decrescente, então guardamos o placar do gol de MAIOR tempo.
       const isHome=inc.isHome;
       const team=isHome?homeCode:awayCode;
-      if(!inc.incidentClass||inc.incidentClass!=="ownGoal"){scoreH+= isHome?1:0; scoreA+= isHome?0:1;}
-      else {scoreH+= isHome?0:1; scoreA+= isHome?1:0;}
+      if(inc.homeScore!=null && inc.awayScore!=null){
+        if(t>=_lastGoalMin){ _lastGoalMin=t; scoreH=inc.homeScore; scoreA=inc.awayScore; }
+      } else if(inc.incidentClass!=="ownGoal"){scoreH+= isHome?1:0; scoreA+= isHome?0:1;}
+      else {scoreH+= isHome?1:0; scoreA+= isHome?0:1;}
       goals_tl.push({m:t, t:team});
       // credita gol ao jogador
       const gp=inc.player&&byId[inc.player.id];
       if(gp && inc.incidentClass!=="ownGoal"){ gp.goals.push({m:t, xg:0.2}); }  // religado pelo shotmap
-      if(inc.player&&inc.incidentClass==="ownGoal"){const op=byId[inc.player.id]; if(op)op.ownGoal=(op.ownGoal||0)+1;}
+      if(inc.player&&inc.incidentClass==="ownGoal"){const op=byId[inc.player.id]; if(op)op._ogInc=(op._ogInc||0)+1;}
       // assist
       const ap=inc.assist1&&byId[inc.assist1.id];
       if(ap){ ap.assists.push({m:t, xag:0.15}); }  // xag real é religado pelo shotmap/lineup; fallback numérico
@@ -196,6 +201,7 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
   // monta players{} no formato final (id do PREPOOL será religado depois; aqui usa _sid->raw)
   const players={};
   Object.values(byId).forEach(raw=>{
+    if(raw._ogInc){ raw.ownGoal=Math.max(raw.ownGoal||0, raw._ogInc); }
     const clean={};
     Object.keys(raw).forEach(k=>{ if(!k.startsWith("_"))clean[k]=raw[k]; });
     players[raw._sid]={...clean, _name:raw._name, _isHome:raw._isHome};
