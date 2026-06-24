@@ -275,7 +275,11 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part10.js?v=20260623-1800"></script>
 <script src="games-part11.js?v=20260624-0100"></script>
 <script src="engine.js?v=20260623-1830"></script>
-<script src="app.js?v=20260622-0425"></script>
+<script src="app-part1.js?v=20260624-0130"></script>
+<script src="app-part2.js?v=20260624-0130"></script>
+<script src="app-part3.js?v=20260624-0130"></script>
+<script src="app-part4.js?v=20260624-0130"></script>
+<script src="app-part5.js?v=20260624-0130"></script>
 <script src="draft-patch.js?v=20260623-2230"></script>
 <script>
 /* FAILSAFE DE MANUTENÇÃO v12 — vence a corrida com o draft-patch.
@@ -349,11 +353,11 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script>
 /* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
    Mostra um marcador pequeno no canto por 6 segundos ao carregar.
-   Se você vê "FIX-MANUT v13" no canto, a correção está no ar. */
+   Se você vê "FIX-MANUT v16" no canto, a correção está no ar. */
 (function(){
   function selo(){
     var d=document.createElement("div");
-    d.textContent="FIX-MANUT v13";
+    d.textContent="FIX-MANUT v16";
     d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
     document.body.appendChild(d);
     setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);
