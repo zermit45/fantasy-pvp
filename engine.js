@@ -225,7 +225,8 @@ function makeEngine(match){
     return (frac-0.5)*400;
   }
   function forcaAjustada(team){
-    const elo=team===match.homeCode?match.homeElo:match.awayElo;
+    let elo=team===match.homeCode?match.homeElo:match.awayElo;
+    if(elo==null||isNaN(elo))elo=1700; // fallback: elo faltando não pode virar NaN
     const mando=match.neutral?0:(team===match.homeCode?+40:-40); // casa vale ~+40 ELO
     const forma=formaIndex(team);
     const tabela=posTabelaAdj(team);
