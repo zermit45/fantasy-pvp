@@ -29,6 +29,7 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
       sca: st.keyPass||0,            // key passes ~ chances criadas
       gca: st.bigChanceCreated||0,
       prgp: st.accurateOppositionHalfPasses||0,
+      tib: st.accurateOppositionHalfPasses||0,
       pib: st.bigChanceCreated||0,
       tklint: (st.totalTackle||0)+(st.interceptionWon||0),
       block: st.outfielderBlock||0,
