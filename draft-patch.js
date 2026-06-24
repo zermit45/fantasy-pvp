@@ -48,7 +48,7 @@
     if(_promise)return _promise;
     _promise=new Promise(function(res){
       var s=document.createElement("script");
-      s.src="draft-master-players.js?v=20260623-draftv3";
+      s.src="draft-master-players.js?v=20260624-teto100";
       s.onload=function(){res();};
       s.onerror=function(){_promise=null;res();}; // falhou → catálogo cai no original
       document.head.appendChild(s);
@@ -959,24 +959,15 @@
       if(typeof sb!=="function")return;
       var rows=await sb("app_config?id=eq.global&select=*");
       if(rows&&rows[0]){
+        var was=_maint.on;
         _maint.on=!!rows[0].maintenance;
         _maint.msg=rows[0].message||"Site em manutenção. Voltamos em instantes!";
-        // re-renderiza SEMPRE (não só quando o flag muda): assim, se o admin
-        // caiu na tela porque o login ainda não tinha carregado, ela some
-        // automaticamente no próximo ciclo, sem depender de mudança de estado.
-        renderMaint();
+        if(was!==_maint.on) renderMaint();
       }
     }catch(e){ /* se a tabela não existe ainda, ignora silenciosamente */ }
   }
 
-  // Libera o DONO do site da tela de manutenção. Usa isDev() (conta autorizada,
-  // imutável) e NÃO isAdmin() — porque isAdmin exige devMode ligado, e se o dono
-  // tiver alternado pro "modo jogador" (devMode=false salvo no localStorage), ele
-  // ficaria preso na própria tela de manutenção. O dono nunca deve ser bloqueado.
-  function isAdminNow(){
-    try{ if(typeof isDev==="function" && isDev()) return true; }catch(e){}
-    try{ return typeof isAdmin==="function" && isAdmin(); }catch(e){ return false; }
-  }
+  function isAdminNow(){ try{ return typeof isAdmin==="function" && isAdmin(); }catch(e){ return false; } }
 
   function renderMaint(){
     var host=document.getElementById("maintHost");
@@ -1037,12 +1028,7 @@
     }catch(e){}
   }
 
-  // checa o estado no servidor a cada 5s (independente da tela do draft) + injeta o botão
+  // checa o estado a cada 5s (independente da tela do draft) + injeta o botão
   setTimeout(function(){ fetchMaint(); setInterval(fetchMaint, 5000); }, 2500);
   setInterval(injectMaintButton, 800);
-  // re-avalia a tela a cada 1s usando o estado já conhecido. Isto NÃO consulta o
-  // servidor — só re-checa isAdminNow() localmente. Resolve a corrida em que o
-  // admin via a tela porque APP.user/devMode ainda não tinham carregado no 1º fetch:
-  // assim que o login resolve, a tela é removida sozinha (e vice-versa).
-  setInterval(function(){ try{ renderMaint(); }catch(e){} }, 1000);
 })();

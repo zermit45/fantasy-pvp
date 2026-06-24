@@ -306,7 +306,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
   else window.addEventListener("DOMContentLoaded",tentaBoot);
 })();
 </script>
-<script src="draft-patch.js?v=20260623-2230"></script>
+<script src="draft-patch.js?v=20260624-teto100"></script>
 <script>
 /* FAILSAFE DE MANUTENÇÃO v12 — vence a corrida com o draft-patch.
    Problema das versões anteriores: o draft-patch RECRIA a tela (#maintHost,
@@ -379,11 +379,11 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script>
 /* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
    Mostra um marcador pequeno no canto por 6 segundos ao carregar.
-   Se você vê "FIX-MANUT v17" no canto, a correção está no ar. */
+   Se você vê "FIX-MANUT v18" no canto, a correção está no ar. */
 (function(){
   function selo(){
     var d=document.createElement("div");
-    d.textContent="FIX-MANUT v17";
+    d.textContent="FIX-MANUT v18";
     d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
     document.body.appendChild(d);
     setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);
