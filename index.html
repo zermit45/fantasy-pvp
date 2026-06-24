@@ -275,11 +275,37 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part10.js?v=20260623-1800"></script>
 <script src="games-part11.js?v=20260624-0100"></script>
 <script src="engine.js?v=20260623-1830"></script>
-<script src="app-part1.js?v=20260624-0130"></script>
-<script src="app-part2.js?v=20260624-0130"></script>
-<script src="app-part3.js?v=20260624-0130"></script>
-<script src="app-part4.js?v=20260624-0130"></script>
-<script src="app-part5.js?v=20260624-0130"></script>
+<script src="app-part1.js?v=20260624-0300"></script>
+<script src="app-part2.js?v=20260624-0300"></script>
+<script src="app-part3.js?v=20260624-0300"></script>
+<script src="app-part4.js?v=20260624-0300"></script>
+<script src="app-part5.js?v=20260624-0300"></script>
+<script src="app-part6.js?v=20260624-0300"></script>
+<script>
+/* DISPARADOR DE BOOT SEGURO — só inicia o app quando TODAS as partes carregaram.
+   Se faltar alguma, mostra aviso claro em vez de travar no "Carregando...". */
+(function(){
+  var tentativas=0;
+  function tentaBoot(){
+    tentativas++;
+    if(window.__APP_READY && typeof boot==="function"){
+      try{ boot(); }catch(e){
+        var r=document.getElementById("root");
+        if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>'+(e&&e.message?e.message:e)+'</div>';
+      }
+      return;
+    }
+    if(tentativas>40){ // ~10s
+      var r=document.getElementById("root");
+      if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:14px"><b>Falha ao carregar o app.</b><br>Algum arquivo não baixou. Recarregue a página (puxe para baixo) ou tente em aba anônima.</div>';
+      return;
+    }
+    setTimeout(tentaBoot,250);
+  }
+  if(document.readyState==="complete"||document.readyState==="interactive") tentaBoot();
+  else window.addEventListener("DOMContentLoaded",tentaBoot);
+})();
+</script>
 <script src="draft-patch.js?v=20260623-2230"></script>
 <script>
 /* FAILSAFE DE MANUTENÇÃO v12 — vence a corrida com o draft-patch.
@@ -353,11 +379,11 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script>
 /* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
    Mostra um marcador pequeno no canto por 6 segundos ao carregar.
-   Se você vê "FIX-MANUT v16" no canto, a correção está no ar. */
+   Se você vê "FIX-MANUT v17" no canto, a correção está no ar. */
 (function(){
   function selo(){
     var d=document.createElement("div");
-    d.textContent="FIX-MANUT v16";
+    d.textContent="FIX-MANUT v17";
     d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
     document.body.appendChild(d);
     setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);
