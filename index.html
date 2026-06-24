@@ -273,19 +273,31 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part8.js?v=20260623-1800"></script>
 <script src="games-part9.js?v=20260623-1800"></script>
 <script src="games-part10.js?v=20260623-1800"></script>
+<script src="games-part11.js?v=20260624-0100"></script>
 <script src="engine.js?v=20260623-1830"></script>
 <script src="app.js?v=20260622-0425"></script>
-<script src="draft-patch.js?v=20260623-2200"></script>
+<script src="draft-patch.js?v=20260623-2230"></script>
 <script>
-/* FAILSAFE DE MANUTENÇÃO — roda independente do draft-patch.js.
-   Libera o DONO da tela de manutenção de DUAS formas:
-   1) Se já estiver logado como Lucchini (ou marcado como dono neste aparelho).
-   2) DESTRAVE POR SENHA: toque 5x no canto inferior-direito da tela ->
-      pede a senha de dono. Acertando, marca este aparelho como dono e libera.
-      Resolve o caso de a manutenção aparecer ANTES de você logar. */
+/* FAILSAFE DE MANUTENÇÃO v12 — vence a corrida com o draft-patch.
+   Problema das versões anteriores: o draft-patch RECRIA a tela (#maintHost,
+   z-index 99999, inset:0) num intervalo, então limpar o innerHTML não adianta
+   (ele redesenha) e a tela dele captura os toques (o destrave não disparava).
+   Solução:
+   1) Injeta uma regra CSS com !important que ESCONDE #maintHost quando o
+      <html> tem a classe "owner-unlock". Redesenho não vence !important.
+   2) Cria uma camada PRÓPRIA transparente por cima (z-index 2147483647) que
+      captura os 5 toques no canto, mesmo com a tela de manutenção presente. */
 (function(){
   var DONO="Lucchini";
-  var SENHA_DONO="antonio45";   // senha de destrave do dono
+  var SENHA_DONO="antonio45";
+
+  // 1) injeta o CSS de esconder (uma vez)
+  try{
+    var st=document.createElement("style");
+    st.textContent="html.owner-unlock #maintHost{display:none !important;visibility:hidden !important;opacity:0 !important;pointer-events:none !important;}";
+    (document.head||document.documentElement).appendChild(st);
+  }catch(e){}
+
   function marcadoDono(){ try{ return localStorage.getItem("fpvp_owner_ok")==="1"; }catch(e){ return false; } }
   function souDono(){
     try{
@@ -295,46 +307,53 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
       return u===DONO;
     }catch(e){ return false; }
   }
-  function limpaTela(){
-    var h=document.getElementById("maintHost");
-    if(h){ h.innerHTML=""; h.style.display="none"; }
+  function aplica(){
+    try{
+      if(souDono()) document.documentElement.classList.add("owner-unlock");
+      else document.documentElement.classList.remove("owner-unlock");
+    }catch(e){}
   }
-  function limpa(){ if(souDono()) limpaTela(); }
-  setInterval(limpa, 500);
+  setInterval(aplica, 400);
+  aplica();
 
-  // ---- destrave por senha: 5 toques no canto inferior-direito ----
-  var toques=0, t0=0;
-  function pedirSenha(){
-    var s=prompt("Senha de dono para destravar a manutenção:");
-    if(s===null) return;
-    if(s===SENHA_DONO){
-      try{ localStorage.setItem("fpvp_owner_ok","1"); }catch(e){}
-      limpaTela();
-      alert("Destravado neste aparelho. A manutenção não vai mais te bloquear aqui.");
-    }else{
-      alert("Senha incorreta.");
+  // 2) camada captadora de toque, sempre no topo absoluto
+  function montaCaptador(){
+    if(document.getElementById("ownerTapCatcher")) return;
+    var c=document.createElement("div");
+    c.id="ownerTapCatcher";
+    // 90x90 no canto inferior-direito; transparente; acima de tudo
+    c.style.cssText="position:fixed;right:0;bottom:0;width:90px;height:90px;z-index:2147483647;background:transparent;";
+    var toques=0,t0=0;
+    function pedirSenha(){
+      var s=prompt("Senha de dono para destravar a manutenção:");
+      if(s===null) return;
+      if(s===SENHA_DONO){
+        try{ localStorage.setItem("fpvp_owner_ok","1"); }catch(e){}
+        aplica();
+        alert("Destravado neste aparelho. A manutenção não vai mais te bloquear aqui.");
+      }else{ alert("Senha incorreta."); }
     }
-  }
-  document.addEventListener("click", function(ev){
-    var W=window.innerWidth, H=window.innerHeight;
-    // canto inferior-direito: 80x80 px
-    if(ev.clientX > W-80 && ev.clientY > H-80){
+    c.addEventListener("click", function(){
       var agora=Date.now();
-      if(agora-t0>1500) toques=0;   // reinicia se demorar entre toques
+      if(agora-t0>1500) toques=0;
       t0=agora; toques++;
       if(toques>=5){ toques=0; pedirSenha(); }
-    }
-  }, true);
+    }, true);
+    (document.body||document.documentElement).appendChild(c);
+  }
+  if(document.body) montaCaptador(); else window.addEventListener("DOMContentLoaded", montaCaptador);
+  // re-garante o captador caso algo o remova
+  setInterval(montaCaptador, 1000);
 })();
 </script>
 <script>
 /* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
    Mostra um marcador pequeno no canto por 6 segundos ao carregar.
-   Se você vê "FIX-MANUT v11" no canto, a correção está no ar. */
+   Se você vê "FIX-MANUT v13" no canto, a correção está no ar. */
 (function(){
   function selo(){
     var d=document.createElement("div");
-    d.textContent="FIX-MANUT v11";
+    d.textContent="FIX-MANUT v13";
     d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
     document.body.appendChild(d);
     setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);
