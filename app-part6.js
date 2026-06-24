@@ -125,6 +125,8 @@ function resultHTML(){
   html+=`</div>`;
   html+=resultBadgesHTML(scored);
   html+=resultDuelHTML(scored,mine);
+  // ESTATÍSTICAS DA PARTIDA (confronto home×away, se o jogo foi apurado pelo apurador)
+  if(typeof matchStatsHTML==="function")html+=matchStatsHTML();
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
   html+=dreamTeamHTML();
   // minha apuração detalhada

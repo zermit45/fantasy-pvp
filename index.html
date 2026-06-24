@@ -263,19 +263,19 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <body>
 <div class="app"><div class="shell" id="root"><div class="loading">Carregando…</div></div></div>
 <script src="config.js"></script>
-<script src="games-part1.js?v=20260624-apura3"></script>
-<script src="games-part2.js?v=20260624-apura3"></script>
-<script src="games-part3.js?v=20260624-apura3"></script>
-<script src="games-part4.js?v=20260624-apura3"></script>
-<script src="games-part5.js?v=20260624-apura3"></script>
-<script src="games-part6.js?v=20260624-apura3"></script>
-<script src="games-part7.js?v=20260624-apura3"></script>
-<script src="games-part8.js?v=20260624-apura3"></script>
-<script src="games-part9.js?v=20260624-apura3"></script>
-<script src="games-part10.js?v=20260624-apura3"></script>
-<script src="games-part11.js?v=20260624-apura3"></script>
+<script src="games-part1.js?v=20260624-stats"></script>
+<script src="games-part2.js?v=20260624-stats"></script>
+<script src="games-part3.js?v=20260624-stats"></script>
+<script src="games-part4.js?v=20260624-stats"></script>
+<script src="games-part5.js?v=20260624-stats"></script>
+<script src="games-part6.js?v=20260624-stats"></script>
+<script src="games-part7.js?v=20260624-stats"></script>
+<script src="games-part8.js?v=20260624-stats"></script>
+<script src="games-part9.js?v=20260624-stats"></script>
+<script src="games-part10.js?v=20260624-stats"></script>
+<script src="games-part11.js?v=20260624-stats"></script>
 <script src="engine.js?v=20260623-1830"></script>
-<script src="apurador.js?v=20260624-apura3"></script>
+<script src="apurador.js?v=20260624-stats"></script>
 <script src="app-part1.js?v=20260624-0300"></script>
 <script src="app-part2.js?v=20260624-0300"></script>
 <script src="app-part3.js?v=20260624-0300"></script>
@@ -380,11 +380,11 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script>
 /* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
    Mostra um marcador pequeno no canto por 6 segundos ao carregar.
-   Se você vê "FIX-MANUT v26" no canto, a correção está no ar. */
+   Se você vê "FIX-MANUT v27" no canto, a correção está no ar. */
 (function(){
   function selo(){
     var d=document.createElement("div");
-    d.textContent="FIX-MANUT v26";
+    d.textContent="FIX-MANUT v27";
     d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
     document.body.appendChild(d);
     setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);

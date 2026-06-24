@@ -155,13 +155,42 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
     });
   })();
 
-  // ---- team_stats: posse ----
+  // ---- team_stats: captura COMPLETA dos stats do confronto ----
   const team_stats={[homeCode]:{possession:50,setPieceGoals:0},[awayCode]:{possession:50,setPieceGoals:0}};
+  const matchStats={}; // resumo do confronto (pra tabela visual)
   if(S&&S.statistics){
     const all=S.statistics.find(x=>x.period==="ALL");
-    if(all){all.groups.forEach(g=>g.statisticsItems.forEach(it=>{
-      if(it.key==="ballPossession"){team_stats[homeCode].possession=it.homeValue;team_stats[awayCode].possession=it.awayValue;}
-    }));}
+    if(all){
+      // pega o valor numérico cru (home/away) de cada key
+      const get={};
+      all.groups.forEach(g=>g.statisticsItems.forEach(it=>{ get[it.key]={h:it.homeValue, a:it.awayValue, hStr:it.home, aStr:it.away}; }));
+      const v=(k,def)=>get[k]?{h:get[k].h!=null?get[k].h:def, a:get[k].a!=null?get[k].a:def}:{h:def,a:def};
+      // posse (compat com a engine)
+      const pos=v("ballPossession",50);
+      team_stats[homeCode].possession=pos.h; team_stats[awayCode].possession=pos.a;
+      // resumo organizado por grupo (home, away) — pra tabela "nossa cara"
+      matchStats.possession   = pos;
+      matchStats.xg           = v("expectedGoals",0);
+      matchStats.bigChances   = v("bigChanceCreated",0);
+      matchStats.shots        = v("totalShotsOnGoal",0);
+      matchStats.shotsOnGoal  = v("shotsOnGoal",0);
+      matchStats.shotsInBox   = v("totalShotsInsideBox",0);
+      matchStats.shotsOutBox  = v("totalShotsOutsideBox",0);
+      matchStats.saves        = v("goalkeeperSaves",0);
+      matchStats.goalsPrevented= v("goalsPrevented",0);
+      matchStats.corners      = v("cornerKicks",0);
+      matchStats.fouls        = v("fouls",0);
+      matchStats.passes       = v("passes",0);
+      matchStats.accuratePasses= v("accuratePasses",0);
+      matchStats.finalThird   = v("finalThirdEntries",0);
+      matchStats.touchesBox   = v("touchesInOppBox",0);
+      matchStats.tackles      = v("totalTackle",0);
+      matchStats.interceptions= v("interceptionWon",0);
+      matchStats.recoveries   = v("ballRecovery",0);
+      matchStats.clearances   = v("totalClearance",0);
+      matchStats.offsides     = v("offsides",0);
+      matchStats.yellowCards  = v("yellowCards",0);
+    }
   }
 
   // monta players{} no formato final (id do PREPOOL será religado depois; aqui usa _sid->raw)
@@ -172,7 +201,7 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
     players[raw._sid]={...clean, _name:raw._name, _isHome:raw._isHome};
   });
 
-  return { status:"finished", homeCode, awayCode, homeElo:homeElo||1700, awayElo:awayElo||1700, neutral:neutral!==false, tactCapV2:true, score:[scoreH,scoreA], goals_tl, team_stats, endMin, players, _byId:byId };
+  return { status:"finished", homeCode, awayCode, homeElo:homeElo||1700, awayElo:awayElo||1700, neutral:neutral!==false, tactCapV2:true, score:[scoreH,scoreA], goals_tl, team_stats, matchStats, endMin, players, _byId:byId };
 }
 
 // ---- normalização de nomes (pra religar id do prepool) ----
@@ -291,5 +320,88 @@ window.apuracaoHTML=function(){
     </div>
   </div></div>`;
 };
+
+
+// ============================================================
+// TABELA DE STATS DO CONFRONTO — "com a cara do app"
+// barras comparativas home×away, agrupadas por seção
+// ============================================================
+window.matchStatsHTML=function(){
+  const m=APP.match, pp=APP.prepool;
+  if(!m||!m.matchStats)return ""; // só jogos apurados pelo novo apurador
+  const ms=m.matchStats;
+  const hc=(pp&&pp.home&&pp.home.code)||m.homeCode||"Casa";
+  const ac=(pp&&pp.away&&pp.away.code)||m.awayCode||"Fora";
+  // uma linha de stat: rótulo no meio, valores nas pontas, barra dividida proporcional
+  function row(label, h, a, opts){
+    opts=opts||{};
+    const hv=Number(h)||0, av=Number(a)||0;
+    const tot=hv+av;
+    // % da barra pra cada lado (se ambos 0, divide no meio)
+    let hp = tot>0 ? (hv/tot*100) : 50;
+    // quem "venceu" o stat ganha destaque (a não ser que seja invertido, tipo faltas)
+    const lowerBetter=opts.lowerBetter;
+    const hWin = lowerBetter ? hv<av : hv>av;
+    const aWin = lowerBetter ? av<hv : av>hv;
+    const fmt=opts.fmt||(x=>x);
+    const HC="var(--green)", AC="var(--blue)";
+    return `<div style="margin:9px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:3px">
+        <span class="mono" style="font-weight:${hWin?800:600};color:${hWin?HC:"var(--fg)"}">${fmt(h)}</span>
+        <span style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px">${label}</span>
+        <span class="mono" style="font-weight:${aWin?800:600};color:${aWin?AC:"var(--fg)"}">${fmt(a)}</span>
+      </div>
+      <div style="display:flex;gap:2px;height:5px;border-radius:3px;overflow:hidden;background:var(--line)">
+        <div style="width:${hp}%;background:${HC};opacity:${hWin?1:.55};border-radius:3px 0 0 3px"></div>
+        <div style="width:${100-hp}%;background:${AC};opacity:${aWin?1:.55};border-radius:0 3px 3px 0"></div>
+      </div>
+    </div>`;
+  }
+  function section(title, rows){
+    return `<div style="margin-top:12px"><div style="font-size:11px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${title}</div>${rows}</div>`;
+  }
+  const one=x=>(Math.round((Number(x)||0)*100)/100); // 2 casas
+  let body="";
+  // cabeçalho com os códigos dos times
+  body+=`<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:800;margin-bottom:4px">
+    <span style="color:var(--green)">${esc(hc)}</span>
+    <span style="color:var(--blue)">${esc(ac)}</span>
+  </div>`;
+  body+=section("Visão geral",
+    row("Posse de bola", ms.possession.h, ms.possession.a, {fmt:x=>x+"%"})+
+    row("Gols esperados (xG)", one(ms.xg.h), one(ms.xg.a))+
+    row("Grandes chances", ms.bigChances.h, ms.bigChances.a)+
+    row("Finalizações", ms.shots.h, ms.shots.a)
+  );
+  body+=section("Finalizações",
+    row("Chutes ao gol", ms.shotsOnGoal.h, ms.shotsOnGoal.a)+
+    row("Dentro da área", ms.shotsInBox.h, ms.shotsInBox.a)+
+    row("De fora da área", ms.shotsOutBox.h, ms.shotsOutBox.a)+
+    row("Escanteios", ms.corners.h, ms.corners.a)
+  );
+  body+=section("Construção",
+    row("Passes", ms.passes.h, ms.passes.a)+
+    row("Passes certos", ms.accuratePasses.h, ms.accuratePasses.a)+
+    row("Entradas no terço final", ms.finalThird.h, ms.finalThird.a)+
+    row("Toques na área adv.", ms.touchesBox.h, ms.touchesBox.a)
+  );
+  body+=section("Defesa & duelos",
+    row("Desarmes", ms.tackles.h, ms.tackles.a)+
+    row("Interceptações", ms.interceptions.h, ms.interceptions.a)+
+    row("Recuperações", ms.recoveries.h, ms.recoveries.a)+
+    row("Cortes", ms.clearances.h, ms.clearances.a)+
+    row("Defesas do goleiro", ms.saves.h, ms.saves.a)+
+    row("Gols evitados", one(ms.goalsPrevented.h), one(ms.goalsPrevented.a))
+  );
+  body+=section("Disciplina",
+    row("Faltas", ms.fouls.h, ms.fouls.a, {lowerBetter:true})+
+    row("Impedimentos", ms.offsides.h, ms.offsides.a, {lowerBetter:true})+
+    row("Cartões amarelos", ms.yellowCards.h, ms.yellowCards.a, {lowerBetter:true})
+  );
+  const open=window._openMatchStats;
+  return `<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleMatchStats()"><div class="nm disp" style="font-size:16px">📊 Estatísticas da partida</div><div class="tot mono" style="color:var(--dim);font-size:14px">${open?"▲":"▼"}</div></div>${open?`<div style="margin-top:8px">${body}</div>`:""}</div>`;
+};
+window._openMatchStats=false;
+window.toggleMatchStats=function(){window._openMatchStats=!window._openMatchStats;render();};
 
 })();
