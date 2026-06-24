@@ -275,6 +275,44 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part10.js?v=20260623-1800"></script>
 <script src="engine.js?v=20260623-1830"></script>
 <script src="app.js?v=20260622-0425"></script>
-<script src="draft-patch.js?v=20260623-1845"></script>
+<script src="draft-patch.js?v=20260623-2200"></script>
+<script>
+/* FAILSAFE DE MANUTENÇÃO — roda independente do draft-patch.js.
+   Se o usuário logado for o DONO do site (Lucchini), remove a tela de
+   manutenção continuamente. Protege o admin mesmo que uma versão antiga
+   do draft-patch (com o bug) ainda esteja no ar. */
+(function(){
+  var DONO="Lucchini";
+  function souDono(){
+    try{
+      if(window.APP && APP.user && APP.user.username===DONO) return true;
+      // fallback: lê direto do localStorage caso APP ainda não tenha carregado
+      var u=null; try{u=localStorage.getItem("fpvp_user");}catch(e){}
+      return u===DONO;
+    }catch(e){ return false; }
+  }
+  function limpa(){
+    if(!souDono()) return;
+    var h=document.getElementById("maintHost");
+    if(h){ h.innerHTML=""; h.style.display="none"; }
+  }
+  setInterval(limpa, 500);
+})();
+</script>
+<script>
+/* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
+   Mostra um marcador pequeno no canto por 6 segundos ao carregar.
+   Se você vê "FIX-MANUT v9" no canto, a correção está no ar. */
+(function(){
+  function selo(){
+    var d=document.createElement("div");
+    d.textContent="FIX-MANUT v9";
+    d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
+    document.body.appendChild(d);
+    setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);
+  }
+  if(document.body) selo(); else window.addEventListener("DOMContentLoaded", selo);
+})();
+</script>
 </body>
 </html>
