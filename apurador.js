@@ -1,8 +1,6 @@
 // ============================================================
 // APURADOR DE JOGOS — admin cola os 4 arquivos da SofaScore,
 // o app gera o match (formato da engine) e salva no Supabase.
-// Resultado persiste pra sempre (tabela match_results) e é
-// aplicado por cima do catálogo no boot.
 // ============================================================
 (function(){
 "use strict";
@@ -43,7 +41,7 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
       fouls: st.fouls||0,
       dribbledPast: st.challengeLost||0,
       yellow: 0, red: null,
-      errGoal: st.errorLeadToGoal||0, errShot: st.errorLeadToShot||0,
+      errGoal: st.errorLeadToAGoal||0, errShot: st.errorLeadToShot||0,
       penCom: st.penaltyConceded||0, ownGoal: st.ownGoals||0,
       wasFouled: st.wasFouled||0,
       longBall: st.accurateLongBalls||0,
@@ -133,6 +131,29 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
       }
     });
   }
+
+  // ---- gols sofridos: atribui ao goleiro em campo (SofaScore não traz goalsConceded) ----
+  // conta gols do adversário por metade do tempo e credita ao GK que estava jogando.
+  (function(){
+    function golsContraTime(ehHome){
+      // gols sofridos por um time = gols do adversário (no goals_tl, t = quem marcou)
+      return goals_tl.filter(g=> ehHome ? g.t===awayCode : g.t===homeCode );
+    }
+    [true,false].forEach(ehHome=>{
+      const gksTime=Object.values(byId).filter(r=>r.gk && r._isHome===ehHome);
+      if(!gksTime.length)return;
+      const sofridos=golsContraTime(ehHome);
+      // credita cada gol ao GK que estava em campo no minuto do gol
+      sofridos.forEach(gl=>{
+        // acha o GK do time que estava jogando nesse minuto (started e não saiu antes, ou entrou)
+        let gkResp=gksTime.find(r=>r.started && (!r.subbedOff || true));
+        // se houver troca de goleiro, prioriza quem tem min>0 cobrindo o minuto; fallback: o titular
+        const titular=gksTime.find(r=>r.started);
+        gkResp = titular || gksTime[0];
+        if(gkResp&&gkResp.gk) gkResp.gk.conceded=(gkResp.gk.conceded||0)+1;
+      });
+    });
+  })();
 
   // ---- team_stats: posse ----
   const team_stats={[homeCode]:{possession:50,setPieceGoals:0},[awayCode]:{possession:50,setPieceGoals:0}};
