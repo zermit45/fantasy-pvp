@@ -278,35 +278,63 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="draft-patch.js?v=20260623-2200"></script>
 <script>
 /* FAILSAFE DE MANUTENÇÃO — roda independente do draft-patch.js.
-   Se o usuário logado for o DONO do site (Lucchini), remove a tela de
-   manutenção continuamente. Protege o admin mesmo que uma versão antiga
-   do draft-patch (com o bug) ainda esteja no ar. */
+   Libera o DONO da tela de manutenção de DUAS formas:
+   1) Se já estiver logado como Lucchini (ou marcado como dono neste aparelho).
+   2) DESTRAVE POR SENHA: toque 5x no canto inferior-direito da tela ->
+      pede a senha de dono. Acertando, marca este aparelho como dono e libera.
+      Resolve o caso de a manutenção aparecer ANTES de você logar. */
 (function(){
   var DONO="Lucchini";
+  var SENHA_DONO="antonio45";   // senha de destrave do dono
+  function marcadoDono(){ try{ return localStorage.getItem("fpvp_owner_ok")==="1"; }catch(e){ return false; } }
   function souDono(){
     try{
+      if(marcadoDono()) return true;
       if(window.APP && APP.user && APP.user.username===DONO) return true;
-      // fallback: lê direto do localStorage caso APP ainda não tenha carregado
       var u=null; try{u=localStorage.getItem("fpvp_user");}catch(e){}
       return u===DONO;
     }catch(e){ return false; }
   }
-  function limpa(){
-    if(!souDono()) return;
+  function limpaTela(){
     var h=document.getElementById("maintHost");
     if(h){ h.innerHTML=""; h.style.display="none"; }
   }
+  function limpa(){ if(souDono()) limpaTela(); }
   setInterval(limpa, 500);
+
+  // ---- destrave por senha: 5 toques no canto inferior-direito ----
+  var toques=0, t0=0;
+  function pedirSenha(){
+    var s=prompt("Senha de dono para destravar a manutenção:");
+    if(s===null) return;
+    if(s===SENHA_DONO){
+      try{ localStorage.setItem("fpvp_owner_ok","1"); }catch(e){}
+      limpaTela();
+      alert("Destravado neste aparelho. A manutenção não vai mais te bloquear aqui.");
+    }else{
+      alert("Senha incorreta.");
+    }
+  }
+  document.addEventListener("click", function(ev){
+    var W=window.innerWidth, H=window.innerHeight;
+    // canto inferior-direito: 80x80 px
+    if(ev.clientX > W-80 && ev.clientY > H-80){
+      var agora=Date.now();
+      if(agora-t0>1500) toques=0;   // reinicia se demorar entre toques
+      t0=agora; toques++;
+      if(toques>=5){ toques=0; pedirSenha(); }
+    }
+  }, true);
 })();
 </script>
 <script>
 /* SELO DE VERSÃO — confirma visualmente que o deploy certo subiu.
    Mostra um marcador pequeno no canto por 6 segundos ao carregar.
-   Se você vê "FIX-MANUT v9" no canto, a correção está no ar. */
+   Se você vê "FIX-MANUT v11" no canto, a correção está no ar. */
 (function(){
   function selo(){
     var d=document.createElement("div");
-    d.textContent="FIX-MANUT v9";
+    d.textContent="FIX-MANUT v11";
     d.style.cssText="position:fixed;left:6px;bottom:6px;z-index:100000;background:#1b8f5a;color:#fff;font:11px/1.2 -apple-system,system-ui,sans-serif;padding:4px 8px;border-radius:8px;opacity:.92;pointer-events:none";
     document.body.appendChild(d);
     setTimeout(function(){ try{ d.remove(); }catch(e){} }, 6000);
