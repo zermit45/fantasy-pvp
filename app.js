@@ -1027,6 +1027,7 @@ function roundUserTeamsHTML(username){
   html+=`</div>`;
   return html;
 }
+
 let _openTeamPlayer={};
 function toggleTeamPlayer(k){_openTeamPlayer[k]=!_openTeamPlayer[k];render();}
 let _openPeekRound={};
@@ -2060,9 +2061,18 @@ function kickoffInfo(iso){
     dayKey:`${dow} ${dd}/${mm2}`,
     full:`${rel?rel+" · ":""}${dow} ${dd}/${mm2}/${Y} · ${hh}:${mm}`};
 }
+
 function setHomeTab(t){APP.homeTab=t;APP.homeDay="todos";render();}
 function setHomeNav(t){APP.homeNavTab=t;render();}
-function setHomeDay(d){APP.homeDay=decodeURIComponent(d);render();}
+function setHomeDay(d){APP.homeDay=decodeURIComponent(d);APP.calOpen=false;render();}
+function openCal(){APP.calOpen=true; if(!APP.calMonth){var n=new Date();APP.calMonth=n.getFullYear()+"-"+(n.getMonth()+1);} render();}
+function closeCal(){APP.calOpen=false;render();}
+function calNav(delta){
+  var p=(APP.calMonth||"").split("-");var y=+p[0],m=+p[1]-1;var d=new Date(y,m+delta,1);
+  APP.calMonth=d.getFullYear()+"-"+(d.getMonth()+1);render();
+}
+function toggleShowAll(){APP.homeShowAll=(APP.homeShowAll===true?false:true);render();}
+function pickCalDay(dayKey){APP.homeDay=decodeURIComponent(dayKey);APP.calOpen=false;render();}
 function setHomeSearch(v){
   APP.homeSearch=v;
   render();
@@ -2123,7 +2133,17 @@ function homeHTML(){
   });
   let diaSel=APP.homeDay||"todos";
   if(diaSel!=="todos"&&!diasDisp.includes(diaSel))diaSel="todos";
-  const lista=baseLista.filter(matchQ).filter(j=>diaSel==="todos"||j.dayKey===diaSel);
+  // Nos FINALIZADOS, o padrão ("todos") mostra só ONTEM + HOJE.
+  // O calendário permite escolher um dia específico ou "ver todos".
+  const isRecent=j=>{ if(!j.ki) return false; return j.ki.rel==="Hoje"||j.ki.rel==="Ontem"; };
+  let lista=baseLista.filter(matchQ);
+  if(diaSel==="todos"){
+    if(tab==="finished" && APP.homeShowAll!==true){
+      lista=lista.filter(isRecent);
+    }
+  }else{
+    lista=lista.filter(j=>j.dayKey===diaSel);
+  }
   const nToplay=toplay.filter(matchQ).length, nFinished=finished.filter(matchQ).length;
   const nextGame=toplay.slice().sort((a,b)=>a.ts-b.ts)[0]||finished.slice().sort((a,b)=>b.ts-a.ts)[0]||null;
   const heroAction=nextGame?(nextGame.isFinished?"Ver resultado":(nextGame.status==="open"?"Montar escalação":"Acompanhar")):"Sem partidas";
@@ -2143,9 +2163,15 @@ function homeHTML(){
   </div>`;
   let diaChips="";
   if(diasDisp.length>1){
-    diaChips=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-      <span onclick="setHomeDay('todos')" class="daychip${diaSel==="todos"?" on":""}">Todos</span>
-      ${diasDisp.map(d=>`<span onclick="setHomeDay('${encodeURIComponent(d)}')" class="daychip${diaSel===d?" on":""}">${d==="A definir"?"📅 a definir":"📅 "+esc(d)}</span>`).join("")}
+    // Botão de calendário + indicação do filtro atual (em vez da fileira gigante de chips)
+    let filtroLabel;
+    if(diaSel!=="todos") filtroLabel="📅 "+esc(diaSel);
+    else if(tab==="finished" && APP.homeShowAll!==true) filtroLabel="📅 Ontem e hoje";
+    else filtroLabel="📅 Todos os dias";
+    diaChips=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <span onclick="openCal()" class="daychip on" style="cursor:pointer">${filtroLabel} ▾</span>
+      ${diaSel!=="todos"?`<span onclick="setHomeDay('todos')" class="daychip" style="cursor:pointer">✕ limpar</span>`:""}
+      ${(tab==="finished"&&diaSel==="todos")?`<span onclick="toggleShowAll()" class="daychip" style="cursor:pointer">${APP.homeShowAll===true?"ver só recentes":"ver todos"}</span>`:""}
     </div>`;
   }
 
@@ -3088,7 +3114,6 @@ function roundHTML(){
     ${foraAll.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${addTabsHTML}${foraRows||`<p class="p" style="font-size:11px;color:var(--dim)">Nenhum jogo ${addTab==="done"?"finalizado":"em aberto"} pra adicionar.</p>`}`:""}
   </div>`:""}`;
 }
-
 
 function roomHTML(){
   const pp=APP.prepool, m=APP.match, meta=APP.roomMeta;
@@ -4118,6 +4143,7 @@ function scoreEntryFor(entry,eng,ctx){
   const finalTotal=Math.round(sum*boostMult*10)/10;
   return {username:entry.username,total:finalTotal,boost:boostTokens,boostPct,boostChips:Array.isArray(chips)?chips:null,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
+
 // ============================================================
 // TIME IDEAL — a escalação que teria dado a MAIOR pontuação possível
 // (respeita 100 moedas, formação GK/DEF/MID/ATT/FLEX, melhor tática e capitão)
@@ -4837,7 +4863,7 @@ function topbarHTML(){
       ${isDev()?`<div class="userchip" onclick="toggleDevMode()" style="cursor:pointer;border-color:${APP.devMode?"var(--amber)":"var(--line)"};color:${APP.devMode?"var(--amber)":"var(--dim)"}" title="Alternar modo DEV / jogador">${APP.devMode?"🛠 DEV":"🎮 jogador"}</div>`:""}
       ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
-  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}`;
+  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}${APP.calOpen?calModalHTML():""}`;
 }
 function toggleRules(){APP.showRules=!APP.showRules;render();}
 function toggleManual(){APP.showManual=!APP.showManual;render();}
@@ -4880,6 +4906,68 @@ function modHelpKey(label){
 function modHelpBtn(label){const k=modHelpKey(label);return k?helpBtn(k):"";}
 function showHelp(key){APP.help=key;render();}
 function closeHelp(){APP.help=null;render();}
+function calModalHTML(){
+  const _DOWs=["dom","seg","ter","qua","qui","sex","sáb"];
+  const _MONs=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  // mês visível
+  let p=(APP.calMonth||"").split("-"); let Y=+p[0], M=+p[1];
+  if(!Y||!M){const n=new Date();Y=n.getFullYear();M=n.getMonth()+1;}
+  // mapa de dias com jogos a partir dos jogos do grupo
+  const all=[];
+  (APP.groupRooms||[]).forEach(gr=>{const cat=(APP.jogos||[]).find(j=>j.room_id===gr.room_id);if(cat)all.push(cat);});
+  (APP.jogos||[]).forEach(j=>{if(isArchived(j.room_id))all.push(j);});
+  // indexar por data exata: "YYYY-MM-DD" -> {n, dayKey}
+  const mapaDia={};
+  all.forEach(j=>{const ki=kickoffInfo(j.kickoff);if(!ki||!ki.dayKey||ki.dayKey.indexOf(" ")<0)return;
+    const parts=ki.dayKey.split(" ")[1].split("/"); // dd/mm
+    const k=ki.yr+"-"+parts[1]+"-"+parts[0];
+    if(!mapaDia[k])mapaDia[k]={n:0,dayKey:ki.dayKey};
+    mapaDia[k].n++;
+  });
+  // grade do mês
+  const primeiro=new Date(Date.UTC(Y,M-1,1));
+  const inicioDow=primeiro.getUTCDay();
+  const diasNoMes=new Date(Date.UTC(Y,M,0)).getUTCDate();
+  let celulas="";
+  for(let i=0;i<inicioDow;i++) celulas+=`<div></div>`;
+  for(let d=1; d<=diasNoMes; d++){
+    const k=Y+"-"+String(M).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+    const info=mapaDia[k];
+    const tem=!!info;
+    const dowIdx=new Date(Date.UTC(Y,M-1,d)).getUTCDay();
+    const dk=_DOWs[dowIdx]+" "+String(d).padStart(2,"0")+"/"+String(M).padStart(2,"0");
+    const sel=(APP.homeDay===dk);
+    const style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;font-size:15px;"+
+      (sel?"background:#7C6CF0;color:#fff;font-weight:800;":(tem?"background:#222C49;color:#fff;cursor:pointer;font-weight:700;":"color:#445566;"));
+    celulas+=`<div ${tem?`onclick="pickCalDay('${encodeURIComponent(dk)}')"`:""} style="${style}">
+      ${d}${tem?`<span style="width:5px;height:5px;border-radius:50%;background:${sel?"#fff":"#7C6CF0"};margin-top:3px"></span>`:""}
+    </div>`;
+  }
+  return `<div class="modalwrap" onclick="closeCal()" style="position:fixed;inset:0;z-index:99990;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:40px 14px">
+    <div onclick="event.stopPropagation()" style="background:#0E1525;border:1px solid #28324f;border-radius:18px;max-width:440px;width:100%;padding:16px;color:#fff">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <b style="font-size:17px">Calendário</b>
+        <span onclick="closeCal()" style="cursor:pointer;font-size:20px;color:#8aa">✕</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span onclick="calNav(-1)" style="cursor:pointer;font-size:20px;padding:4px 12px">‹</span>
+        <b style="font-size:15px">${_MONs[M-1]} ${Y}</b>
+        <span onclick="calNav(1)" style="cursor:pointer;font-size:20px;padding:4px 12px">›</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px;color:#7d8aaa;font-size:11px;text-align:center">
+        ${_DOWs.map(d=>`<div>${d}</div>`).join("")}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${celulas}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;color:#7d8aaa;font-size:12px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#7C6CF0;display:inline-block"></span> dias com partidas
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="setHomeDay('todos')" style="flex:1;background:#222C49;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer">Ver recentes</button>
+        <button onclick="APP.homeShowAll=true;APP.homeDay='todos';closeCal()" style="flex:1;background:#7C6CF0;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer">Ver todos</button>
+      </div>
+    </div>
+  </div>`;
+}
 function helpModalHTML(){
   const h=HELP[APP.help];if(!h)return"";
   return `<div class="modal" onclick="closeHelp()"><div class="box" onclick="event.stopPropagation()">
