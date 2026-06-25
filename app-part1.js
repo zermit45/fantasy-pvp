@@ -724,36 +724,6 @@ async function buyDraftPlayer(playerKey){
   }catch(e){toast("Erro: "+e.message);}
 }
 function askCreateDraftSeason(){APP.confirm={mode:"createDraftSeason",label:"Criar Mercado Draft"};render();}
-// Ajuda visual: sugere o teto ideal do craque a partir do orçamento + elenco.
-// Regra: craque ideal ≈ 1/3 do orçamento (25%–33%); banco de jogadores vai até 100.
-function updDraftHint(){
-  var el=document.getElementById("draftHint"); if(!el) return;
-  var orc=parseInt((document.getElementById("draftBudget")||{}).value,10);
-  var elenco=parseInt((document.getElementById("draftRoster")||{}).value,10);
-  if(!orc||orc<=0||!elenco||elenco<=0){ el.innerHTML="💡 Preencha orçamento e elenco para ver a sugestão de teto."; return; }
-  var media=Math.round(orc/elenco);
-  var tetoMin=Math.round(orc*0.25), tetoMax=Math.round(orc*0.33);
-  // o banco do draft vai até 100
-  var TETO_BANCO=100;
-  var razao=TETO_BANCO/orc; // quanto o craque de 100 representa do orçamento
-  var msg="💡 Média por jogador: <b>"+media+"</b> moedas. "
-        +"Teto ideal do craque: <b style='color:#FFC247'>"+tetoMin+"–"+tetoMax+"</b> (≈ 1/3 do orçamento).";
-  // diagnóstico pela razão teto-do-banco / orçamento:
-  //  - equilíbrio bom quando o craque de 100 custa ~28% a 40% do orçamento
-  if(razao>=0.28 && razao<=0.42){
-    msg+="<br>✅ Equilíbrio ideal: dá para ter <b>1–2 estrelas + resto barato</b>. O teto de 100 do banco encaixa bem aqui.";
-  } else if(razao>0.42){
-    // orçamento baixo: craque come muito do orçamento
-    msg+="<br>⚠️ Orçamento baixo para o teto do banco (100): o craque sozinho come mais de 40% do orçamento — "
-       +"tende a sobrar pouco (<b>1 estrela + resto bem barato</b>, escolha dura). "
-       +"Para 1–2 estrelas com folga, suba para ~<b>300</b>.";
-  } else {
-    // orçamento alto: craque é barato demais em proporção
-    msg+="<br>⚠️ Orçamento alto para o teto do banco (100): o craque custa menos de ~28% do orçamento — "
-       +"fica fácil ter <b>2–3 estrelas</b>. Para deixar mais disputado, baixe para ~<b>300</b> ou aumente o elenco.";
-  }
-  el.innerHTML=msg;
-}
 function setDraftTab(t){APP.draftTab=t;renderKeepScroll();}
 function setDraftSearch(v){
   APP.draftSearch=v;
@@ -862,4 +832,135 @@ async function loadRound(roundId){
   }catch(e){APP.round=null;APP.roundRooms=[];APP.roundEntries=[];APP.roundAllEntries=[];}
   // ranking acumulado da rodada (soma dos pontos de cada um nos jogos finalizados que escolheu)
   APP.roundRanking=await computeRoundRanking(roundId);
+}
+// soma, por usuário, os pontos dos jogos FINALIZADOS desta rodada
+async function computeRoundRanking(roundId){
+  try{
+    const all=await sb("entries?round_id=eq."+roundId+"&group_id=eq."+APP.groupId+"&select=*");
+    if(!all||!all.length)return [];
+    const mode=modeOf(APP.round);
+    const isSelect=mode==="select";
+    const isConf=mode==="confianca";
+    const isPred=mode==="previsao";
+    const isZebra=mode==="zebra";
+    const isSurvival=mode==="sobrevivencia";
+    const isCaptainDouble=mode==="capitaoduplo";
+    const byUser={};
+    const userGamePts={};
+    // CONFIANÇA: preciso saber o total de jogos rankeados por usuário (pra escala do multiplicador)
+    const confTotalByUser={};
+    if(isConf){
+      for(const e of all){if(e.conf_rank!=null){confTotalByUser[e.username]=(confTotalByUser[e.username]||0)+1;}}
+    }
+    // ── ELIMINAÇÃO (Impulso/Confiança): quem NÃO completou a estratégia zera a rodada toda.
+    // Confiança: tem que ter ordenado TODOS os jogos da rodada.
+    // Impulso: tem que ter gastado TODAS as fichas da pool.
+    const eliminado={};
+    const totalGamesRound=(APP.roundRooms||[]).length;
+    const isBoostMode=mode==="boost";
+    if(isConf||isBoostMode){
+      // usuários que têm pelo menos um time montado na rodada
+      const usuarios=[...new Set(all.filter(e=>e.slots&&Object.values(e.slots).some(Boolean)).map(e=>e.username))];
+      // QUANTAS fichas a pool tem (modelo novo: boost_chips; antigo: boost_tokens)
+      let poolN=0;
+      if(isBoostMode){
+        const r=APP.round;
+        if(r&&Array.isArray(r.boost_chips)&&r.boost_chips.length)poolN=r.boost_chips.length;
+        else if(r&&r.boost_tokens)poolN=r.boost_tokens;
+      }
+      const totalRoomsRound=(APP.roundRooms||[]).length;
+      for(const u of usuarios){
+        const minhas=all.filter(e=>e.username===u&&e.slots&&Object.values(e.slots).some(Boolean));
+        if(isConf){
+          // CONFIANÇA: a estratégia exige ter ordenado TODOS os jogos da rodada.
+          // (escalar é livre jogo a jogo; quem não escalou um jogo só não pontua nele)
+          const ordenados=all.filter(e=>e.username===u&&e.conf_rank!=null).length;
+          if(minhas.length>0&&totalRoomsRound>0&&ordenados<totalRoomsRound)eliminado[u]=true;
+        }else if(isBoostMode&&poolN>0){
+          // QUANTAS fichas o usuário gastou no total, somando os DOIS modelos por entry:
+          //  - novo: boost_chips (array de valores) → conta o length
+          //  - antigo: boost (número de fichas naquele jogo) → conta o número
+          let usadasN=0;
+          for(const e of all){
+            if(e.username!==u)continue;
+            let c=e.boost_chips;
+            if(typeof c==="string"){try{c=JSON.parse(c);}catch(_){c=null;}}
+            if(Array.isArray(c)&&c.length)usadasN+=c.length;
+            else usadasN+=Math.max(0,parseInt(e.boost,10)||0); // fallback modelo antigo
+          }
+          // elimina só se gastou MENOS fichas que a pool tem
+          if(usadasN<poolN)eliminado[u]=true;
+        }
+      }
+    }
+    for(const rr of APP.roundRooms){
+      const g=window.GAMES.data[rr.room_id];
+      if(!g||!g.match||g.match.status!=="finished")continue; // só jogos já apurados
+      const ctx=buildCtxFor(rr.room_id);if(!ctx)continue;
+      const here=all.filter(e=>e.room_id===rr.room_id);
+      for(const e of here){
+        if(!e.slots||!Object.values(e.slots).some(Boolean))continue; // sem time montado
+        if(isSelect&&e.confirmed!==true)continue; // SELECIONE: só pontua jogo travado
+        if(eliminado[e.username])continue; // ELIMINADO: não completou a estratégia → zera
+        const sc=scoreEntryFor(JSON.parse(JSON.stringify(e)),ctx.eng,ctx);
+        let pts=sc.total;
+        // CONFIANÇA: multiplica pelo peso da posição na ordem do usuário
+        if(isConf&&e.conf_rank!=null){
+          const tot=confTotalByUser[e.username]||1;
+          pts=Math.round(pts*confMultiplier(e.conf_rank,tot)*10)/10;
+        }
+        if(isZebra){
+          const uCode=underdogCode(ctx);
+          let bonus=0;
+          (sc.view||[]).forEach(v=>{
+            if(!v||v.slot==="BENCH")return;
+            const pl=ctx.byId&&ctx.byId[v.pid];
+            if(pl&&pl.team===uCode)bonus+=Math.max(0,v.pts)*0.25;
+          });
+          pts=Math.round((pts+bonus)*10)/10;
+        }
+        if(isCaptainDouble){
+          const cap=(sc.view||[]).find(v=>v&&v.cap);
+          if(cap)pts=Math.round((pts+(cap.pts/6))*10)/10; // cap já tem 1.2x; +pts/6 transforma em ~1.4x
+        }
+        if(!byUser[e.username])byUser[e.username]={username:e.username,total:0,games:0,predBonus:0};
+        byUser[e.username].total+=pts;
+        byUser[e.username].games++;
+        (userGamePts[e.username]=userGamePts[e.username]||[]).push(pts);
+        // PREVISÃO: bônus em % sobre os pontos da escalação naquele jogo
+        if(isPred&&e.pred_home!=null&&e.pred_away!=null){
+          const pct=predBonusPct(e,g.match);
+          const b=Math.round(sc.total*(pct/100)*10)/10;
+          byUser[e.username].total+=b;
+          byUser[e.username].predBonus+=b;
+        }
+      }
+    }
+    if(isSurvival){
+      for(const [u,ptsList] of Object.entries(userGamePts)){
+        if(!byUser[u])continue;
+        if(ptsList.some(p=>p<0)){
+          byUser[u].total=0;
+          byUser[u].eliminated=true;
+          byUser[u].survivalNote="caiu";
+        }else if(ptsList.length>1){
+          const cut=Math.min(...ptsList);
+          byUser[u].total-=cut;
+          byUser[u].survivalCut=Math.round(cut*10)/10;
+        }
+      }
+    }
+    // adiciona os eliminados ao ranking com total 0 e flag (pra mostrar "eliminado")
+    for(const u in eliminado){
+      if(!byUser[u])byUser[u]={username:u,total:0,games:0,predBonus:0};
+      byUser[u].eliminated=true;
+      byUser[u].total=0;
+    }
+    return Object.values(byUser).map(u=>({...u,total:Math.round(u.total*10)/10})).sort((a,b)=>{
+      // eliminados sempre por último
+      if(a.eliminated&&!b.eliminated)return 1;
+      if(b.eliminated&&!a.eliminated)return -1;
+      return b.total-a.total;
+    });
+  }catch(e){return [];}
 }

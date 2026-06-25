@@ -355,15 +355,7 @@ function kickoffInfo(iso){
 }
 function setHomeTab(t){APP.homeTab=t;APP.homeDay="todos";render();}
 function setHomeNav(t){APP.homeNavTab=t;render();}
-function setHomeDay(d){APP.homeDay=decodeURIComponent(d);APP.calOpen=false;render();}
-function openCal(){APP.calOpen=true; if(!APP.calMonth){var n=new Date();APP.calMonth=n.getFullYear()+"-"+(n.getMonth()+1);} render();}
-function closeCal(){APP.calOpen=false;render();}
-function calNav(delta){
-  var p=(APP.calMonth||"").split("-");var y=+p[0],m=+p[1]-1;var d=new Date(y,m+delta,1);
-  APP.calMonth=d.getFullYear()+"-"+(d.getMonth()+1);render();
-}
-function toggleShowAll(){APP.homeShowAll=(APP.homeShowAll===true?false:true);render();}
-function pickCalDay(dayKey){APP.homeDay=decodeURIComponent(dayKey);APP.calOpen=false;render();}
+function setHomeDay(d){APP.homeDay=decodeURIComponent(d);render();}
 function setHomeSearch(v){
   APP.homeSearch=v;
   render();
@@ -424,17 +416,7 @@ function homeHTML(){
   });
   let diaSel=APP.homeDay||"todos";
   if(diaSel!=="todos"&&!diasDisp.includes(diaSel))diaSel="todos";
-  // Nos FINALIZADOS, o padrão ("todos") mostra só ONTEM + HOJE.
-  // O calendário permite escolher um dia específico ou "ver todos".
-  const isRecent=j=>{ if(!j.ki) return false; return j.ki.rel==="Hoje"||j.ki.rel==="Ontem"; };
-  let lista=baseLista.filter(matchQ);
-  if(diaSel==="todos"){
-    if(tab==="finished" && APP.homeShowAll!==true){
-      lista=lista.filter(isRecent);
-    }
-  }else{
-    lista=lista.filter(j=>j.dayKey===diaSel);
-  }
+  const lista=baseLista.filter(matchQ).filter(j=>diaSel==="todos"||j.dayKey===diaSel);
   const nToplay=toplay.filter(matchQ).length, nFinished=finished.filter(matchQ).length;
   const nextGame=toplay.slice().sort((a,b)=>a.ts-b.ts)[0]||finished.slice().sort((a,b)=>b.ts-a.ts)[0]||null;
   const heroAction=nextGame?(nextGame.isFinished?"Ver resultado":(nextGame.status==="open"?"Montar escalação":"Acompanhar")):"Sem partidas";
@@ -454,15 +436,9 @@ function homeHTML(){
   </div>`;
   let diaChips="";
   if(diasDisp.length>1){
-    // Botão de calendário + indicação do filtro atual (em vez da fileira gigante de chips)
-    let filtroLabel;
-    if(diaSel!=="todos") filtroLabel="📅 "+esc(diaSel);
-    else if(tab==="finished" && APP.homeShowAll!==true) filtroLabel="📅 Ontem e hoje";
-    else filtroLabel="📅 Todos os dias";
-    diaChips=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-      <span onclick="openCal()" class="daychip on" style="cursor:pointer">${filtroLabel} ▾</span>
-      ${diaSel!=="todos"?`<span onclick="setHomeDay('todos')" class="daychip" style="cursor:pointer">✕ limpar</span>`:""}
-      ${(tab==="finished"&&diaSel==="todos")?`<span onclick="toggleShowAll()" class="daychip" style="cursor:pointer">${APP.homeShowAll===true?"ver só recentes":"ver todos"}</span>`:""}
+    diaChips=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span onclick="setHomeDay('todos')" class="daychip${diaSel==="todos"?" on":""}">Todos</span>
+      ${diasDisp.map(d=>`<span onclick="setHomeDay('${encodeURIComponent(d)}')" class="daychip${diaSel===d?" on":""}">${d==="A definir"?"📅 a definir":"📅 "+esc(d)}</span>`).join("")}
     </div>`;
   }
 
@@ -485,30 +461,73 @@ function homeHTML(){
     }
     else listaHTML=`<p class="p">${tab==="finished"?"Nenhum jogo finalizado ainda.":"Nenhum jogo a jogar no momento."}</p>`;
   }else{
-    diasOrdenados.forEach(dia=>{
-      // título do dia: usa o "rel" (Hoje/Amanhã/Ontem) do primeiro jogo do grupo
-      const first=grupos[dia][0];
-      const relTag=first.ki&&first.ki.rel?`<span style="color:var(--green)">${first.ki.rel}</span> · `:"";
-      listaHTML+=`<div class="bsub" style="border:none;padding:0;margin:14px 0 6px;color:var(--amber);font-size:12px;letter-spacing:.5px">📅 ${relTag}${esc(dia)}${first.ki?"/"+first.ki.yr:""}</div>`;
-      grupos[dia].forEach(j=>{
-        const pill=j.isFinished?'<span class="statuspill st-finished">FINALIZADA</span>':(j.status==="open"?'<span class="statuspill st-open">ABERTA</span>':'<span class="statuspill st-closed">FECHADA</span>');
-        const onclick=j.isFinished?`go('result','${j.room_id}')`:`go('room','${j.room_id}')`;
-        const score=gameScore(j);
-        let adminBtn="";
-        if(isAdmin()){
-          if(j.archived)adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
-          else adminBtn=`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar">🗄</button>`;
-        }
-        // linha de horário: "🕐 13:00" + (Hoje/Amanhã) já no título do dia
-        const hora=j.ki?`<span style="color:var(--chalk)">🕐 ${j.ki.hh}</span>`:`<span style="color:var(--dim)">horário a definir</span>`;
-        listaHTML+=`<div class="roomrow gamecard ${j.isFinished?"fin":(j.status==="open"?"open":"closed")}" onclick="${onclick}">
-          <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${hora} · ${esc(j.comp)}${j.archived?" · arquivado":""}</div></div>
-          ${score?`<div class="scoremini mono">${score}</div>`:""}
-          <div class="statuswrap">${pill}${adminBtn}</div>
-          <div class="actionhint">${gameActionText(j)}</div>
-        </div>`;
+    if(tab==="finished"){
+      // FINALIZADOS: agrupado por dia, linhas com placar centralizado
+      diasOrdenados.forEach(dia=>{
+        const first=grupos[dia][0];
+        const relTag=first.ki&&first.ki.rel?`<span style="color:var(--green)">${first.ki.rel}</span> · `:"";
+        listaHTML+=`<div class="sr-sec">📅 ${relTag}${esc(dia)}${first.ki?"/"+first.ki.yr:""}</div>`;
+        grupos[dia].forEach(j=>{
+          const onclick=`go('result','${j.room_id}')`;
+          const score=gameScore(j)||"–";
+          const fo=flagsOf(j.room_id);
+          let adminBtn="";
+          if(isAdmin()){
+            if(j.archived)adminBtn=`<button class="cbtn sr-adm" style="position:static;width:26px;height:26px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
+            else adminBtn=`<button class="cbtn sr-adm" style="position:static;width:26px;height:26px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar">🗄</button>`;
+          }
+          listaHTML+=`<div class="sr-fin" onclick="${onclick}">
+            <div class="sr-row-l"><span class="sr-fl2">${fo.hf}</span><span class="sr-nm">${esc(fo.hn||j.match_name)}</span></div>
+            <span class="sr-sc">${score}</span>
+            <div class="sr-row-r"><span class="sr-nm">${esc(fo.an)}</span><span class="sr-fl2">${fo.af}</span>${adminBtn}</div>
+          </div>`;
+        });
       });
-    });
+    } else {
+      // A JOGAR: jogos de HOJE viram esteira de destaque; o resto vai pra lista larga
+      const hoje=lista.filter(j=>j.ki&&j.ki.rel==="Hoje");
+      const resto=lista.filter(j=>!(j.ki&&j.ki.rel==="Hoje"));
+      const admBtn=(j,cls)=>{
+        if(!isAdmin())return "";
+        if(j.archived)return `<button class="cbtn ${cls}" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
+        return `<button class="cbtn ${cls}" style="color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askArchive('${j.room_id}')" title="Arquivar">🗄</button>`;
+      };
+      // esteira de destaque (hoje)
+      if(hoje.length){
+        listaHTML+=`<div class="sr-sec">⭐ Em destaque · hoje</div><div class="sr-strip">`;
+        hoje.forEach(j=>{
+          const isOpen=j.status==="open";
+          const fo=flagsOf(j.room_id);
+          const col=teamColor(fo.hc)||"#8B97B8";
+          const hora=j.ki?j.ki.hh:"a definir";
+          listaHTML+=`<div class="sr-big" style="--gc:${col}" onclick="go('room','${j.room_id}')">
+            <div class="sr-big-top"><span class="sr-comp">⚽ ${esc(j.comp||"Partida")}</span><span class="sr-when">${isOpen?"Aberta":"Fechada"} · ${hora}</span></div>
+            <div class="sr-big-mid">
+              <div class="sr-tm"><span class="sr-fl">${fo.hf}</span><span class="sr-tn">${esc(fo.hn||j.match_name)}</span></div>
+              <span class="sr-x">VS</span>
+              <div class="sr-tm"><span class="sr-fl">${fo.af}</span><span class="sr-tn">${esc(fo.an)}</span></div>
+            </div>
+            <div class="sr-go ${isOpen?"":"closed"}">${isOpen?"Escalar time →":"Ver jogo →"}</div>
+          </div>`;
+        });
+        listaHTML+=`</div>`;
+      }
+      // lista larga (resto: próximos dias)
+      if(resto.length){
+        listaHTML+=`<div class="sr-sec">⚽ Próximas partidas</div>`;
+        resto.forEach(j=>{
+          const isOpen=j.status==="open";
+          const fo=flagsOf(j.room_id);
+          const hora=j.ki?(j.ki.rel?j.ki.rel+" "+j.ki.hh:j.ki.hh):"a definir";
+          listaHTML+=`<div class="sr-row ${isOpen?"":"closed"}" onclick="go('room','${j.room_id}')">
+            <div class="sr-row-l"><span class="sr-fl2">${fo.hf}</span><span class="sr-nm">${esc(fo.hn||j.match_name)}</span></div>
+            <span class="sr-vs2">×</span>
+            <div class="sr-row-r"><span class="sr-nm">${esc(fo.an)}</span><span class="sr-fl2">${fo.af}</span></div>
+            <span class="sr-time ${isOpen?"":"closed"}">${hora}${admBtn(j,"sr-adm")}</span>
+          </div>`;
+        });
+      }
+    }
   }
   // jogos do catálogo ainda NÃO abertos neste grupo (só admin)
   const naoAbertos=APP.jogos.filter(j=>!APP.groupRooms.some(gr=>gr.room_id===j.room_id)&&!isArchived(j.room_id));
@@ -558,7 +577,7 @@ function homeHTML(){
     ${nextGame?`<div class="nextbox" onclick="${nextGame.isFinished?`go('result','${nextGame.room_id}')`:`go('room','${nextGame.room_id}')`}">
       <div class="nextIcon">${nextGame.isFinished?"✓":"⚽"}</div>
       <div style="min-width:0;flex:1">
-        <div class="nextTitle">${esc(nextGame.match_name)}</div>
+        <div class="nextTitle">${flaggedName(nextGame.room_id, esc(nextGame.match_name))}</div>
         <div class="nextMeta">${esc(heroMeta)} · ${esc(nextGame.comp)}</div>
       </div>
       <div class="nextGo">${heroAction}</div>
@@ -592,7 +611,7 @@ function resultsCardHTML(){
   const arq=APP.jogos.filter(j=>isArchived(j.room_id));
   if(!arq.length)return"";
   const rows=arq.map(j=>`<div class="roomrow" onclick="go('result','${j.room_id}')">
-    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
+    <div class="info"><div class="nm">${flaggedName(j.room_id, esc(j.match_name))}</div><div class="meta">${esc(j.comp)} · ${esc(j.data||"")}</div></div>
     <span class="statuspill st-finished">VER RESULTADO</span>
     ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`:""}
   </div>`).join("");
@@ -656,7 +675,7 @@ function roundRankingHTML(){
   }
   APP.roundRooms.forEach(rr=>{
     const g=window.GAMES.data[rr.room_id];
-    const nome=g?g.prepool.home.name+" × "+g.prepool.away.name:rr.room_id;
+    const nome=g?g.prepool.home.name+" "+flagOf(g.prepool.home.code)+" × "+flagOf(g.prepool.away.code)+" "+g.prepool.away.name:rr.room_id;
     const finished=g&&g.match&&g.match.status==="finished";
     // espiar libera quando a pool daquele jogo está TRAVADA (admin fechou) ou o jogo finalizou
     const started=roomLockedInRound(rr.room_id);
@@ -814,50 +833,4 @@ function leagueRowHTML(l){
       ${pill}
       ${isAdmin()?`<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="event.stopPropagation();askRenameLeague('${l.id}')" title="Renomear">✏️</button>${archBtn}<button class="cbtn" style="position:static;width:30px;height:30px;margin-left:6px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();askDeleteLeague('${l.id}')">🗑</button>`:""}
     </div>`;
-}
-function leaguesCardHTML(){
-  const all=(APP.leagues||[]);
-  if(!all.length&&!isAdmin())return"";
-  const tab=APP.compTab.league||"live";
-  const liveList=all.filter(l=>!compIsFinishedView("league",l.id));
-  const doneList=all.filter(l=>compIsFinishedView("league",l.id));
-  const list=tab==="done"?doneList:liveList;
-  const rows=list.map(leagueRowHTML).join("");
-  const emptyMsg=tab==="done"?'<p class="p">Nenhuma liga finalizada ainda.</p>':'<p class="p">Nenhuma liga em andamento.</p>';
-  return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA${helpBtn("liga")}</div>
-    <p class="p" style="margin-bottom:10px">Junta várias rodadas numa classificação geral da temporada.${helpBtn("liga")}</p>
-    ${compTabsHTML("league",liveList.length,doneList.length)}
-    ${rows||emptyMsg}
-    ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
-  </div>`;
-}
-function askCreateLeague(){APP.confirm={mode:"createLeague",label:"Criar liga"};render();}
-function askDeleteLeague(id){APP.confirm={mode:"deleteLeague",leagueId:id,label:"Excluir liga"};render();}
-// ----- MERCADO DRAFT: modo avançado separado -----
-function draftSeasonsCardHTML(){
-  if(APP.draftSchemaMissing){
-    return `<div class="card" style="border-color:var(--amber)">
-      <div class="h2 disp">🏟️ Mercado Draft</div>
-      <p class="p" style="margin-top:8px">O modo já está no app, mas precisa criar as tabelas novas no Supabase antes de funcionar.</p>
-      <p class="p" style="font-size:11px;margin-top:8px">Use o arquivo <b style="color:var(--chalk)">draft-market-schema.sql</b> no SQL Editor do Supabase.</p>
-    </div>`;
-  }
-  const list=APP.draftSeasons||[];
-  let rows="";
-  if(!list.length)rows=`<p class="p" style="margin-top:8px">Nenhuma temporada Mercado Draft criada ainda.</p>`;
-  else rows=list.map(s=>{
-    const live=s.status==="active"||s.status==="setup";
-    return `<div class="roomrow" style="border-left:3px solid #FF8A4C" onclick="go('draft',null,null,null,null,null,'${s.id}')">
-      <div class="info"><div class="nm">${esc(s.name)}</div><div class="meta">${esc(s.status||"setup")} · orçamento ${s.budget||300} · elenco ${s.roster_limit||12}</div></div>
-      <span class="statuspill ${live?"st-open":"st-finished"}">${live?"ABERTA":"FINALIZADA"}</span>
-    </div>`;
-  }).join("");
-  return `<div class="card">
-    <div class="tag" style="margin-bottom:6px">MODO AVANÇADO · TEMPORADA</div>
-    <div class="h2 disp">🏟️ Mercado Draft</div>
-    <p class="p" style="margin:8px 0">Modo separado: elenco exclusivo, orçamento, mercado de livres, transações e temporada longa.</p>
-    ${rows}
-    ${isAdmin()?`<button class="btn" style="margin-top:14px;background:#FF8A4C;color:#0A0E1C" onclick="askCreateDraftSeason()">+ Criar Mercado Draft</button>`:""}
-  </div>`;
 }
