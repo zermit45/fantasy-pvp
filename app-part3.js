@@ -398,6 +398,30 @@ function renderKeepScroll(){
   render();
   restoreScroll(snap);
 }
+// === FOTOS DA COPA: trio de estrelas por time ===
+// Retorna o HTML do trio de fotos (3 maiores price) de um time num jogo.
+function srTrio(roomId, teamCode){
+  try{
+    const g=window.GAMES.data[roomId];
+    if(!g||!g.prepool||!g.prepool.players) return "";
+    const ps=g.prepool.players.filter(p=>p.team===teamCode);
+    if(!ps.length) return "";
+    ps.sort((a,b)=>(b.price||b.mv||0)-(a.price||a.mv||0));
+    const top=ps.slice(0,3);
+    let html='<div class="sr-trio">';
+    top.forEach(p=>{
+      const url=(typeof photoOf==="function")?photoOf(roomId,p.id):null;
+      const ini=(p.name||"").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+      if(url){
+        html+=`<span class="sr-pf"><img src="${url}" loading="lazy" onerror="this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'"></span>`;
+      }else{
+        html+=`<span class="sr-pf ph">${ini}</span>`;
+      }
+    });
+    html+='</div>';
+    return html;
+  }catch(e){ return ""; }
+}
 function homeHTML(){
   // jogos abertos NESTE grupo (status vem de group_rooms)
   const abertosRaw=APP.groupRooms.map(gr=>{
@@ -524,12 +548,15 @@ function homeHTML(){
           const fo=flagsOf(j.room_id);
           const col=teamColor(fo.hc)||"#8B97B8";
           const hora=j.ki?j.ki.hh:"a definir";
+          const _g=window.GAMES.data[j.room_id];
+          const _hc=(_g&&_g.prepool&&_g.prepool.home)?_g.prepool.home.code:fo.hc;
+          const _ac=(_g&&_g.prepool&&_g.prepool.away)?_g.prepool.away.code:null;
           listaHTML+=`<div class="sr-big" style="--gc:${col}" onclick="go('room','${j.room_id}')">
             <div class="sr-big-top"><span class="sr-comp">⚽ ${esc(j.comp||"Partida")}</span><span class="sr-when">${isOpen?"Aberta":"Fechada"} · ${hora}</span></div>
             <div class="sr-big-mid">
-              <div class="sr-tm"><span class="sr-fl">${fo.hf}</span><span class="sr-tn">${esc(fo.hn||j.match_name)}</span></div>
+              <div class="sr-tm"><span class="sr-fl">${fo.hf}</span><span class="sr-tn">${esc(fo.hn||j.match_name)}</span>${srTrio(j.room_id,_hc)}</div>
               <span class="sr-x">VS</span>
-              <div class="sr-tm"><span class="sr-fl">${fo.af}</span><span class="sr-tn">${esc(fo.an)}</span></div>
+              <div class="sr-tm"><span class="sr-fl">${fo.af}</span><span class="sr-tn">${esc(fo.an)}</span>${srTrio(j.room_id,_ac)}</div>
             </div>
             <div class="sr-go ${isOpen?"":"closed"}">${isOpen?"Escalar time →":"Ver jogo →"}</div>
           </div>`;
