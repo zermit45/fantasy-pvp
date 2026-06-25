@@ -180,7 +180,7 @@ function buildHTML(){
   const filt=pp.players.filter(p=>
     (APP.tabTeam==="ALL"||p.team===APP.tabTeam) &&
     (APP.tabPos==="ALL"||p.pos===APP.tabPos)
-  ).sort((a,b)=>b.price-a.price);
+  ).sort((a,b)=>(b.price-a.price)||String(a.name||"").localeCompare(String(b.name||""))||(a.id>b.id?1:a.id<b.id?-1:0));
   const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
   const hasSomeFilled=Object.values(s).some(Boolean);
   const canReplicate=hasSomeFilled&&!gameLocked;
