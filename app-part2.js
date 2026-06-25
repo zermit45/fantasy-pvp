@@ -1,3 +1,4 @@
+// BUILD: SORARE-v1 · app-part2 de 6 · 2026-06-25
 function underdogCode(ctx){
   const pp=ctx&&ctx.prepool;
   if(!pp||!pp.home||!pp.away)return null;

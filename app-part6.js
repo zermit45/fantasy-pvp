@@ -1,3 +1,4 @@
+// BUILD: SORARE-v1 · app-part6 de 6 · 2026-06-25
 // constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
 const _ctxCache={};
 function buildCtxFor(roomId){

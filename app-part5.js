@@ -1,3 +1,4 @@
+// BUILD: SORARE-v1 · app-part5 de 6 · 2026-06-25
 function confirmModalHTML(){
   const c=APP.confirm;if(!c)return"";
   if(c.mode==="roundSummary"){

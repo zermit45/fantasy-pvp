@@ -1,3 +1,4 @@
+// BUILD: SORARE-v1 · app-part4 de 6 · 2026-06-25
 function leaguesCardHTML(){
   const all=(APP.leagues||[]);
   if(!all.length&&!isAdmin())return"";
