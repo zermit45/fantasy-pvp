@@ -1,257 +1,4 @@
-// BUILD: SORARE-v1 · app-part5 de 6 · 2026-06-25
-function confirmModalHTML(){
-  const c=APP.confirm;if(!c)return"";
-  if(c.mode==="roundSummary"){
-    const s=roundStatusSnapshot();
-    const mm=modeMeta(APP.round);
-    const mode=modeOf(APP.round);
-    const lines=[
-      ["Escalações",`${s.mounted}/${s.total}`,s.mounted===s.total],
-      mode==="boost"?["Fichas restantes",String(s.chipsLeft),s.chipsLeft===0]:null,
-      mode==="confianca"?["Ordem",`${s.confDone}/${s.total}`,s.confDone===s.total]:null,
-      mode==="previsao"?["Palpites",`${s.predDone}/${s.total}`,s.predDone===s.total]:null,
-    ].filter(Boolean);
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:${mm.color}">${mm.icon} Confirmar ${esc(mm.label)}</div>
-      <p class="p" style="margin:10px 0">Revise antes de travar sua decisão estratégica. Você ainda pode reabrir até a trava da rodada.</p>
-      ${lines.map(l=>`<div class="todoitem ${l[2]?"ok":"warny"}"><span>${l[2]?"✓":"!"} ${esc(l[0])}</span><b>${esc(l[1])}</b></div>`).join("")}
-      <button class="btn" style="margin-top:12px;background:${mm.color};color:#0A0E1C" onclick="confirmRoundSummary()">Confirmar agora</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Revisar</button>
-    </div></div>`;
-  }
-  // modo: criar grupo (admin)
-  if(c.mode==="createGroup"){
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Criar grupo de amigos</div>
-      <p class="p" style="margin:10px 0">Dê um nome e uma senha. Você repassa a senha pros amigos entrarem.</p>
-      <input id="grpName" class="input" placeholder="Nome do grupo" autocorrect="off" />
-      <input id="grpPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
-      <button class="btn" style="margin-top:4px" onclick="submitCreateGroup()">Criar grupo</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // modo: excluir histórico do perfil (exige senha da conta)
-  if(c.mode==="hideHistory"){
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--red)">Excluir histórico do perfil</div>
-      <p class="p" style="margin:10px 0">Isto oculta do seu perfil todos os times que você montou nos jogos encerrados. Suas medalhas e conquistas zeram. Você continua aparecendo no ranking das salas.</p>
-      <p class="p" style="margin:10px 0">Digite a <b style="color:var(--chalk)">senha da sua conta</b> para confirmar.</p>
-      <input id="hideHistPass" class="input" type="password" placeholder="Sua senha" autocomplete="off" autocapitalize="off" />
-      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="submitHideHistory()">🗑 Excluir histórico</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // trocar nome de usuário (pede senha atual pra confirmar)
-  if(c.mode==="changeUsername"){
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Mudar nome de usuário</div>
-      <p class="p" style="margin:10px 0">Seu apelido atual é <b style="color:var(--chalk)">${esc(APP.user.username)}</b>. Escolha um novo — é assim que os outros vão te ver. Seu histórico e conquistas vão junto.</p>
-      <input id="cu-new" class="input" placeholder="Novo apelido" autocomplete="off" />
-      <div style="position:relative">
-        <input id="cu-pass" class="input" type="password" placeholder="Sua senha atual (confirmar)" autocomplete="off" style="padding-right:44px" />
-        <span id="cu-eye" onclick="togglePassVisib('cu-pass','cu-eye')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
-      </div>
-      <button class="btn" style="margin-top:4px" onclick="submitChangeUsername()">Trocar nome</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // trocar senha (pede senha atual + nova duas vezes)
-  if(c.mode==="changePassword"){
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Mudar senha</div>
-      <p class="p" style="margin:10px 0">Digite sua senha atual e a nova senha. Você vai usar a nova senha toda vez que entrar no app.</p>
-      <div style="position:relative">
-        <input id="cp-old" class="input" type="password" placeholder="Senha atual" autocomplete="off" style="padding-right:44px" />
-        <span id="cp-eye1" onclick="togglePassVisib('cp-old','cp-eye1')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
-      </div>
-      <div style="position:relative">
-        <input id="cp-new" class="input" type="password" placeholder="Nova senha (3+)" autocomplete="off" style="padding-right:44px" />
-        <span id="cp-eye2" onclick="togglePassVisib('cp-new','cp-eye2')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
-      </div>
-      <div style="position:relative">
-        <input id="cp-new2" class="input" type="password" placeholder="Repita a nova senha" autocomplete="off" style="padding-right:44px" />
-        <span id="cp-eye3" onclick="togglePassVisib('cp-new2','cp-eye3')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
-      </div>
-      <button class="btn" style="margin-top:4px" onclick="submitChangePassword()">Trocar senha</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // modo: arquivar jogo (admin) — move pra Resultados, global
-  if(c.mode==="archive"){
-    const j=APP.jogos.find(x=>x.room_id===c.roomId);
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--blue)">Arquivar jogo</div>
-      <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">${esc(j?j.match_name:"")}</b> vai sair de todos os grupos e rodadas e passar a aparecer só em <b style="color:var(--blue)">Resultados</b>, onde todos veem como foi. Não poderá mais ser adicionado a nenhuma pool.</p>
-      <p class="p" style="margin:10px 0">Os times já montados e o ranking continuam salvos. Você pode desarquivar depois.</p>
-      <button class="btn" style="margin-top:4px;background:var(--blue)" onclick="closeConfirm();archiveGame('${c.roomId}')">🗄 Arquivar</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // modo: entrar num grupo com senha
-  if(c.mode==="join"){
-    const g=APP.groups.find(x=>x.id===c.gid);
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Entrar em ${esc(g?g.name:"")}</div>
-      <p class="p" style="margin:10px 0">Digite a senha que o admin passou. Você fica membro pra sempre.</p>
-      <input id="joinPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
-      <button class="btn" style="margin-top:4px" onclick="submitJoin()">Entrar</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // modo: criar rodada (admin)
-  if(c.mode==="replicate"){
-    const pp=APP.prepool;
-    const nome=pp?`${esc(pp.home.name)} × ${esc(pp.away.name)}`:"este jogo";
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--green)">Repor escalação</div>
-      <p class="p" style="margin:10px 0">Tem certeza que quer <b style="color:var(--chalk)">repor as ${c.count} outra(s) aparição(ões)</b> de <b style="color:var(--chalk)">${nome}</b> com a escalação que você montou agora?</p>
-      <p class="p" style="margin-bottom:12px;font-size:11px">Isso <b>sobrescreve</b> o time que você tinha montado pra este mesmo jogo nos outros modos/rodadas. As que já travaram não são afetadas.</p>
-      <button class="btn" style="margin-top:4px;background:var(--green);color:#06231a" onclick="applyLineupEverywhere()">Sim, repor as ${c.count}</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="createRound"){
-    const poolMax=(APP.jogos||[]).length;
-    const defLimit=Math.min(3,poolMax||3);
-    const selMode=MODE_META[c.newMode]?c.newMode:"full";
-    const modeBtns=MODE_LIST.map(mk=>{
-      const mm=MODE_META[mk],on=selMode===mk;
-      return `<div onclick="setCreateMode('${mk}')" style="flex:1 1 calc(50% - 3px);cursor:pointer;text-align:center;padding:9px 4px;border-radius:9px;border:1px solid ${on?mm.color:"var(--line)"};background:${on?`color-mix(in srgb,${mm.color} 18%,transparent)`:"var(--panel2)"};color:${on?mm.color:"var(--dim)"};font-size:11px;font-weight:700">${mm.icon} ${mm.label}</div>`;
-    }).join("");
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Criar mini rodada</div>
-      <p class="p" style="margin:8px 0">Escolha o modo:</p>
-      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">${modeBtns}</div>
-      <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
-      ${modePreviewHTML(selMode)}
-      <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
-      ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
-      ${selMode==="boost"?boostBuilderHTML(c):""}
-      ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
-      ${selMode==="confianca"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e ordenam os jogos por confiança: o 1º vale 2x, o último 0,5x.</p>`:""}
-      ${selMode==="previsao"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e cravam o placar de cada jogo. Bônus: +${PRED_RESULT_PCT}% pelo resultado, +${PRED_EXACT_PCT}% pelo placar exato.</p>`:""}
-      ${selMode==="zebra"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. Em cada jogo, atletas do time com menor ELO recebem +25% em cima dos pontos positivos.</p>`:""}
-      ${selMode==="sobrevivencia"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. Negativou em qualquer jogo finalizado: zera a mini rodada. Se sobreviver, o pior jogo é descartado.</p>`:""}
-      ${selMode==="capitaoduplo"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. O capitão recebe reforço extra na classificação da mini rodada, chegando perto de 1.4x no total.</p>`:""}
-      <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="rename"){
-    const isRound=c.kind==="round";
-    const poolMax=(APP.jogos||[]).length;
-    let extra="";
-    if(isRound&&c.roundMode==="select"){
-      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Quantos jogos cada um escolhe:</p><input id="renamePick" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} value="${c.pickLimit||3}" />`;
-    }else if(isRound&&c.roundMode==="boost"){
-      extra=`<p class="p" style="font-size:11px;margin-bottom:6px;color:#FFC247">Fichas de impulso desta pool:</p>${boostBuilderHTML(c)}`;
-    }
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Editar mini rodada"}</div>
-      <p class="p" style="margin:10px 0">${isRound?"Edite o nome e os ajustes. Os times, pontos e vínculos continuam intactos.":"Escolha o novo nome. Os times, pontos e vínculos continuam intactos."}</p>
-      <input id="renameInput" class="input" value="${esc(c.cur||"")}" autocorrect="off" />
-      ${extra}
-      <button class="btn" style="margin-top:4px" onclick="submitRename()">Salvar</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="createPhase"){
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Criar rodada</div>
-      <p class="p" style="margin:10px 0">Uma rodada (ex: "Fase de Grupos") agrupa várias mini rodadas. Você cria as mini rodadas depois, dentro dela.</p>
-      <input id="phName" class="input" placeholder="Nome (ex: Fase de Grupos)" autocorrect="off" />
-      <button class="btn" style="margin-top:4px" onclick="submitCreatePhase()">Criar rodada</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="createLeague"){
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Criar liga</div>
-      <p class="p" style="margin:10px 0">Uma liga agrupa várias rodadas numa classificação geral (pontos de tabela + pontuação clássica). Você adiciona as rodadas depois, dentro da liga.</p>
-      <input id="lgName" class="input" placeholder="Nome (ex: Liga Copa 2026)" autocorrect="off" />
-      <button class="btn" style="margin-top:4px" onclick="submitCreateLeague()">Criar liga</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="createDraftSeason"){
-    const ck=(id,label,on=true,req=false,desc="")=>`<label style="display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:8px;background:rgba(255,255,255,.025);margin:6px 0">
-      <input id="${id}" type="checkbox" ${on?"checked":""} ${req?"disabled":""} style="margin-top:3px;transform:scale(1.15)" />
-      <span style="flex:1"><b style="color:${req?"var(--amber)":"var(--chalk)"}">${esc(label)}${req?" · obrigatório":""}</b>${desc?`<small style="display:block;color:var(--dim);font-size:10px;margin-top:2px">${esc(desc)}</small>`:""}</span>
-    </label>`;
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
-      <p class="p" style="margin:10px 0">Modo separado e full customizável. As opções obrigatórias são o núcleo do Draft; o resto você liga/desliga.</p>
-      <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
-      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" />
-      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" />
-      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">BASE DO MODO</div>
-      ${ck("dm_create","Criar campeonato Draft",true,true,"Sem temporada não existe modo.")}
-      ${ck("dm_scope","Escolher jogos/rodadas que fazem parte",true,false,"Ativa vínculo da temporada com jogos/rodadas.")}
-      ${ck("dm_budget","Cada usuário tem orçamento",true,false,"Se desligar, compras não descontam moedas.")}
-      ${ck("dm_unique","Cada jogador real só pode ter um dono",true,true,"Essência do Draft; o banco também protege isso.")}
-      ${ck("dm_ordered","Draft inicial por ordem",true,false,"Liga a etapa de draft antes do mercado.")}
-      ${ck("dm_roster","Elenco limitado",true,false,"Usa o limite acima, recomendado 8 a 12.")}
-      ${ck("dm_lineup","Escalação de 5 + banco por rodada",true,false,"Base competitiva do modo temporada.")}
-      ${ck("dm_market","Mercado de livres entre rodadas",true,false,"Permite comprar jogadores sem dono.")}
-      ${ck("dm_ranking","Ranking geral da temporada",true,true,"Sem ranking não tem competição.")}
-      ${ck("dm_history","Histórico de compras/vendas",true,true,"Ajuda auditoria e zoeira saudável.")}
-      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">MERCADO AVANÇADO</div>
-      ${ck("dm_dynamic","Valorização dinâmica",true,false,"Preço muda conforme desempenho e contexto.")}
-      ${ck("dm_sell_current","Venda por preço atualizado",true,false,"Venda usa current_price, não preço original.")}
-      ${ck("dm_buy_limit","Limite de compras por rodada",true,false,"Controla spam de mercado.")}
-      <input id="draftBuyLimit" class="input" type="number" inputmode="numeric" placeholder="Compras por rodada" value="2" />
-      ${ck("dm_auto_window","Janela abre/fecha automático",false,false,"Para automatizar mercado por rodada no futuro.")}
-      ${ck("dm_eliminated","Eliminados perdem valor ou travam",true,false,"Seleções eliminadas sofrem regra de mercado.")}
-      ${ck("dm_waiver","Waiver: pior colocado tem prioridade",true,false,"Resolve disputa por jogador concorrido.")}
-      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">SOCIAL / PVP</div>
-      ${ck("dm_trades","Trocas entre usuários",true,false,"Permite negociar jogador/moedas.")}
-      ${ck("dm_pending","Propostas pendentes",true,false,"Troca precisa ser aceita.")}
-      ${ck("dm_veto","Veto/admin",true,false,"Admin pode barrar troca suspeita.")}
-      ${ck("dm_loans","Empréstimos",false,false,"Jogador vai e volta por período definido.")}
-      ${ck("dm_clause","Multa rescisória",true,false,"Permite comprar pagando cláusula configurada.")}
-      ${ck("dm_auction","Leilão por jogadores livres",false,false,"Ao invés de compra direta, jogador livre vai a leilão.")}
-      <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="deletePhase"){
-    const p=(APP.phases||[]).find(x=>x.id===c.phaseId);
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--red)">Excluir rodada</div>
-      <p class="p" style="margin:10px 0">Excluir <b style="color:var(--chalk)">${esc(p?p.name:"")}</b>? As mini rodadas dela <b>não</b> são apagadas — voltam a ser avulsas. Times e pontuações continuam intactos.</p>
-      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="closeConfirm();deletePhase('${c.phaseId}')">🗑 Excluir rodada</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  if(c.mode==="deleteLeague"){
-    const l=(APP.leagues||[]).find(x=>x.id===c.leagueId);
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--red)">Excluir liga</div>
-      <p class="p" style="margin:10px 0">Excluir <b style="color:var(--chalk)">${esc(l?l.name:"")}</b>? As rodadas dela <b>não</b> são apagadas — apenas voltam a ser avulsas. Os times e pontuações continuam intactos.</p>
-      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="closeConfirm();deleteLeague('${c.leagueId}')">🗑 Excluir liga</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-    </div></div>`;
-  }
-  // modo: confirmar entrada num jogo da rodada (gasta ficha)
-  if(c.mode==="confirmTeam"){
-    const j=APP.jogos.find(x=>x.room_id===c.roomId);
-    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-      <div class="h2 disp" style="color:var(--amber)">Confirmar equipe?</div>
-      <p class="p" style="margin:10px 0">Você vai <b style="color:var(--chalk)">travar seu time</b> em ${esc(j?j.match_name:"")}. Depois de confirmar, <b>não dá mais pra editar</b> a escalação deste jogo.</p>
-      <p class="p" style="margin:10px 0">Confirme só quando souber os titulares e estiver satisfeito.</p>
-      <button class="btn" style="margin-top:4px" onclick="closeConfirm();confirmTeam('${c.roomId}')">✓ Confirmar e travar</button>
-      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Ainda não, deixa eu ajustar</button>
-    </div></div>`;
-  }
-  // modo padrão: confirmação destrutiva por palavra (reset)
-  return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
-    <div class="h2 disp" style="color:var(--red)">⚠ ${esc(c.label)}</div>
-    <p class="p" style="margin:10px 0">${c.msg?esc(c.msg):'Esta ação <b style="color:var(--chalk)">apaga os times e não pode ser desfeita</b>. Salas e usuários são mantidos.'} Para confirmar, digite <b style="color:var(--amber)">${c.word}</b> abaixo.</p>
-    <input id="confirmField" class="input" placeholder="Digite ${c.word}" autocapitalize="characters" autocorrect="off" />
-    <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" onclick="runConfirm()">Apagar agora</button>
-    <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
-  </div></div>`;
-}
+// BUILD: SORARE-v2-COM-STATS · app-part5 de 6 · 2026-06-25
 function submitCreateGroup(){
   const n=$("grpName"),p=$("grpPass");
   const name=n?n.value.trim():"",pass=p?p.value.trim():"";
@@ -851,4 +598,276 @@ function computeDreamTeam(roomId){
     }
   }
   return best;
+}
+// constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
+const _ctxCache={};
+function buildCtxFor(roomId){
+  if(_ctxCache[roomId]!==undefined)return _ctxCache[roomId];
+  const g=window.GAMES.data[roomId];if(!g){_ctxCache[roomId]=null;return null;}
+  const pp=g.prepool,m=g.match;if(!m||m.status!=="finished"){_ctxCache[roomId]=null;return null;}
+  m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
+  if(m.team_stats)for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
+  const byId=Object.fromEntries(pp.players.map(p=>[p.id,p]));
+  const ctx={prepool:pp,match:m,byId,eng:makeEngine(m)};
+  _ctxCache[roomId]=ctx;
+  return ctx;
+}
+// ============================================================
+// MEDALHAS (derivadas das stats do perfil) + TELA DE PERFIL
+// ============================================================
+// cada medalha tem tiers; retorna a maior atingida (ou null)
+function computeMedals(st){
+  const tier=(val,steps,emoji,nameBase,unit)=>{
+    let got=null;
+    for(const[thr,name]of steps){if(val>=thr)got={emoji,name,desc:name+" · "+val+" "+unit};}
+    return got;
+  };
+  const m=[];
+  const archDistinct=Object.keys(st.archetypes).length;
+  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const tacticsUsed=Object.keys(st.tactics||{}).length;
+  const add=x=>{if(x)m.push(x);};
+  add(tier(st.wins,[[1,"Primeira Vitória"],[3,"Vencedor"],[7,"Campeão de Sala"],[15,"Dominador"]],"🏆","wins","vitória(s)"));
+  add(tier(st.podiums,[[3,"Pódio Frequente"],[10,"Sempre no Topo"]],"🥇","pod","pódio(s)"));
+  add(tier(st.games,[[1,"Estreante"],[5,"Habitual"],[15,"Veterano"],[30,"Lenda Viva"]],"🎮","games","jogo(s)"));
+  add(tier(archDistinct,[[5,"Colecionador"],[12,"Curador"],[20,"Enciclopédia"]],"🃏","arch","arquétipos"));
+  add(tier(rareCount,[[1,"Sortudo"],[5,"Caçador de Raros"],[12,"Lapidador"]],"💎","rare","carta(s) rara(s)"));
+  add(tier(Math.floor(st.bestScore),[[20,"Boa Cartada"],[35,"Tacada de Mestre"],[50,"Jogo Perfeito"]],"📊","best","pts num jogo"));
+  // NOVAS
+  add(tier(st.bestStreak||0,[[2,"Embalado"],[3,"Invicto"],[5,"Imparável"]],"🔥","streak","pódios seguidos"));
+  add(tier(st.zebraWins||0,[[1,"Zebra Master"],[3,"Rei da Zebra"]],"🦓","zebra","vitória(s) com zebra"));
+  add(tier(tacticsUsed,[[3,"Tático"],[5,"Estrategista"],[6,"Maestro da Tática"]],"🧠","tac","táticas usadas"));
+  if(st.capTotal>=4)add(tier(st.capRate,[[60,"Braçadeira de Ouro"],[80,"Capitão Certeiro"]],"🎖️","cap","% de acerto no capitão"));
+  if(st.games>=4)add(tier(Math.floor(st.avg),[[20,"Regularidade"],[30,"Consistente"],[40,"Máquina de Pontos"]],"📈","avg","pts de média"));
+  return m;
+}
+// título/nível do usuário — evolui com experiência + resultados
+function userTitle(st){
+  // pontuação de XP: jogos + vitórias valem mais + pódios + variedade de cartas
+  const archDistinct=Object.keys(st.archetypes||{}).length;
+  const xp=st.games*10 + st.wins*25 + st.podiums*8 + archDistinct*3;
+  const niveis=[
+    [0,  "Novato",          "🥚"],
+    [40, "Escalador",       "📋"],
+    [90, "Treinador",       "📣"],
+    [160,"Tático",          "🧠"],
+    [260,"Estrategista",    "♟️"],
+    [400,"Mestre",          "🎩"],
+    [600,"Lenda",           "👑"],
+  ];
+  let cur=niveis[0],next=null;
+  for(let i=0;i<niveis.length;i++){
+    if(xp>=niveis[i][0]){cur=niveis[i];next=niveis[i+1]||null;}
+  }
+  const prog=next?Math.round((xp-cur[0])/(next[0]-cur[0])*100):100;
+  return {name:cur[1], emoji:cur[2], xp, next:next?{name:next[1],falta:next[0]-xp}:null, prog};
+}
+function collectionHTML(archObj){
+  const tem=archObj||{};
+  const total=ARCH_CATALOG.length;
+  const got=ARCH_CATALOG.filter(a=>tem[a.name]>0).length;
+  let html=`<div class="card"><div class="h2 disp">🃏 Coleção de arquétipos</div>
+    <p class="p" style="margin:6px 0 10px">Você desbloqueou <b style="color:var(--amber)">${got}/${total}</b> arquétipos. Cada um é um papel que um jogador seu desempenhou numa partida. Toque pra ver como conseguir os que faltam.</p>`;
+  // agrupa por categoria
+  const cats=["Goleiro","Defesa","Meio","Criação","Ataque","Outros"];
+  for(const cat of cats){
+    const arr=ARCH_CATALOG.filter(a=>a.cat===cat);
+    if(!arr.length)continue;
+    html+=`<div class="bsub" style="margin:10px 0 4px">${cat}</div>`;
+    for(const a of arr){
+      const has=tem[a.name]>0;
+      const col=RAR_COLOR[a.rar]||"#9aa6b2";
+      const n=tem[a.name]||0;
+      html+=`<div class="line" style="padding:8px 0;align-items:flex-start;${has?"":"opacity:.5"}">
+        <span style="flex:1">
+          <b style="color:${has?"var(--chalk)":"var(--dim)"}">${has?"":"🔒 "}${esc(a.name)}</b>
+          <span style="font-size:9px;color:${col};border:1px solid ${col};border-radius:6px;padding:1px 5px;margin-left:6px">${a.rar}</span>
+          ${has?`<span style="font-size:9px;color:var(--green);margin-left:4px">✓ ${n}×</span>`:""}
+          <br><i style="font-size:11px;color:var(--dim)">${esc(a.how)}</i>
+        </span>
+      </div>`;
+    }
+  }
+  html+=`</div>`;
+  return html;
+}
+function profileTabsHTML(active,onclickFn){
+  const tabs=[
+    ["geral","Geral"],
+    ["avulsa","Avulsa"],
+    ["full","🏆 Completo"],
+    ["boost","⚡ Impulso"],
+    ["confianca","📊 Confiança"],
+    ["previsao","🔮 Previsão"],
+    ["zebra","🐎 Zebra"],
+    ["sobrevivencia","🛡️ Sobrevivência"],
+    ["capitaoduplo","👑 Capitão Duplo"]
+  ];
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,l])=>`<button class="statuspill ${k===active?"st-open":""}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="${onclickFn}('${k}')">${l}</button>`).join("")}</div>`;
+}
+function setProfileTab(t){APP.profileTab=t;render();}
+function setMemberProfileTab(t){APP.memberProfileTab=t;render();}
+function openProfile(){go("profile");}
+function profileHTML(){
+  const prof=APP.profile;
+  if(!prof)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
+  const st=prof._byMode?(prof[APP.profileTab]||prof.geral):prof;
+  const medals=computeMedals(prof._byMode?prof.geral:prof);
+  const archDistinct=Object.keys(st.archetypes).length;
+  const TOTAL_ARCH=ARCH_CATALOG.length; // total de arquétipos possíveis no engine
+  const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const tit=userTitle(prof._byMode?prof.geral:prof);
+  let html=`<div class="card">
+    <div class="h1 disp" style="color:var(--amber)">${esc(APP.user.username)}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px">
+      <span style="font-size:28px">${tit.emoji}</span>
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--chalk);font-size:17px">${tit.name}</div>
+        <div style="font-size:11px;color:var(--dim)">${tit.next?`faltam ${tit.next.falta} XP pra ${tit.next.name}`:"nível máximo!"} · ${tit.xp} XP</div>
+        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${tit.prog}%;background:var(--amber)"></div></div>
+      </div>
+    </div>
+    <p class="p" style="margin-bottom:0">Conquistas no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
+  </div>`;
+  // resumo em números
+  html+=`<div class="card"><div class="h2 disp">Resumo</div>
+    ${profileTabsHTML(APP.profileTab,"setProfileTab")}
+    <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+      ${statBox("🎮",st.games,"jogos")}
+      ${statBox("🏆",st.wins,"vitórias")}
+      ${statBox("🥇",st.podiums,"pódios")}
+      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}
+      ${statBox("📈",st.avg||0,"média/jogo")}
+      ${statBox("🎯",st.podiumRate+"%","pódio")}
+      ${statBox("🃏",archDistinct+"/"+TOTAL_ARCH,"arquétipos")}
+      ${statBox("💎",rareCount,"raros")}
+      ${statBox("🔥",st.bestStreak||0,"sequência")}
+    </div>
+    ${st.bestGame?`<p class="p" style="margin-top:10px">Sua melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
+    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação individual: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts em ${esc(st.bestPerf.game)}${st.bestPerf.cap?" (capitão)":""}.</p>`:""}
+    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito (mais pontos): <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts somados).</p>`:""}
+    ${st.bestPlayer?`<p class="p" style="margin-top:4px">📋 Mais escalado: <b style="color:var(--chalk)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b> (${st.topTactic.n}×).</p>`:""}
+    ${st.capTotal>=1?`<p class="p" style="margin-top:4px">🎖️ Capitão certeiro: <b style="color:var(--chalk)">${st.capRate}%</b> (acertou o melhor ${st.capHits}/${st.capTotal}).</p>`:""}
+  </div>`;
+  // medalhas
+  html+=`<div class="card"><div class="h2 disp">Medalhas</div>`;
+  if(!medals.length)html+=`<p class="p" style="margin-top:8px">Nenhuma medalha ainda. Monte times nos jogos encerrados para começar a colecionar.</p>`;
+  else html+=`<div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div>`;
+  html+=`</div>`;
+  // COLEÇÃO completa de arquétipos (usa o geral: tudo que já desbloqueou)
+  html+=collectionHTML((APP.profile._byMode?APP.profile.geral:APP.profile).archetypes);
+  // coleção de arquétipos
+  if(topArch.length){
+    html+=`<div class="card"><div class="h2 disp">Seus arquétipos mais frequentes${helpBtn("arquetipo")}</div><div style="margin-top:10px">`;
+    topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
+    html+=`</div></div>`;
+  }
+  // histórico de partidas (clicável, com detalhe por jogador)
+  const phist=APP.profileHistory;
+  html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
+  if(!phist)html+=`<div class="loading">Carregando histórico…</div>`;
+  else if(!phist.length)html+=`<p class="p" style="margin-top:8px">Você ainda não jogou nenhuma partida finalizada.</p>`;
+  else{html+=`<p class="p" style="margin:6px 0 4px;font-size:12px">Toque numa partida pra abrir, e num jogador pra ver os detalhes da pontuação e o arquétipo.</p>`;phist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"p");});}
+  html+=`</div>`;
+  html+=`<div class="card">
+    <div class="tag" style="margin-bottom:6px">CONTA</div>
+    <p class="p" style="margin-bottom:10px;font-size:12px">Seu apelido é como os outros te veem. A senha é o que você usa pra entrar no app.</p>
+    <button class="btn ghost" style="margin-bottom:8px" onclick="askChangeUsername()">✏️ Mudar nome de usuário</button>
+    <button class="btn ghost" onclick="askChangePassword()">🔑 Mudar senha</button>
+  </div>`;
+  html+=`<div class="card">
+    <div class="tag" style="margin-bottom:6px;color:var(--red)">ZONA DE RISCO</div>
+    <p class="p" style="margin-bottom:10px">Excluir seu histórico oculta do seu perfil os times que você montou nos jogos já encerrados (zera medalhas e conquistas). Você continua no ranking das salas. Pede sua senha pra confirmar.</p>
+    <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="askHideHistory()">🗑 Excluir histórico do perfil</button>
+  </div>`;
+  return html;
+}
+function statBox(emoji,val,label){
+  return `<div class="slot" style="cursor:default;text-align:center;min-height:auto;padding:12px 6px">
+    <div style="font-size:20px">${emoji}</div>
+    <div class="mono" style="font-size:18px;color:var(--amber);margin-top:4px">${val}</div>
+    <div style="font-size:9px;letter-spacing:.1em;color:var(--dim);margin-top:2px;text-transform:uppercase">${label}</div>
+  </div>`;
+}
+// ── LISTA DE MEMBROS DO GRUPO ──
+function membersHTML(){
+  const list=APP.members;
+  let html=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="h1 disp" style="color:var(--amber)">👥 Membros</div>
+      <div class="userchip" onclick="go('home')" style="cursor:pointer">← voltar</div>
+    </div>
+    <p class="p" style="margin-top:6px">Grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>. Toque num membro pra ver o perfil e o histórico de times.</p>
+  </div><div class="card">`;
+  if(!list)html+=`<div class="loading">Carregando membros…</div>`;
+  else if(!list.length)html+=`<p class="p">Nenhum membro encontrado.</p>`;
+  else html+=list.map(u=>{
+    const isMe=u===APP.user?.username;
+    return `<div class="rank${isMe?" me":""}" style="cursor:pointer" onclick="openMember('${encodeURIComponent(u)}')"><div class="po">👤</div><div class="nm">${esc(u)}${isMe?" <small>(você)</small>":""}</div><div class="pt mono" style="font-size:15px">›</div></div>`;
+  }).join("");
+  html+=`</div>`;
+  return html;
+}
+function openMember(encU){const u=decodeURIComponent(encU);go("member",null,null,u);}
+// ── PERFIL + HISTÓRICO DE UM MEMBRO ──
+function memberHTML(){
+  const u=APP.memberView;
+  const prof=APP.memberProfile;
+  const hist=APP.memberHistory;
+  let html=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="h1 disp" style="color:var(--amber)">${esc(u||"")}</div>
+      <div class="userchip" onclick="go('members')" style="cursor:pointer">← voltar</div>
+    </div>
+    <p class="p" style="margin-top:6px">Perfil no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
+  </div>`;
+  if(!prof){html+=`<div class="card"><div class="loading">Calculando perfil…</div></div>`;return html;}
+  const st=prof._byMode?(prof[APP.memberProfileTab]||prof.geral):prof;
+  const stGeral=prof._byMode?prof.geral:prof;
+  const archDistinct=Object.keys(st.archetypes).length;
+  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
+  const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const medals=computeMedals(stGeral);
+  const tit=userTitle(stGeral);
+  // título/nível
+  html+=`<div class="card"><div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:26px">${tit.emoji}</span>
+    <div style="flex:1"><div style="font-weight:700;color:var(--chalk);font-size:16px">${tit.name}</div>
+    <div style="font-size:11px;color:var(--dim)">${tit.xp} XP</div>
+    <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${tit.prog}%;background:var(--amber)"></div></div></div>
+  </div></div>`;
+  // resumo
+  html+=`<div class="card"><div class="h2 disp">Resumo</div>
+    ${profileTabsHTML(APP.memberProfileTab,"setMemberProfileTab")}
+    <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+      ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
+      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("📈",st.avg||0,"média/jogo")}${statBox("🎯",st.podiumRate+"%","pódio")}
+      ${statBox("🃏",archDistinct+"/"+ARCH_CATALOG.length,"arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
+    </div>
+    ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
+    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts${st.bestPerf.game?` em ${esc(st.bestPerf.game)}`:""}.</p>`:""}
+    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito: <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts somados).</p>`:""}
+    ${st.bestPlayer?`<p class="p" style="margin-top:4px">📋 Mais escalado: <b style="color:var(--chalk)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
+    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b> (${st.topTactic.n}×).</p>`:""}
+    ${st.capTotal>=1?`<p class="p" style="margin-top:4px">🎖️ Capitão certeiro: <b style="color:var(--chalk)">${st.capRate}%</b> (acertou o melhor ${st.capHits}/${st.capTotal}).</p>`:""}
+  </div>`;
+  // medalhas
+  if(medals.length)html+=`<div class="card"><div class="h2 disp">Medalhas</div><div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div></div>`;
+  // coleção de arquétipos do membro (geral)
+  html+=collectionHTML(stGeral.archetypes);
+  // arquétipos
+  if(topArch.length){
+    html+=`<div class="card"><div class="h2 disp">Arquétipos mais frequentes</div><div style="margin-top:10px">`;
+    topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
+    html+=`</div></div>`;
+  }
+  // histórico de partidas com times escalados
+  html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
+  if(!hist)html+=`<div class="loading">Carregando histórico…</div>`;
+  else if(!hist.length)html+=`<p class="p" style="margin-top:8px">Este membro ainda não jogou nenhuma partida finalizada.</p>`;
+  else hist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"m");});
+  html+=`</div>`;
+  return html;
 }

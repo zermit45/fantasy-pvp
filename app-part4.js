@@ -1,50 +1,4 @@
-// BUILD: SORARE-v1 · app-part4 de 6 · 2026-06-25
-function leaguesCardHTML(){
-  const all=(APP.leagues||[]);
-  if(!all.length&&!isAdmin())return"";
-  const tab=APP.compTab.league||"live";
-  const liveList=all.filter(l=>!compIsFinishedView("league",l.id));
-  const doneList=all.filter(l=>compIsFinishedView("league",l.id));
-  const list=tab==="done"?doneList:liveList;
-  const rows=list.map(leagueRowHTML).join("");
-  const emptyMsg=tab==="done"?'<p class="p">Nenhuma liga finalizada ainda.</p>':'<p class="p">Nenhuma liga em andamento.</p>';
-  return `<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--amber)">LIGAS · TEMPORADA${helpBtn("liga")}</div>
-    <p class="p" style="margin-bottom:10px">Junta várias rodadas numa classificação geral da temporada.${helpBtn("liga")}</p>
-    ${compTabsHTML("league",liveList.length,doneList.length)}
-    ${rows||emptyMsg}
-    ${isAdmin()&&tab==="live"?`<button class="btn" style="margin-top:10px" onclick="askCreateLeague()">+ Criar liga</button>`:""}
-  </div>`;
-}
-function askCreateLeague(){APP.confirm={mode:"createLeague",label:"Criar liga"};render();}
-function askDeleteLeague(id){APP.confirm={mode:"deleteLeague",leagueId:id,label:"Excluir liga"};render();}
-// ----- MERCADO DRAFT: modo avançado separado -----
-function draftSeasonsCardHTML(){
-  if(APP.draftSchemaMissing){
-    return `<div class="card" style="border-color:var(--amber)">
-      <div class="h2 disp">🏟️ Mercado Draft</div>
-      <p class="p" style="margin-top:8px">O modo já está no app, mas precisa criar as tabelas novas no Supabase antes de funcionar.</p>
-      <p class="p" style="font-size:11px;margin-top:8px">Use o arquivo <b style="color:var(--chalk)">draft-market-schema.sql</b> no SQL Editor do Supabase.</p>
-    </div>`;
-  }
-  const list=APP.draftSeasons||[];
-  let rows="";
-  if(!list.length)rows=`<p class="p" style="margin-top:8px">Nenhuma temporada Mercado Draft criada ainda.</p>`;
-  else rows=list.map(s=>{
-    const live=s.status==="active"||s.status==="setup";
-    return `<div class="roomrow" style="border-left:3px solid #FF8A4C" onclick="go('draft',null,null,null,null,null,'${s.id}')">
-      <div class="info"><div class="nm">${esc(s.name)}</div><div class="meta">${esc(s.status||"setup")} · orçamento ${s.budget||300} · elenco ${s.roster_limit||12}</div></div>
-      <span class="statuspill ${live?"st-open":"st-finished"}">${live?"ABERTA":"FINALIZADA"}</span>
-    </div>`;
-  }).join("");
-  return `<div class="card">
-    <div class="tag" style="margin-bottom:6px">MODO AVANÇADO · TEMPORADA</div>
-    <div class="h2 disp">🏟️ Mercado Draft</div>
-    <p class="p" style="margin:8px 0">Modo separado: elenco exclusivo, orçamento, mercado de livres, transações e temporada longa.</p>
-    ${rows}
-    ${isAdmin()?`<button class="btn" style="margin-top:14px;background:#FF8A4C;color:#0A0E1C" onclick="askCreateDraftSeason()">+ Criar Mercado Draft</button>`:""}
-  </div>`;
-}
+// BUILD: SORARE-v2-COM-STATS · app-part4 de 6 · 2026-06-25
 function draftHTML(){
   const s=APP.draftSeason;
   if(APP.draftSchemaMissing)return draftSeasonsCardHTML();
@@ -622,6 +576,7 @@ function roomHTML(){
         ?`<button class="btn ghost" onclick="setPoolStatus('closed')">🔒 Fechar pool (trava as escalações)</button>`
         :`<button class="btn ghost" onclick="setPoolStatus('open')">🔓 Reabrir pool</button>`}
       <button class="btn ghost" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="resetRoom()">🧹 Limpar times desta sala</button>
+      <button class="btn" style="margin-top:8px;background:var(--green);color:#04140d;font-weight:800" onclick="abrirApuracao('${APP.roomId}')">⚙️ Apurar jogo (colar resultado)</button>
     </div>`:""}
   </div>`;
 }
@@ -844,4 +799,258 @@ function modePreviewHTML(mk){
     <div class="pvtitle" style="color:${mm.color}">${mm.icon} Preview · Completo</div>
     <div class="pvtext">Todos escalam todos os jogos. Vence quem soma mais pontos na rodada inteira, sem bônus extra.</div>
   </div>`;
+}
+function confirmModalHTML(){
+  const c=APP.confirm;if(!c)return"";
+  if(c.mode==="roundSummary"){
+    const s=roundStatusSnapshot();
+    const mm=modeMeta(APP.round);
+    const mode=modeOf(APP.round);
+    const lines=[
+      ["Escalações",`${s.mounted}/${s.total}`,s.mounted===s.total],
+      mode==="boost"?["Fichas restantes",String(s.chipsLeft),s.chipsLeft===0]:null,
+      mode==="confianca"?["Ordem",`${s.confDone}/${s.total}`,s.confDone===s.total]:null,
+      mode==="previsao"?["Palpites",`${s.predDone}/${s.total}`,s.predDone===s.total]:null,
+    ].filter(Boolean);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:${mm.color}">${mm.icon} Confirmar ${esc(mm.label)}</div>
+      <p class="p" style="margin:10px 0">Revise antes de travar sua decisão estratégica. Você ainda pode reabrir até a trava da rodada.</p>
+      ${lines.map(l=>`<div class="todoitem ${l[2]?"ok":"warny"}"><span>${l[2]?"✓":"!"} ${esc(l[0])}</span><b>${esc(l[1])}</b></div>`).join("")}
+      <button class="btn" style="margin-top:12px;background:${mm.color};color:#0A0E1C" onclick="confirmRoundSummary()">Confirmar agora</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Revisar</button>
+    </div></div>`;
+  }
+  // modo: criar grupo (admin)
+  if(c.mode==="createGroup"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar grupo de amigos</div>
+      <p class="p" style="margin:10px 0">Dê um nome e uma senha. Você repassa a senha pros amigos entrarem.</p>
+      <input id="grpName" class="input" placeholder="Nome do grupo" autocorrect="off" />
+      <input id="grpPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitCreateGroup()">Criar grupo</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: excluir histórico do perfil (exige senha da conta)
+  if(c.mode==="hideHistory"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--red)">Excluir histórico do perfil</div>
+      <p class="p" style="margin:10px 0">Isto oculta do seu perfil todos os times que você montou nos jogos encerrados. Suas medalhas e conquistas zeram. Você continua aparecendo no ranking das salas.</p>
+      <p class="p" style="margin:10px 0">Digite a <b style="color:var(--chalk)">senha da sua conta</b> para confirmar.</p>
+      <input id="hideHistPass" class="input" type="password" placeholder="Sua senha" autocomplete="off" autocapitalize="off" />
+      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="submitHideHistory()">🗑 Excluir histórico</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // trocar nome de usuário (pede senha atual pra confirmar)
+  if(c.mode==="changeUsername"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Mudar nome de usuário</div>
+      <p class="p" style="margin:10px 0">Seu apelido atual é <b style="color:var(--chalk)">${esc(APP.user.username)}</b>. Escolha um novo — é assim que os outros vão te ver. Seu histórico e conquistas vão junto.</p>
+      <input id="cu-new" class="input" placeholder="Novo apelido" autocomplete="off" />
+      <div style="position:relative">
+        <input id="cu-pass" class="input" type="password" placeholder="Sua senha atual (confirmar)" autocomplete="off" style="padding-right:44px" />
+        <span id="cu-eye" onclick="togglePassVisib('cu-pass','cu-eye')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <button class="btn" style="margin-top:4px" onclick="submitChangeUsername()">Trocar nome</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // trocar senha (pede senha atual + nova duas vezes)
+  if(c.mode==="changePassword"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Mudar senha</div>
+      <p class="p" style="margin:10px 0">Digite sua senha atual e a nova senha. Você vai usar a nova senha toda vez que entrar no app.</p>
+      <div style="position:relative">
+        <input id="cp-old" class="input" type="password" placeholder="Senha atual" autocomplete="off" style="padding-right:44px" />
+        <span id="cp-eye1" onclick="togglePassVisib('cp-old','cp-eye1')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <div style="position:relative">
+        <input id="cp-new" class="input" type="password" placeholder="Nova senha (3+)" autocomplete="off" style="padding-right:44px" />
+        <span id="cp-eye2" onclick="togglePassVisib('cp-new','cp-eye2')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <div style="position:relative">
+        <input id="cp-new2" class="input" type="password" placeholder="Repita a nova senha" autocomplete="off" style="padding-right:44px" />
+        <span id="cp-eye3" onclick="togglePassVisib('cp-new2','cp-eye3')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;opacity:.8">👁️</span>
+      </div>
+      <button class="btn" style="margin-top:4px" onclick="submitChangePassword()">Trocar senha</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: arquivar jogo (admin) — move pra Resultados, global
+  if(c.mode==="archive"){
+    const j=APP.jogos.find(x=>x.room_id===c.roomId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--blue)">Arquivar jogo</div>
+      <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">${esc(j?j.match_name:"")}</b> vai sair de todos os grupos e rodadas e passar a aparecer só em <b style="color:var(--blue)">Resultados</b>, onde todos veem como foi. Não poderá mais ser adicionado a nenhuma pool.</p>
+      <p class="p" style="margin:10px 0">Os times já montados e o ranking continuam salvos. Você pode desarquivar depois.</p>
+      <button class="btn" style="margin-top:4px;background:var(--blue)" onclick="closeConfirm();archiveGame('${c.roomId}')">🗄 Arquivar</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: entrar num grupo com senha
+  if(c.mode==="join"){
+    const g=APP.groups.find(x=>x.id===c.gid);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Entrar em ${esc(g?g.name:"")}</div>
+      <p class="p" style="margin:10px 0">Digite a senha que o admin passou. Você fica membro pra sempre.</p>
+      <input id="joinPass" class="input" placeholder="Senha do grupo" autocapitalize="off" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitJoin()">Entrar</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: criar rodada (admin)
+  if(c.mode==="replicate"){
+    const pp=APP.prepool;
+    const nome=pp?`${esc(pp.home.name)} × ${esc(pp.away.name)}`:"este jogo";
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--green)">Repor escalação</div>
+      <p class="p" style="margin:10px 0">Tem certeza que quer <b style="color:var(--chalk)">repor as ${c.count} outra(s) aparição(ões)</b> de <b style="color:var(--chalk)">${nome}</b> com a escalação que você montou agora?</p>
+      <p class="p" style="margin-bottom:12px;font-size:11px">Isso <b>sobrescreve</b> o time que você tinha montado pra este mesmo jogo nos outros modos/rodadas. As que já travaram não são afetadas.</p>
+      <button class="btn" style="margin-top:4px;background:var(--green);color:#06231a" onclick="applyLineupEverywhere()">Sim, repor as ${c.count}</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createRound"){
+    const poolMax=(APP.jogos||[]).length;
+    const defLimit=Math.min(3,poolMax||3);
+    const selMode=MODE_META[c.newMode]?c.newMode:"full";
+    const modeBtns=MODE_LIST.map(mk=>{
+      const mm=MODE_META[mk],on=selMode===mk;
+      return `<div onclick="setCreateMode('${mk}')" style="flex:1 1 calc(50% - 3px);cursor:pointer;text-align:center;padding:9px 4px;border-radius:9px;border:1px solid ${on?mm.color:"var(--line)"};background:${on?`color-mix(in srgb,${mm.color} 18%,transparent)`:"var(--panel2)"};color:${on?mm.color:"var(--dim)"};font-size:11px;font-weight:700">${mm.icon} ${mm.label}</div>`;
+    }).join("");
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar mini rodada</div>
+      <p class="p" style="margin:8px 0">Escolha o modo:</p>
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">${modeBtns}</div>
+      <p class="p" style="font-size:11px;margin-bottom:10px;color:${MODE_META[selMode].color}">${MODE_META[selMode].desc}</p>
+      ${modePreviewHTML(selMode)}
+      <input id="rndName" class="input" placeholder="Nome (ex: Jogos de 18/06)" autocorrect="off" value="${esc(c.draftName||"")}" oninput="APP.confirm.draftName=this.value" />
+      ${selMode==="select"?`<input id="rndLimit" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} placeholder="Quantos jogos escolher (ex: 3)" value="${defLimit}" />${poolMax?`<p class="p" style="font-size:11px;margin-bottom:8px">Há <b style="color:var(--amber)">${poolMax}</b> jogo(s) no catálogo (máximo).</p>`:""}`:""}
+      ${selMode==="boost"?boostBuilderHTML(c):""}
+      ${selMode==="full"?`<p class="p" style="font-size:11px;margin-bottom:8px">No modo COMPLETO o jogador escala todos os jogos da rodada — não há limite de escolha.</p>`:""}
+      ${selMode==="confianca"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e ordenam os jogos por confiança: o 1º vale 2x, o último 0,5x.</p>`:""}
+      ${selMode==="previsao"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo e cravam o placar de cada jogo. Bônus: +${PRED_RESULT_PCT}% pelo resultado, +${PRED_EXACT_PCT}% pelo placar exato.</p>`:""}
+      ${selMode==="zebra"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. Em cada jogo, atletas do time com menor ELO recebem +25% em cima dos pontos positivos.</p>`:""}
+      ${selMode==="sobrevivencia"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. Negativou em qualquer jogo finalizado: zera a mini rodada. Se sobreviver, o pior jogo é descartado.</p>`:""}
+      ${selMode==="capitaoduplo"?`<p class="p" style="font-size:11px;margin-bottom:8px">Os jogadores escalam tudo. O capitão recebe reforço extra na classificação da mini rodada, chegando perto de 1.4x no total.</p>`:""}
+      <button class="btn" style="margin-top:4px" onclick="submitCreateRound()">Criar mini rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="rename"){
+    const isRound=c.kind==="round";
+    const poolMax=(APP.jogos||[]).length;
+    let extra="";
+    if(isRound&&c.roundMode==="select"){
+      extra=`<p class="p" style="font-size:11px;margin-bottom:4px">Quantos jogos cada um escolhe:</p><input id="renamePick" class="input" type="number" inputmode="numeric" min="1"${poolMax?` max="${poolMax}"`:""} value="${c.pickLimit||3}" />`;
+    }else if(isRound&&c.roundMode==="boost"){
+      extra=`<p class="p" style="font-size:11px;margin-bottom:6px;color:#FFC247">Fichas de impulso desta pool:</p>${boostBuilderHTML(c)}`;
+    }
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">${c.kind==="league"?"Renomear liga":c.kind==="phase"?"Renomear rodada":"Editar mini rodada"}</div>
+      <p class="p" style="margin:10px 0">${isRound?"Edite o nome e os ajustes. Os times, pontos e vínculos continuam intactos.":"Escolha o novo nome. Os times, pontos e vínculos continuam intactos."}</p>
+      <input id="renameInput" class="input" value="${esc(c.cur||"")}" autocorrect="off" />
+      ${extra}
+      <button class="btn" style="margin-top:4px" onclick="submitRename()">Salvar</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createPhase"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar rodada</div>
+      <p class="p" style="margin:10px 0">Uma rodada (ex: "Fase de Grupos") agrupa várias mini rodadas. Você cria as mini rodadas depois, dentro dela.</p>
+      <input id="phName" class="input" placeholder="Nome (ex: Fase de Grupos)" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitCreatePhase()">Criar rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createLeague"){
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Criar liga</div>
+      <p class="p" style="margin:10px 0">Uma liga agrupa várias rodadas numa classificação geral (pontos de tabela + pontuação clássica). Você adiciona as rodadas depois, dentro da liga.</p>
+      <input id="lgName" class="input" placeholder="Nome (ex: Liga Copa 2026)" autocorrect="off" />
+      <button class="btn" style="margin-top:4px" onclick="submitCreateLeague()">Criar liga</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="createDraftSeason"){
+    const ck=(id,label,on=true,req=false,desc="")=>`<label style="display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:8px;background:rgba(255,255,255,.025);margin:6px 0">
+      <input id="${id}" type="checkbox" ${on?"checked":""} ${req?"disabled":""} style="margin-top:3px;transform:scale(1.15)" />
+      <span style="flex:1"><b style="color:${req?"var(--amber)":"var(--chalk)"}">${esc(label)}${req?" · obrigatório":""}</b>${desc?`<small style="display:block;color:var(--dim);font-size:10px;margin-top:2px">${esc(desc)}</small>`:""}</span>
+    </label>`;
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
+      <p class="p" style="margin:10px 0">Modo separado e full customizável. As opções obrigatórias são o núcleo do Draft; o resto você liga/desliga.</p>
+      <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
+      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" oninput="updDraftHint()" />
+      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" oninput="updDraftHint()" />
+      <div id="draftHint" style="margin:2px 0 8px;padding:10px 12px;border:1px solid #2a3550;border-radius:10px;background:#10182C;font-size:12.5px;line-height:1.5;color:#9fb0d0"></div>
+      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">BASE DO MODO</div>
+      ${ck("dm_create","Criar campeonato Draft",true,true,"Sem temporada não existe modo.")}
+      ${ck("dm_scope","Escolher jogos/rodadas que fazem parte",true,false,"Ativa vínculo da temporada com jogos/rodadas.")}
+      ${ck("dm_budget","Cada usuário tem orçamento",true,false,"Se desligar, compras não descontam moedas.")}
+      ${ck("dm_unique","Cada jogador real só pode ter um dono",true,true,"Essência do Draft; o banco também protege isso.")}
+      ${ck("dm_ordered","Draft inicial por ordem",true,false,"Liga a etapa de draft antes do mercado.")}
+      ${ck("dm_roster","Elenco limitado",true,false,"Usa o limite acima, recomendado 8 a 12.")}
+      ${ck("dm_lineup","Escalação de 5 + banco por rodada",true,false,"Base competitiva do modo temporada.")}
+      ${ck("dm_market","Mercado de livres entre rodadas",true,false,"Permite comprar jogadores sem dono.")}
+      ${ck("dm_ranking","Ranking geral da temporada",true,true,"Sem ranking não tem competição.")}
+      ${ck("dm_history","Histórico de compras/vendas",true,true,"Ajuda auditoria e zoeira saudável.")}
+      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">MERCADO AVANÇADO</div>
+      ${ck("dm_dynamic","Valorização dinâmica",true,false,"Preço muda conforme desempenho e contexto.")}
+      ${ck("dm_sell_current","Venda por preço atualizado",true,false,"Venda usa current_price, não preço original.")}
+      ${ck("dm_buy_limit","Limite de compras por rodada",true,false,"Controla spam de mercado.")}
+      <input id="draftBuyLimit" class="input" type="number" inputmode="numeric" placeholder="Compras por rodada" value="2" />
+      ${ck("dm_auto_window","Janela abre/fecha automático",false,false,"Para automatizar mercado por rodada no futuro.")}
+      ${ck("dm_eliminated","Eliminados perdem valor ou travam",true,false,"Seleções eliminadas sofrem regra de mercado.")}
+      ${ck("dm_waiver","Waiver: pior colocado tem prioridade",true,false,"Resolve disputa por jogador concorrido.")}
+      <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">SOCIAL / PVP</div>
+      ${ck("dm_trades","Trocas entre usuários",true,false,"Permite negociar jogador/moedas.")}
+      ${ck("dm_pending","Propostas pendentes",true,false,"Troca precisa ser aceita.")}
+      ${ck("dm_veto","Veto/admin",true,false,"Admin pode barrar troca suspeita.")}
+      ${ck("dm_loans","Empréstimos",false,false,"Jogador vai e volta por período definido.")}
+      ${ck("dm_clause","Multa rescisória",true,false,"Permite comprar pagando cláusula configurada.")}
+      ${ck("dm_auction","Leilão por jogadores livres",false,false,"Ao invés de compra direta, jogador livre vai a leilão.")}
+      <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="deletePhase"){
+    const p=(APP.phases||[]).find(x=>x.id===c.phaseId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--red)">Excluir rodada</div>
+      <p class="p" style="margin:10px 0">Excluir <b style="color:var(--chalk)">${esc(p?p.name:"")}</b>? As mini rodadas dela <b>não</b> são apagadas — voltam a ser avulsas. Times e pontuações continuam intactos.</p>
+      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="closeConfirm();deletePhase('${c.phaseId}')">🗑 Excluir rodada</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  if(c.mode==="deleteLeague"){
+    const l=(APP.leagues||[]).find(x=>x.id===c.leagueId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--red)">Excluir liga</div>
+      <p class="p" style="margin:10px 0">Excluir <b style="color:var(--chalk)">${esc(l?l.name:"")}</b>? As rodadas dela <b>não</b> são apagadas — apenas voltam a ser avulsas. Os times e pontuações continuam intactos.</p>
+      <button class="btn" style="margin-top:4px;background:var(--red);color:#fff" onclick="closeConfirm();deleteLeague('${c.leagueId}')">🗑 Excluir liga</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+    </div></div>`;
+  }
+  // modo: confirmar entrada num jogo da rodada (gasta ficha)
+  if(c.mode==="confirmTeam"){
+    const j=APP.jogos.find(x=>x.room_id===c.roomId);
+    return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+      <div class="h2 disp" style="color:var(--amber)">Confirmar equipe?</div>
+      <p class="p" style="margin:10px 0">Você vai <b style="color:var(--chalk)">travar seu time</b> em ${esc(j?j.match_name:"")}. Depois de confirmar, <b>não dá mais pra editar</b> a escalação deste jogo.</p>
+      <p class="p" style="margin:10px 0">Confirme só quando souber os titulares e estiver satisfeito.</p>
+      <button class="btn" style="margin-top:4px" onclick="closeConfirm();confirmTeam('${c.roomId}')">✓ Confirmar e travar</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Ainda não, deixa eu ajustar</button>
+    </div></div>`;
+  }
+  // modo padrão: confirmação destrutiva por palavra (reset)
+  return `<div class="modal" onclick="closeConfirm()"><div class="box" onclick="event.stopPropagation()">
+    <div class="h2 disp" style="color:var(--red)">⚠ ${esc(c.label)}</div>
+    <p class="p" style="margin:10px 0">${c.msg?esc(c.msg):'Esta ação <b style="color:var(--chalk)">apaga os times e não pode ser desfeita</b>. Salas e usuários são mantidos.'} Para confirmar, digite <b style="color:var(--amber)">${c.word}</b> abaixo.</p>
+    <input id="confirmField" class="input" placeholder="Digite ${c.word}" autocapitalize="characters" autocorrect="off" />
+    <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" onclick="runConfirm()">Apagar agora</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
+  </div></div>`;
 }

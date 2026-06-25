@@ -1,276 +1,4 @@
-// BUILD: SORARE-v1 · app-part6 de 6 · 2026-06-25
-// constrói o engine + byId pra um jogo qualquer do catálogo (pra perfil/histórico)
-const _ctxCache={};
-function buildCtxFor(roomId){
-  if(_ctxCache[roomId]!==undefined)return _ctxCache[roomId];
-  const g=window.GAMES.data[roomId];if(!g){_ctxCache[roomId]=null;return null;}
-  const pp=g.prepool,m=g.match;if(!m||m.status!=="finished"){_ctxCache[roomId]=null;return null;}
-  m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
-  if(m.team_stats)for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
-  const byId=Object.fromEntries(pp.players.map(p=>[p.id,p]));
-  const ctx={prepool:pp,match:m,byId,eng:makeEngine(m)};
-  _ctxCache[roomId]=ctx;
-  return ctx;
-}
-// ============================================================
-// MEDALHAS (derivadas das stats do perfil) + TELA DE PERFIL
-// ============================================================
-// cada medalha tem tiers; retorna a maior atingida (ou null)
-function computeMedals(st){
-  const tier=(val,steps,emoji,nameBase,unit)=>{
-    let got=null;
-    for(const[thr,name]of steps){if(val>=thr)got={emoji,name,desc:name+" · "+val+" "+unit};}
-    return got;
-  };
-  const m=[];
-  const archDistinct=Object.keys(st.archetypes).length;
-  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
-  const tacticsUsed=Object.keys(st.tactics||{}).length;
-  const add=x=>{if(x)m.push(x);};
-  add(tier(st.wins,[[1,"Primeira Vitória"],[3,"Vencedor"],[7,"Campeão de Sala"],[15,"Dominador"]],"🏆","wins","vitória(s)"));
-  add(tier(st.podiums,[[3,"Pódio Frequente"],[10,"Sempre no Topo"]],"🥇","pod","pódio(s)"));
-  add(tier(st.games,[[1,"Estreante"],[5,"Habitual"],[15,"Veterano"],[30,"Lenda Viva"]],"🎮","games","jogo(s)"));
-  add(tier(archDistinct,[[5,"Colecionador"],[12,"Curador"],[20,"Enciclopédia"]],"🃏","arch","arquétipos"));
-  add(tier(rareCount,[[1,"Sortudo"],[5,"Caçador de Raros"],[12,"Lapidador"]],"💎","rare","carta(s) rara(s)"));
-  add(tier(Math.floor(st.bestScore),[[20,"Boa Cartada"],[35,"Tacada de Mestre"],[50,"Jogo Perfeito"]],"📊","best","pts num jogo"));
-  // NOVAS
-  add(tier(st.bestStreak||0,[[2,"Embalado"],[3,"Invicto"],[5,"Imparável"]],"🔥","streak","pódios seguidos"));
-  add(tier(st.zebraWins||0,[[1,"Zebra Master"],[3,"Rei da Zebra"]],"🦓","zebra","vitória(s) com zebra"));
-  add(tier(tacticsUsed,[[3,"Tático"],[5,"Estrategista"],[6,"Maestro da Tática"]],"🧠","tac","táticas usadas"));
-  if(st.capTotal>=4)add(tier(st.capRate,[[60,"Braçadeira de Ouro"],[80,"Capitão Certeiro"]],"🎖️","cap","% de acerto no capitão"));
-  if(st.games>=4)add(tier(Math.floor(st.avg),[[20,"Regularidade"],[30,"Consistente"],[40,"Máquina de Pontos"]],"📈","avg","pts de média"));
-  return m;
-}
-// título/nível do usuário — evolui com experiência + resultados
-function userTitle(st){
-  // pontuação de XP: jogos + vitórias valem mais + pódios + variedade de cartas
-  const archDistinct=Object.keys(st.archetypes||{}).length;
-  const xp=st.games*10 + st.wins*25 + st.podiums*8 + archDistinct*3;
-  const niveis=[
-    [0,  "Novato",          "🥚"],
-    [40, "Escalador",       "📋"],
-    [90, "Treinador",       "📣"],
-    [160,"Tático",          "🧠"],
-    [260,"Estrategista",    "♟️"],
-    [400,"Mestre",          "🎩"],
-    [600,"Lenda",           "👑"],
-  ];
-  let cur=niveis[0],next=null;
-  for(let i=0;i<niveis.length;i++){
-    if(xp>=niveis[i][0]){cur=niveis[i];next=niveis[i+1]||null;}
-  }
-  const prog=next?Math.round((xp-cur[0])/(next[0]-cur[0])*100):100;
-  return {name:cur[1], emoji:cur[2], xp, next:next?{name:next[1],falta:next[0]-xp}:null, prog};
-}
-function collectionHTML(archObj){
-  const tem=archObj||{};
-  const total=ARCH_CATALOG.length;
-  const got=ARCH_CATALOG.filter(a=>tem[a.name]>0).length;
-  let html=`<div class="card"><div class="h2 disp">🃏 Coleção de arquétipos</div>
-    <p class="p" style="margin:6px 0 10px">Você desbloqueou <b style="color:var(--amber)">${got}/${total}</b> arquétipos. Cada um é um papel que um jogador seu desempenhou numa partida. Toque pra ver como conseguir os que faltam.</p>`;
-  // agrupa por categoria
-  const cats=["Goleiro","Defesa","Meio","Criação","Ataque","Outros"];
-  for(const cat of cats){
-    const arr=ARCH_CATALOG.filter(a=>a.cat===cat);
-    if(!arr.length)continue;
-    html+=`<div class="bsub" style="margin:10px 0 4px">${cat}</div>`;
-    for(const a of arr){
-      const has=tem[a.name]>0;
-      const col=RAR_COLOR[a.rar]||"#9aa6b2";
-      const n=tem[a.name]||0;
-      html+=`<div class="line" style="padding:8px 0;align-items:flex-start;${has?"":"opacity:.5"}">
-        <span style="flex:1">
-          <b style="color:${has?"var(--chalk)":"var(--dim)"}">${has?"":"🔒 "}${esc(a.name)}</b>
-          <span style="font-size:9px;color:${col};border:1px solid ${col};border-radius:6px;padding:1px 5px;margin-left:6px">${a.rar}</span>
-          ${has?`<span style="font-size:9px;color:var(--green);margin-left:4px">✓ ${n}×</span>`:""}
-          <br><i style="font-size:11px;color:var(--dim)">${esc(a.how)}</i>
-        </span>
-      </div>`;
-    }
-  }
-  html+=`</div>`;
-  return html;
-}
-function profileTabsHTML(active,onclickFn){
-  const tabs=[
-    ["geral","Geral"],
-    ["avulsa","Avulsa"],
-    ["full","🏆 Completo"],
-    ["boost","⚡ Impulso"],
-    ["confianca","📊 Confiança"],
-    ["previsao","🔮 Previsão"],
-    ["zebra","🐎 Zebra"],
-    ["sobrevivencia","🛡️ Sobrevivência"],
-    ["capitaoduplo","👑 Capitão Duplo"]
-  ];
-  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,l])=>`<button class="statuspill ${k===active?"st-open":""}" style="cursor:pointer;${k===active?"border-color:var(--amber);color:var(--amber)":""}" onclick="${onclickFn}('${k}')">${l}</button>`).join("")}</div>`;
-}
-function setProfileTab(t){APP.profileTab=t;render();}
-function setMemberProfileTab(t){APP.memberProfileTab=t;render();}
-function openProfile(){go("profile");}
-function profileHTML(){
-  const prof=APP.profile;
-  if(!prof)return `<div class="card"><div class="loading">Calculando seu perfil…</div></div>`;
-  const st=prof._byMode?(prof[APP.profileTab]||prof.geral):prof;
-  const medals=computeMedals(prof._byMode?prof.geral:prof);
-  const archDistinct=Object.keys(st.archetypes).length;
-  const TOTAL_ARCH=ARCH_CATALOG.length; // total de arquétipos possíveis no engine
-  const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
-  const tit=userTitle(prof._byMode?prof.geral:prof);
-  let html=`<div class="card">
-    <div class="h1 disp" style="color:var(--amber)">${esc(APP.user.username)}</div>
-    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px">
-      <span style="font-size:28px">${tit.emoji}</span>
-      <div style="flex:1">
-        <div style="font-weight:700;color:var(--chalk);font-size:17px">${tit.name}</div>
-        <div style="font-size:11px;color:var(--dim)">${tit.next?`faltam ${tit.next.falta} XP pra ${tit.next.name}`:"nível máximo!"} · ${tit.xp} XP</div>
-        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${tit.prog}%;background:var(--amber)"></div></div>
-      </div>
-    </div>
-    <p class="p" style="margin-bottom:0">Conquistas no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
-  </div>`;
-  // resumo em números
-  html+=`<div class="card"><div class="h2 disp">Resumo</div>
-    ${profileTabsHTML(APP.profileTab,"setProfileTab")}
-    <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
-      ${statBox("🎮",st.games,"jogos")}
-      ${statBox("🏆",st.wins,"vitórias")}
-      ${statBox("🥇",st.podiums,"pódios")}
-      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}
-      ${statBox("📈",st.avg||0,"média/jogo")}
-      ${statBox("🎯",st.podiumRate+"%","pódio")}
-      ${statBox("🃏",archDistinct+"/"+TOTAL_ARCH,"arquétipos")}
-      ${statBox("💎",rareCount,"raros")}
-      ${statBox("🔥",st.bestStreak||0,"sequência")}
-    </div>
-    ${st.bestGame?`<p class="p" style="margin-top:10px">Sua melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
-    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação individual: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts em ${esc(st.bestPerf.game)}${st.bestPerf.cap?" (capitão)":""}.</p>`:""}
-    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito (mais pontos): <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts somados).</p>`:""}
-    ${st.bestPlayer?`<p class="p" style="margin-top:4px">📋 Mais escalado: <b style="color:var(--chalk)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
-    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b> (${st.topTactic.n}×).</p>`:""}
-    ${st.capTotal>=1?`<p class="p" style="margin-top:4px">🎖️ Capitão certeiro: <b style="color:var(--chalk)">${st.capRate}%</b> (acertou o melhor ${st.capHits}/${st.capTotal}).</p>`:""}
-  </div>`;
-  // medalhas
-  html+=`<div class="card"><div class="h2 disp">Medalhas</div>`;
-  if(!medals.length)html+=`<p class="p" style="margin-top:8px">Nenhuma medalha ainda. Monte times nos jogos encerrados para começar a colecionar.</p>`;
-  else html+=`<div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div>`;
-  html+=`</div>`;
-  // COLEÇÃO completa de arquétipos (usa o geral: tudo que já desbloqueou)
-  html+=collectionHTML((APP.profile._byMode?APP.profile.geral:APP.profile).archetypes);
-  // coleção de arquétipos
-  if(topArch.length){
-    html+=`<div class="card"><div class="h2 disp">Seus arquétipos mais frequentes${helpBtn("arquetipo")}</div><div style="margin-top:10px">`;
-    topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
-    html+=`</div></div>`;
-  }
-  // histórico de partidas (clicável, com detalhe por jogador)
-  const phist=APP.profileHistory;
-  html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
-  if(!phist)html+=`<div class="loading">Carregando histórico…</div>`;
-  else if(!phist.length)html+=`<p class="p" style="margin-top:8px">Você ainda não jogou nenhuma partida finalizada.</p>`;
-  else{html+=`<p class="p" style="margin:6px 0 4px;font-size:12px">Toque numa partida pra abrir, e num jogador pra ver os detalhes da pontuação e o arquétipo.</p>`;phist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"p");});}
-  html+=`</div>`;
-  html+=`<div class="card">
-    <div class="tag" style="margin-bottom:6px">CONTA</div>
-    <p class="p" style="margin-bottom:10px;font-size:12px">Seu apelido é como os outros te veem. A senha é o que você usa pra entrar no app.</p>
-    <button class="btn ghost" style="margin-bottom:8px" onclick="askChangeUsername()">✏️ Mudar nome de usuário</button>
-    <button class="btn ghost" onclick="askChangePassword()">🔑 Mudar senha</button>
-  </div>`;
-  html+=`<div class="card">
-    <div class="tag" style="margin-bottom:6px;color:var(--red)">ZONA DE RISCO</div>
-    <p class="p" style="margin-bottom:10px">Excluir seu histórico oculta do seu perfil os times que você montou nos jogos já encerrados (zera medalhas e conquistas). Você continua no ranking das salas. Pede sua senha pra confirmar.</p>
-    <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="askHideHistory()">🗑 Excluir histórico do perfil</button>
-  </div>`;
-  return html;
-}
-function statBox(emoji,val,label){
-  return `<div class="slot" style="cursor:default;text-align:center;min-height:auto;padding:12px 6px">
-    <div style="font-size:20px">${emoji}</div>
-    <div class="mono" style="font-size:18px;color:var(--amber);margin-top:4px">${val}</div>
-    <div style="font-size:9px;letter-spacing:.1em;color:var(--dim);margin-top:2px;text-transform:uppercase">${label}</div>
-  </div>`;
-}
-// ── LISTA DE MEMBROS DO GRUPO ──
-function membersHTML(){
-  const list=APP.members;
-  let html=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="h1 disp" style="color:var(--amber)">👥 Membros</div>
-      <div class="userchip" onclick="go('home')" style="cursor:pointer">← voltar</div>
-    </div>
-    <p class="p" style="margin-top:6px">Grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>. Toque num membro pra ver o perfil e o histórico de times.</p>
-  </div><div class="card">`;
-  if(!list)html+=`<div class="loading">Carregando membros…</div>`;
-  else if(!list.length)html+=`<p class="p">Nenhum membro encontrado.</p>`;
-  else html+=list.map(u=>{
-    const isMe=u===APP.user?.username;
-    return `<div class="rank${isMe?" me":""}" style="cursor:pointer" onclick="openMember('${encodeURIComponent(u)}')"><div class="po">👤</div><div class="nm">${esc(u)}${isMe?" <small>(você)</small>":""}</div><div class="pt mono" style="font-size:15px">›</div></div>`;
-  }).join("");
-  html+=`</div>`;
-  return html;
-}
-function openMember(encU){const u=decodeURIComponent(encU);go("member",null,null,u);}
-// ── PERFIL + HISTÓRICO DE UM MEMBRO ──
-function memberHTML(){
-  const u=APP.memberView;
-  const prof=APP.memberProfile;
-  const hist=APP.memberHistory;
-  let html=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="h1 disp" style="color:var(--amber)">${esc(u||"")}</div>
-      <div class="userchip" onclick="go('members')" style="cursor:pointer">← voltar</div>
-    </div>
-    <p class="p" style="margin-top:6px">Perfil no grupo <b style="color:var(--chalk)">${esc(APP.groupName||"")}</b>.</p>
-  </div>`;
-  if(!prof){html+=`<div class="card"><div class="loading">Calculando perfil…</div></div>`;return html;}
-  const st=prof._byMode?(prof[APP.memberProfileTab]||prof.geral):prof;
-  const stGeral=prof._byMode?prof.geral:prof;
-  const archDistinct=Object.keys(st.archetypes).length;
-  const rareCount=(st.rarities["Épico"]||0)+(st.rarities["Mítico"]||0)+(st.rarities["Lendário"]||0);
-  const topArch=Object.entries(st.archetypes).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const medals=computeMedals(stGeral);
-  const tit=userTitle(stGeral);
-  // título/nível
-  html+=`<div class="card"><div style="display:flex;align-items:center;gap:10px">
-    <span style="font-size:26px">${tit.emoji}</span>
-    <div style="flex:1"><div style="font-weight:700;color:var(--chalk);font-size:16px">${tit.name}</div>
-    <div style="font-size:11px;color:var(--dim)">${tit.xp} XP</div>
-    <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${tit.prog}%;background:var(--amber)"></div></div></div>
-  </div></div>`;
-  // resumo
-  html+=`<div class="card"><div class="h2 disp">Resumo</div>
-    ${profileTabsHTML(APP.memberProfileTab,"setMemberProfileTab")}
-    <div class="slots" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
-      ${statBox("🎮",st.games,"jogos")}${statBox("🏆",st.wins,"vitórias")}${statBox("🥇",st.podiums,"pódios")}
-      ${statBox("📊",st.bestScore.toFixed(1),"recorde")}${statBox("📈",st.avg||0,"média/jogo")}${statBox("🎯",st.podiumRate+"%","pódio")}
-      ${statBox("🃏",archDistinct+"/"+ARCH_CATALOG.length,"arquétipos")}${statBox("💎",rareCount,"raros")}${statBox("🔥",st.bestStreak||0,"sequência")}
-    </div>
-    ${st.bestGame?`<p class="p" style="margin-top:10px">Melhor partida: <b style="color:var(--chalk)">${esc(st.bestGame)}</b> (${st.bestScore.toFixed(1)} pts).</p>`:""}
-    ${st.bestPerf?`<p class="p" style="margin-top:4px">🌟 Melhor atuação: <b style="color:var(--amber)">${esc(st.bestPerf.name)}</b> — ${st.bestPerf.pts.toFixed(1)} pts${st.bestPerf.game?` em ${esc(st.bestPerf.game)}`:""}.</p>`:""}
-    ${st.topPlayer?`<p class="p" style="margin-top:4px">💰 Craque favorito: <b style="color:var(--amber)">${esc(st.topPlayer.name)}</b> (${st.topPlayer.pts} pts somados).</p>`:""}
-    ${st.bestPlayer?`<p class="p" style="margin-top:4px">📋 Mais escalado: <b style="color:var(--chalk)">${esc(st.bestPlayer.name)}</b> (${st.bestPlayer.n}×).</p>`:""}
-    ${st.topTactic?`<p class="p" style="margin-top:4px">🧠 Tática preferida: <b style="color:var(--chalk)">${esc(st.topTactic.name)}</b> (${st.topTactic.n}×).</p>`:""}
-    ${st.capTotal>=1?`<p class="p" style="margin-top:4px">🎖️ Capitão certeiro: <b style="color:var(--chalk)">${st.capRate}%</b> (acertou o melhor ${st.capHits}/${st.capTotal}).</p>`:""}
-  </div>`;
-  // medalhas
-  if(medals.length)html+=`<div class="card"><div class="h2 disp">Medalhas</div><div class="chips" style="margin-top:10px">${medals.map(md=>`<span class="chip arch" style="font-size:12px;padding:6px 11px">${md.emoji} ${esc(md.name)}</span>`).join("")}</div></div>`;
-  // coleção de arquétipos do membro (geral)
-  html+=collectionHTML(stGeral.archetypes);
-  // arquétipos
-  if(topArch.length){
-    html+=`<div class="card"><div class="h2 disp">Arquétipos mais frequentes</div><div style="margin-top:10px">`;
-    topArch.forEach(([a,n])=>{html+=`<div class="rank" style="padding:10px 14px"><div class="nm">${esc(a)}</div><div class="pt mono" style="font-size:15px">${n}×</div></div>`;});
-    html+=`</div></div>`;
-  }
-  // histórico de partidas com times escalados
-  html+=`<div class="card"><div class="h2 disp">Últimas partidas</div>`;
-  if(!hist)html+=`<div class="loading">Carregando histórico…</div>`;
-  else if(!hist.length)html+=`<p class="p" style="margin-top:8px">Este membro ainda não jogou nenhuma partida finalizada.</p>`;
-  else hist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"m");});
-  html+=`</div>`;
-  return html;
-}
+// BUILD: SORARE-v2-COM-STATS · app-part6 de 6 · 2026-06-25
 // renderiza uma partida do histórico com jogadores CLICÁVEIS (detalhe + arquétipo)
 // prefix distingue contexto ("m"=membro, "p"=perfil próprio) pra estados de toggle separados
 function histGameHTML(h,hi,prefix){
@@ -398,6 +126,8 @@ function resultHTML(){
   html+=`</div>`;
   html+=resultBadgesHTML(scored);
   html+=resultDuelHTML(scored,mine);
+  // ESTATÍSTICAS DA PARTIDA (confronto home×away, se o jogo foi apurado pelo apurador)
+  if(typeof matchStatsHTML==="function")html+=matchStatsHTML();
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
   html+=dreamTeamHTML();
   // minha apuração detalhada
@@ -627,7 +357,9 @@ function render(){
   else if(APP.view==="league")panel=leagueHTML();
   else if(APP.view==="phase")panel=phaseHTML();
   else if(APP.view==="draft")panel=draftHTML();
-  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
+  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML()+(APP.apurar&&typeof apuracaoHTML==="function"?apuracaoHTML():"");
+  // ajuda visual do teto do draft: preenche assim que o modal renderiza
+  if(APP.confirm&&APP.confirm.mode==="createDraftSeason"){ try{ requestAnimationFrame(updDraftHint); }catch(e){ try{updDraftHint();}catch(_){} } }
 }
 function topbarHTML(){
   const inGroup=APP.groupId&&APP.user;
@@ -639,7 +371,7 @@ function topbarHTML(){
       ${isDev()?`<div class="userchip" onclick="toggleDevMode()" style="cursor:pointer;border-color:${APP.devMode?"var(--amber)":"var(--line)"};color:${APP.devMode?"var(--amber)":"var(--dim)"}" title="Alternar modo DEV / jogador">${APP.devMode?"🛠 DEV":"🎮 jogador"}</div>`:""}
       ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
-  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}`;
+  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}${APP.calOpen?calModalHTML():""}`;
 }
 function toggleRules(){APP.showRules=!APP.showRules;render();}
 function toggleManual(){APP.showManual=!APP.showManual;render();}
@@ -682,6 +414,68 @@ function modHelpKey(label){
 function modHelpBtn(label){const k=modHelpKey(label);return k?helpBtn(k):"";}
 function showHelp(key){APP.help=key;render();}
 function closeHelp(){APP.help=null;render();}
+function calModalHTML(){
+  const _DOWs=["dom","seg","ter","qua","qui","sex","sáb"];
+  const _MONs=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  // mês visível
+  let p=(APP.calMonth||"").split("-"); let Y=+p[0], M=+p[1];
+  if(!Y||!M){const n=new Date();Y=n.getFullYear();M=n.getMonth()+1;}
+  // mapa de dias com jogos a partir dos jogos do grupo
+  const all=[];
+  (APP.groupRooms||[]).forEach(gr=>{const cat=(APP.jogos||[]).find(j=>j.room_id===gr.room_id);if(cat)all.push(cat);});
+  (APP.jogos||[]).forEach(j=>{if(isArchived(j.room_id))all.push(j);});
+  // indexar por data exata: "YYYY-MM-DD" -> {n, dayKey}
+  const mapaDia={};
+  all.forEach(j=>{const ki=kickoffInfo(j.kickoff);if(!ki||!ki.dayKey||ki.dayKey.indexOf(" ")<0)return;
+    const parts=ki.dayKey.split(" ")[1].split("/"); // dd/mm
+    const k=ki.yr+"-"+parts[1]+"-"+parts[0];
+    if(!mapaDia[k])mapaDia[k]={n:0,dayKey:ki.dayKey};
+    mapaDia[k].n++;
+  });
+  // grade do mês
+  const primeiro=new Date(Date.UTC(Y,M-1,1));
+  const inicioDow=primeiro.getUTCDay();
+  const diasNoMes=new Date(Date.UTC(Y,M,0)).getUTCDate();
+  let celulas="";
+  for(let i=0;i<inicioDow;i++) celulas+=`<div></div>`;
+  for(let d=1; d<=diasNoMes; d++){
+    const k=Y+"-"+String(M).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+    const info=mapaDia[k];
+    const tem=!!info;
+    const dowIdx=new Date(Date.UTC(Y,M-1,d)).getUTCDay();
+    const dk=_DOWs[dowIdx]+" "+String(d).padStart(2,"0")+"/"+String(M).padStart(2,"0");
+    const sel=(APP.homeDay===dk);
+    const style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;font-size:15px;"+
+      (sel?"background:#7C6CF0;color:#fff;font-weight:800;":(tem?"background:#222C49;color:#fff;cursor:pointer;font-weight:700;":"color:#445566;"));
+    celulas+=`<div ${tem?`onclick="pickCalDay('${encodeURIComponent(dk)}')"`:""} style="${style}">
+      ${d}${tem?`<span style="width:5px;height:5px;border-radius:50%;background:${sel?"#fff":"#7C6CF0"};margin-top:3px"></span>`:""}
+    </div>`;
+  }
+  return `<div class="modalwrap" onclick="closeCal()" style="position:fixed;inset:0;z-index:99990;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:40px 14px">
+    <div onclick="event.stopPropagation()" style="background:#0E1525;border:1px solid #28324f;border-radius:18px;max-width:440px;width:100%;padding:16px;color:#fff">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <b style="font-size:17px">Calendário</b>
+        <span onclick="closeCal()" style="cursor:pointer;font-size:20px;color:#8aa">✕</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span onclick="calNav(-1)" style="cursor:pointer;font-size:20px;padding:4px 12px">‹</span>
+        <b style="font-size:15px">${_MONs[M-1]} ${Y}</b>
+        <span onclick="calNav(1)" style="cursor:pointer;font-size:20px;padding:4px 12px">›</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px;color:#7d8aaa;font-size:11px;text-align:center">
+        ${_DOWs.map(d=>`<div>${d}</div>`).join("")}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${celulas}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;color:#7d8aaa;font-size:12px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#7C6CF0;display:inline-block"></span> dias com partidas
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="setHomeDay('todos')" style="flex:1;background:#222C49;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer">Ver recentes</button>
+        <button onclick="APP.homeShowAll=true;APP.homeDay='todos';closeCal()" style="flex:1;background:#7C6CF0;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer">Ver todos</button>
+      </div>
+    </div>
+  </div>`;
+}
 function helpModalHTML(){
   const h=HELP[APP.help];if(!h)return"";
   return `<div class="modal" onclick="closeHelp()"><div class="box" onclick="event.stopPropagation()">
@@ -783,11 +577,12 @@ function footHTML(){
 // ============================================================
 // ENGINE_TACTICS já é definido por engine.js no navegador
 if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
-(async function boot(){
+async function boot(){
  try{
   try{
     APP.jogos=window.GAMES.index;
   }catch(e){APP.jogos=[];}
+  try{ if(typeof loadMatchResults==="function") await loadMatchResults(); }catch(e){}
   await loadArchived();
   await tryAutoLogin();
   // restaura preferência do modo DEV (padrão: ligado)
@@ -828,4 +623,7 @@ if(typeof window.ENGINE_TACTICS==="undefined"){window.ENGINE_TACTICS={};}
   var r=document.getElementById("root");
   if(r)r.innerHTML='<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>'+String(err&&err.message?err.message:err)+'<br><br><span style="color:#8FA89A">Tire um print desta tela.</span></div>';
  }
-})();
+}
+window.__APP_READY=true;
+
+
