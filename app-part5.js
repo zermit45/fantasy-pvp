@@ -893,8 +893,11 @@ function memberHTML(){
 // "click" sintético podia cair no elemento errado (o DOM era trocado durante o
 // gesto), escalando o jogador de cima/baixo. Aqui usamos UM listener delegado no
 // document (sobrevive ao re-render) que lê o id do elemento realmente tocado.
+// Trava anti-duplo-disparo: o iOS às vezes dispara o evento mais de uma vez no
+// mesmo toque; ignoramos repetições do mesmo jogador dentro de 350ms.
 if(!window._poolPickDelegate){
   window._poolPickDelegate=true;
+  window._poolLastPick={pid:null,t:0};
   document.addEventListener("click",function(ev){
     const row=ev.target&&ev.target.closest?ev.target.closest(".playerpick[data-pid]"):null;
     if(!row)return;
@@ -903,6 +906,9 @@ if(!window._poolPickDelegate){
     if(pid==null||pid==="")return;
     ev.preventDefault();
     ev.stopPropagation();
+    const now=Date.now();
+    if(window._poolLastPick.pid===pid&&(now-window._poolLastPick.t)<350)return; // ignora duplo disparo
+    window._poolLastPick={pid:pid,t:now};
     if(typeof place==="function")place(pid);
-  });
+  },true); // captura: roda antes de qualquer handler remanescente
 }
