@@ -523,6 +523,38 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="app-part4.js?v=hardreset1"></script>
 <script src="app-part5.js?v=hardreset1"></script>
 <script src="app-part6.js?v=hardreset1"></script>
+<script>
+/* DISPARADOR DE BOOT SEGURO — inicia o app quando TODAS as partes carregaram.
+   Se faltar alguma, mostra aviso claro em vez de travar no "Carregando...". */
+(function(){
+  var tentativas = 0;
+  function tentaBoot(){
+    tentativas++;
+    if(window.__APP_READY && typeof boot === "function"){
+      try{
+        boot();
+      }catch(e){
+        var r = document.getElementById("root");
+        if(r){
+          r.innerHTML = '<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:13px"><b>Erro ao iniciar:</b><br>' + (e && e.message ? e.message : e) + '</div>';
+        }
+      }
+      return;
+    }
+    if(tentativas > 40){
+      var r = document.getElementById("root");
+      if(r){
+        r.innerHTML = '<div style="padding:20px;color:#E0604F;font-family:monospace;font-size:14px"><b>Falha ao carregar o app.</b><br>Algum arquivo não baixou ou um script quebrou antes do boot. Recarregue em aba anônima e confira se app-part1 até app-part6 estão na raiz.</div>';
+      }
+      return;
+    }
+    setTimeout(tentaBoot, 250);
+  }
+  if(document.readyState === "complete" || document.readyState === "interactive") tentaBoot();
+  else window.addEventListener("DOMContentLoaded", tentaBoot);
+})();
+</script>
+
 <script src="draft-patch.js?v=20260622"></script>
 </body>
 </html>
