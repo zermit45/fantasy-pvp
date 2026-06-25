@@ -536,7 +536,7 @@ function homeHTML(){
       });
     } else {
       // A JOGAR: jogos de HOJE viram esteira de destaque; o resto vai pra lista larga
-      const hoje=lista.filter(j=>j.ki&&j.ki.rel==="Hoje");
+      const hoje=lista.filter(j=>j.ki&&j.ki.rel==="Hoje").sort((a,b)=>(a.ts||Infinity)-(b.ts||Infinity));
       const resto=lista.filter(j=>!(j.ki&&j.ki.rel==="Hoje"));
       const admBtn=(j,cls)=>{
         if(!isAdmin())return "";
