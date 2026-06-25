@@ -252,7 +252,7 @@ function buildHTML(){
       else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
     }
     const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
-    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div>${playerImg(p,"pface")}<div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
+    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}"${dis?"":` data-pid="${p.id}"`}><div class="posbar pb-${p.pos}"></div>${playerImg(p,"pface")}<div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
   }).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){
@@ -376,7 +376,14 @@ async function applyLineupEverywhere(){
   render();
 }
 function place(pid){
-  const byId=APP._byId,p=byId[pid],s=APP.slots,used=Object.values(s).filter(Boolean);APP.warn="";
+  const byId=APP._byId,s=APP.slots;APP.warn="";
+  // pid pode chegar como string (data-pid) ou número (chamada antiga). Resolve o
+  // jogador testando os dois tipos e passa a usar SEMPRE o id real (byId/slots usam o tipo original).
+  let p=byId[pid];
+  if(!p&&typeof pid==="string"&&pid!==""&&!isNaN(pid))p=byId[Number(pid)];
+  if(!p)return;
+  pid=p.id; // id no tipo original (igual ao guardado nos slots)
+  const used=Object.values(s).filter(Boolean);
   if(used.includes(pid)){const sl=Object.keys(s).find(k=>s[k]===pid);s[sl]=null;if(APP.captain===sl)APP.captain=null;render();return;}
   // descobre o slot de destino
   let t=null;
@@ -879,4 +886,23 @@ function memberHTML(){
   else hist.forEach((h,hi)=>{html+=histGameHTML(h,hi,"m");});
   html+=`</div>`;
   return html;
+}
+
+// === FIX clique-fantasma do pool ===
+// O render() recria todo o DOM via innerHTML. Com onclick inline, no mobile o
+// "click" sintético podia cair no elemento errado (o DOM era trocado durante o
+// gesto), escalando o jogador de cima/baixo. Aqui usamos UM listener delegado no
+// document (sobrevive ao re-render) que lê o id do elemento realmente tocado.
+if(!window._poolPickDelegate){
+  window._poolPickDelegate=true;
+  document.addEventListener("click",function(ev){
+    const row=ev.target&&ev.target.closest?ev.target.closest(".playerpick[data-pid]"):null;
+    if(!row)return;
+    if(row.classList.contains("dis"))return;
+    const pid=row.getAttribute("data-pid");
+    if(pid==null||pid==="")return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(typeof place==="function")place(pid);
+  });
 }
