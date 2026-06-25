@@ -368,6 +368,15 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .pface.ph,.slotpic.ph{background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%);color:var(--chalk);font-family:'Saira Condensed';font-weight:800;font-size:11px;letter-spacing:.02em}
 .slotpic{width:42px;height:42px;min-width:42px;flex-basis:42px}
 .slotpic img{filter:none}
+.tinyface,.microface{border-radius:999px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;padding:2px;background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%);border:1px solid #2A3F67;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04),0 0 0 1px rgba(17,27,49,.55);flex:0 0 auto}
+.tinyface{width:34px;height:34px;min-width:34px}
+.microface{width:28px;height:28px;min-width:28px}
+.tinyface img,.microface img{width:100%;height:100%;object-fit:cover;display:block;border-radius:999px;background:transparent;mix-blend-mode:normal;filter:none}
+.tinyface.ph,.microface.ph{color:var(--chalk);font-family:'Saira Condensed';font-weight:800;letter-spacing:.02em}
+.tinyface.ph{font-size:10px}.microface.ph{font-size:9px}
+.face-inline{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.face-inline .txt{min-width:0}
+
 .prow{gap:9px}
 .prow .nm{font-size:12.5px;line-height:1.25}
 .prow .pr{font-size:13px}
@@ -631,6 +640,84 @@ if(!window.__APP_PART5_OK){
   }else{
     start();
   }
+})();
+</script>
+
+
+<script>
+/* Helper seguro de retrato. Não bloqueia boot se algo falhar. */
+(function(){
+  if(window.__PLAYER_PORTRAIT_HELPER__) return;
+  window.__PLAYER_PORTRAIT_HELPER__ = true;
+
+  function escAttr(v){
+    return String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  }
+  function initials(name){
+    return String(name||"").trim().split(/\s+/).filter(Boolean).map(function(w){return w[0]}).slice(0,2).join("").toUpperCase() || "?";
+  }
+  function norm(v){
+    try{
+      return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    }catch(e){
+      return String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    }
+  }
+  function findMetaByNameTeam(name,team){
+    try{
+      var gn=norm(name), gt=String(team||"");
+      var data=(window.GAMES&&window.GAMES.data)?window.GAMES.data:{};
+      for(var rid in data){
+        var ps=data[rid]&&data[rid].prepool&&data[rid].prepool.players?data[rid].prepool.players:[];
+        for(var i=0;i<ps.length;i++){
+          var p=ps[i];
+          if(gt && String(p.team)!==gt) continue;
+          if(norm(p.name)!==gn) continue;
+          return {roomId:rid,id:p.id,team:p.team,name:p.name,pos:p.pos};
+        }
+      }
+    }catch(e){}
+    return null;
+  }
+
+  window.playerPortraitHTML = function(meta, cls){
+    try{
+      cls = cls || "pface";
+      meta = meta || {};
+      var roomId = meta.roomId;
+      var id = meta.id;
+      var team = meta.team;
+      var name = meta.name || "";
+
+      if((roomId==null || id==null) && name){
+        var found = findMetaByNameTeam(name, team);
+        if(found){
+          roomId = found.roomId;
+          id = found.id;
+          team = found.team;
+          name = found.name || name;
+        }
+      }
+
+      var url = null;
+      var direct = null;
+      if(typeof photoOf === "function" && roomId!=null && id!=null && team){
+        url = photoOf(roomId, team, id);
+      }
+      if(typeof photoOfDirect === "function" && roomId!=null && id!=null && team){
+        direct = photoOfDirect(roomId, team, id);
+      }
+      if(!direct) direct = url;
+
+      var ini = initials(name);
+      if(!url){
+        return '<span class="' + cls + ' ph">' + escAttr(ini) + '</span>';
+      }
+      return '<span class="' + cls + '"><img src="' + escAttr(url) + '" data-direct="' + escAttr(direct || url) + '" loading="lazy" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect=\\'1\\';this.src=this.dataset.direct}else{this.parentNode.classList.add(\\'ph\\');this.parentNode.textContent=\\'' + escAttr(ini) + '\\'}"></span>';
+    }catch(e){
+      return "";
+    }
+  };
 })();
 </script>
 
