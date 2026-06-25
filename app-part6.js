@@ -627,3 +627,13 @@ async function boot(){
 window.__APP_READY=true;
 
 
+// ============================================================
+// BOOT TRIGGER — esta linha estava faltando (perdida ao dividir o app.js em 6 partes).
+// Sem ela, boot() nunca roda e o app fica preso em "Carregando…".
+// Espera o DOM e chama boot() uma única vez.
+// ============================================================
+if(document.readyState==="loading"){
+  document.addEventListener("DOMContentLoaded",function(){boot();});
+}else{
+  boot();
+}
