@@ -410,7 +410,7 @@ function srTrio(roomId, teamCode){
     const top=ps.slice(0,3);
     let html='<div class="sr-trio">';
     top.forEach(p=>{
-      const url=(typeof photoOf==="function")?photoOf(roomId,p.id):null;
+      const url=(typeof photoOf==="function")?photoOf(roomId,p.team,p.id):null;
       const ini=(p.name||"").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
       if(url){
         html+=`<span class="sr-pf"><img src="${url}" loading="lazy" onerror="this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'"></span>`;
