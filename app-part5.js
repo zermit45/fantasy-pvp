@@ -300,6 +300,12 @@ function buildHTML(){
   </div>
   <div class="card">
     <div class="sectionhead"><span>Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</span><span>${filledCount}/6 escolhidos</span></div>
+    ${(function(){
+      // DIAGNÓSTICO: detecta jogadores diferentes com o MESMO id (causa de escalar o jogador errado)
+      const seen={},dups=[];
+      pp.players.forEach(p=>{ if(seen[p.id]&&seen[p.id]!==p.name)dups.push(`#${p.id}: ${seen[p.id]} ≟ ${p.name}`); seen[p.id]=p.name; });
+      return dups.length?`<div class="warn" style="background:#3a1414;border-color:#5a2020;color:#ff8a8a">⚠️ IDs duplicados no pool (isso faz escalar o jogador errado):<br>${dups.map(esc).join("<br>")}</div>`:"";
+    })()}
     ${tabsHTML}
     <div class="pool">${poolHTML}</div>
     ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
