@@ -501,7 +501,14 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="app-part2.js?v=20260625"></script>
 <script src="app-part3.js?v=20260625"></script>
 <script src="app-part4.js?v=20260625"></script>
-<script src="app-part5.js?v=20260625"></script>
+<script src="app-part5.js?v=20260625-loadentries-fix"></script>
+<script>
+// Guarda anti-cache: app-part5 precisa carregar antes do app-part6, pois nele ficam buildHTML/saveEntry/loadEntries.
+window.__APP_PART5_OK = (typeof loadEntries === "function" && typeof buildHTML === "function");
+if(!window.__APP_PART5_OK){
+  console.warn("app-part5.js não carregou corretamente: buildHTML/loadEntries ausentes.");
+}
+</script>
 <script src="app-part6.js?v=20260625"></script>
 <script src="draft-patch.js?v=20260622"></script>
 </body>
