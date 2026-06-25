@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teste foto</title>
+<style>body{background:#070810;color:#fff;font-family:system-ui;text-align:center;padding:30px}
+img{width:130px;height:130px;border-radius:50%;background:#1a1f2e;border:3px solid #2a3550;object-fit:cover;display:block;margin:16px auto}
+.s{font-size:17px;margin-top:16px;font-weight:700}.ok{color:#46d369}.fail{color:#ff5a5a}
+.d{color:#8B97B8;font-size:13px;margin-top:14px;line-height:1.6}</style>
+</head><body>
+<h2>A foto da API-Football carrega?</h2>
+<img id="i" src="https://media.api-sports.io/football/players/1460.png" alt="">
+<div class="s" id="s">Carregando...</div>
+<div class="d" id="d"></div>
+<script>
+var im=document.getElementById('i'),s=document.getElementById('s'),d=document.getElementById('d');
+im.addEventListener('load',function(){
+  if(im.naturalWidth>1){s.className='s ok';s.textContent='✓ FOTO CARREGOU! API-Football funciona.';}
+  else{s.className='s fail';s.textContent='✗ Imagem vazia.';}
+});
+im.addEventListener('error',function(){s.className='s fail';s.textContent='✗ A foto NÃO carregou (erro).';});
+// diagnóstico extra
+fetch('https://media.api-sports.io/football/players/1460.png',{mode:'no-cors'})
+  .then(function(){d.textContent='A requisição saiu (modo no-cors). Se a foto acima apareceu, está tudo certo.';})
+  .catch(function(e){d.textContent='Erro de rede: '+e.message;});
+</script>
+</body></html>
