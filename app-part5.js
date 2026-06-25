@@ -384,23 +384,23 @@ function place(pid){
   if(!p)return;
   pid=p.id; // id no tipo original (igual ao guardado nos slots)
   const used=Object.values(s).filter(Boolean);
-  if(used.includes(pid)){const sl=Object.keys(s).find(k=>s[k]===pid);s[sl]=null;if(APP.captain===sl)APP.captain=null;render();return;}
+  if(used.includes(pid)){const sl=Object.keys(s).find(k=>s[k]===pid);s[sl]=null;if(APP.captain===sl)APP.captain=null;renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();return;}
   // descobre o slot de destino
   let t=null;
   if(p.pos==="GK")t=!s.GK?"GK":!s.BENCH?"BENCH":null;
   else{if(!s[p.pos])t=p.pos;else if(!s.FLEX)t="FLEX";else if(!s.BENCH)t="BENCH";}
-  if(!t){APP.warn="Sem slot compatível livre.";render();return;}
+  if(!t){APP.warn="Sem slot compatível livre.";renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();return;}
   if(t==="BENCH"){
     // banco: GRÁTIS, mas só aceita quem custa <= o titular mais barato que você escalou
     const bcap=benchCap(s,byId);
-    if(bcap==null){APP.warn="Escale ao menos um titular antes de escolher o banco (o teto do banco é o seu titular mais barato).";render();return;}
-    if((p.price||0)>bcap){APP.warn=`No banco só entra quem custa até ${bcap} (seu titular mais barato). Esse custa ${p.price}.`;render();return;}
+    if(bcap==null){APP.warn="Escale ao menos um titular antes de escolher o banco (o teto do banco é o seu titular mais barato).";renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();return;}
+    if((p.price||0)>bcap){APP.warn=`No banco só entra quem custa até ${bcap} (seu titular mais barato). Esse custa ${p.price}.`;renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();return;}
   }else{
     // titular: paga e respeita o orçamento (banco não conta)
     const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:byId[id].price),0);
-    if(100-spent-p.price<0){APP.warn="Orçamento estourado.";render();return;}
+    if(100-spent-p.price<0){APP.warn="Orçamento estourado.";renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();return;}
   }
-  s[t]=pid;enforceBenchCap();render();
+  s[t]=pid;enforceBenchCap();renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();
 }
 // se o reserva do banco ficou acima do novo teto (titular mais barato), remove e avisa
 function enforceBenchCap(){
@@ -413,7 +413,7 @@ function enforceBenchCap(){
     APP.warn=cap==null?"Banco liberado: ele depende de ter um titular escalado.":`Banco liberado: o reserva (${pr}) ficou acima do novo teto (${cap}, seu titular mais barato).`;
   }
 }
-function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;if(sl!=="BENCH")enforceBenchCap();render();}
+function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;if(sl!=="BENCH")enforceBenchCap();renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();}
 function toggleCap(sl){APP.captain=APP.captain===sl?null:sl;render();}
 function setTactic(k){APP.tactic=k;render();}
 function setTabTeam(t){APP.tabTeam=t;render();}

@@ -380,7 +380,8 @@ function normTxt(s){
 }
 function scrollSnap(){
   const m=document.querySelector(".modal");
-  return {y:window.scrollY||0,my:m?m.scrollTop:0,hasModal:!!m};
+  const pool=document.querySelector(".pool");
+  return {y:window.scrollY||0,my:m?m.scrollTop:0,hasModal:!!m,pool:pool?pool.scrollTop:0,hasPool:!!pool};
 }
 function restoreScroll(snap){
   if(!snap)return;
@@ -388,6 +389,8 @@ function restoreScroll(snap){
     window.scrollTo(0,snap.y||0);
     const m=document.querySelector(".modal");
     if(m&&snap.hasModal)m.scrollTop=snap.my||0;
+    const pool=document.querySelector(".pool");
+    if(pool&&snap.hasPool)pool.scrollTop=snap.pool||0;
   };
   requestAnimationFrame(()=>{apply();setTimeout(apply,60);setTimeout(apply,180);});
 }
