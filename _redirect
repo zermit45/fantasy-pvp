@@ -1,0 +1,8 @@
+# Proxy para fotos do SofaScore (evita bloqueio 403 de hotlink).
+# Tudo que o app pedir em /sofa/ALGO o Netlify busca em api.sofascore.app e devolve,
+# como se fosse do proprio dominio. O :splat captura o "ALGO" (ex: 934235/image).
+/sofa/*  https://api.sofascore.app/api/v1/player/:splat  200
+
+# IMPORTANTE: se voce ja tem um _redirects com a regra catch-all de SPA
+# (tipo  /*  /index.html  200), a linha do /sofa/ acima precisa vir ANTES dela,
+# senao o catch-all "engole" o proxy. Regras sao lidas de cima pra baixo.
