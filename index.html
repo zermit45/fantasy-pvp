@@ -377,15 +377,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .sr-sc{font-family:'JetBrains Mono';font-weight:800;font-size:16px;color:var(--blue);min-width:46px;text-align:center}
 .sr-adm{margin-left:6px}
 
-/* === PHOTO FIX v20260625 === */
-.pface,.slotpic{width:34px;height:34px;border-radius:50%;border:1.5px solid rgba(255,255,255,.78);overflow:hidden;background:#1A2130;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Saira Condensed';font-size:11px;font-weight:900;color:#fff;box-shadow:0 6px 14px -10px #000}
-.pface img,.slotpic img{width:100%;height:100%;object-fit:cover;display:block}
-.pface.ph,.slotpic.ph{background:linear-gradient(180deg,#222A3A,#141A26);color:var(--dim)}
-.slotpic{position:absolute;right:9px;top:25px;width:38px;height:38px}
-.slot.filled .nm,.slot.filled .pr{padding-right:43px}
-.prow .pface{margin-left:-2px;margin-right:-2px}
-.sr-pf img{background:#151B28}
-
 </style>
 </head>
 <body>
@@ -404,14 +395,113 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part11.js?v=20260625-fix"></script>
 <script src="games-part12.js?v=20260625-fix"></script>
 <script src="flags.js"></script>
-<script src="fotos-copa.js?v=20260625-photo-fix"></script>
+<script src="fotos-copa.js?v=20260625-namefix"></script>
+<script>
+/* PATCH FOTOS — corrige jogos com ID local usando o MESMO NOME do jogador em outros jogos */
+(function(){
+  "use strict";
+
+  function norm(s){
+    return String(s||"")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .replace(/ı/g,"i").replace(/İ/g,"i")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g,"");
+  }
+
+  function toWeserv(url){
+    if(!url) return null;
+    var u = String(url);
+    if(/^https?:\/\/images\.weserv\.nl\//i.test(u)) return u;
+    if(u.indexOf("/img/") === 0) u = "https://media.api-sports.io/" + u.replace(/^\/img\//,"");
+    var m = u.match(/^https?:\/\/media\.api-sports\.io\/(.+)$/i);
+    if(m) return "https://images.weserv.nl/?url=media.api-sports.io/" + m[1] + "&w=160&h=160&fit=cover&output=png";
+    return u;
+  }
+
+  function findPlayer(roomId, teamCode, playerId){
+    try{
+      var g = window.GAMES && window.GAMES.data ? window.GAMES.data[roomId] : null;
+      var ps = g && g.prepool && g.prepool.players ? g.prepool.players : [];
+      for(var i=0;i<ps.length;i++){
+        var p = ps[i];
+        if(String(p.id) === String(playerId) && (!teamCode || String(p.team) === String(teamCode))) return p;
+      }
+    }catch(e){}
+    return null;
+  }
+
+  function findPhotoBySameName(roomId, teamCode, playerId){
+    try{
+      var wanted = findPlayer(roomId, teamCode, playerId);
+      if(!wanted) return null;
+      var wantedName = norm(wanted.name);
+      var wantedTeam = String(teamCode || wanted.team || "").toUpperCase();
+      if(!wantedName || !window.GAMES || !window.GAMES.data || !window.PLAYER_PHOTOS) return null;
+
+      for(var rid in window.GAMES.data){
+        if(rid === roomId) continue;
+        var g = window.GAMES.data[rid];
+        var ps = g && g.prepool && g.prepool.players ? g.prepool.players : [];
+        for(var i=0;i<ps.length;i++){
+          var q = ps[i];
+          if(wantedTeam && String(q.team).toUpperCase() !== wantedTeam) continue;
+          if(norm(q.name) !== wantedName) continue;
+          var key = rid + "|" + q.team + "|" + q.id;
+          if(window.PLAYER_PHOTOS[key]) return window.PLAYER_PHOTOS[key];
+        }
+      }
+    }catch(e){}
+    return null;
+  }
+
+  function fillMissingPhotosByName(){
+    try{
+      if(!window.GAMES || !window.GAMES.data || !window.PLAYER_PHOTOS) return;
+      for(var roomId in window.GAMES.data){
+        var g = window.GAMES.data[roomId];
+        var ps = g && g.prepool && g.prepool.players ? g.prepool.players : [];
+        for(var i=0;i<ps.length;i++){
+          var p = ps[i];
+          var key = roomId + "|" + p.team + "|" + p.id;
+          if(window.PLAYER_PHOTOS[key]) continue;
+          var found = findPhotoBySameName(roomId, p.team, p.id);
+          if(found) window.PLAYER_PHOTOS[key] = found;
+        }
+      }
+    }catch(e){}
+  }
+
+  var originalPhotoOf = window.photoOf;
+  fillMissingPhotosByName();
+
+  window.photoOf = function(roomId, teamCode, playerId){
+    var url = null;
+    try{
+      if(typeof originalPhotoOf === "function") url = originalPhotoOf(roomId, teamCode, playerId);
+    }catch(e){}
+
+    if(!url && window.PLAYER_PHOTOS){
+      var key = String(roomId) + "|" + String(teamCode) + "|" + String(playerId);
+      url = window.PLAYER_PHOTOS[key] || null;
+    }
+
+    if(!url) url = findPhotoBySameName(roomId, teamCode, playerId);
+    return toWeserv(url);
+  };
+
+  window.fixPlayerPhotosByName = fillMissingPhotosByName;
+})();
+</script>
+
 <script src="engine.js"></script>
 <script src="apurador.js"></script>
 <script src="app-part1.js?v=20260625"></script>
 <script src="app-part2.js?v=20260625"></script>
-<script src="app-part3.js?v=20260625-photo-fix"></script>
+<script src="app-part3.js?v=20260625"></script>
 <script src="app-part4.js?v=20260625"></script>
-<script src="app-part5.js?v=20260625-photo-fix"></script>
+<script src="app-part5.js?v=20260625"></script>
 <script src="app-part6.js?v=20260625"></script>
 <script src="draft-patch.js?v=20260622"></script>
 </body>
