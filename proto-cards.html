@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cards · trio de fotos</title>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070810;--panel:#0E1119;--line:#1c2230;--dim:#8B97B8;--amber:#FFC247;--purple:#B06BFF}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#12162400,#070810),var(--bg);color:#fff;font-family:'Inter',sans-serif;padding:22px 16px 60px}
+h1{font-family:'Saira Condensed';font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:18px;margin:0 0 4px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:18px}
+.sec{font-family:'Saira Condensed';font-weight:800;text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--dim);margin:24px 0 10px}
+.strip{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.big{flex-shrink:0;width:320px;border-radius:20px;overflow:hidden;cursor:pointer;position:relative;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--gc) 48%,#0A0C12) 0%,#0A0C12 72%);
+  border:1px solid color-mix(in srgb,var(--gc) 38%,#1a1f2e)}
+.big-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 0;position:relative;z-index:2}
+.comp{font-family:'Saira Condensed';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.92);font-weight:800}
+.when{font-size:10px;color:rgba(255,255,255,.75);font-weight:700;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:20px}
+.big-mid{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:6px;padding:14px 16px 4px;position:relative;z-index:2}
+.team{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+.team .flag{font-size:30px;line-height:1}
+.team .tn{font-family:'Saira Condensed';font-weight:800;font-size:15px;text-transform:uppercase;text-align:center;line-height:1.05}
+.trio{display:flex;justify-content:center;margin-top:2px}
+.pf{width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.85);margin-left:-14px;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);overflow:hidden;background:#1a1f2e;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center}
+.pf:first-child{margin-left:0}
+.pf:nth-child(1){z-index:3}.pf:nth-child(2){z-index:2}.pf:nth-child(3){z-index:1}
+.pf img{width:100%;height:100%;object-fit:cover;display:block}
+.pf .ini,.star .ini{font-family:'Saira Condensed';font-weight:800;color:#fff}
+.pf .ini{font-size:15px}
+.vs{font-family:'Saira Condensed';font-weight:800;font-size:13px;color:rgba(255,255,255,.6);padding-top:34px}
+.big-go{margin:6px 14px 14px;text-align:center;font-family:'Saira Condensed';font-weight:800;text-transform:uppercase;letter-spacing:.05em;font-size:12px;
+  background:rgba(255,255,255,.12);border-radius:11px;padding:10px;color:#fff;position:relative;z-index:2}
+.big::after{content:"";position:absolute;top:-30%;right:-15%;width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--gc) 48%,transparent),transparent 65%);pointer-events:none;z-index:1}
+.row{display:grid;grid-template-columns:auto 1fr auto 1fr auto;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+  border-left:3px solid var(--purple);border-radius:13px;padding:11px 14px;margin-bottom:9px;cursor:pointer}
+.star{width:34px;height:34px;border-radius:50%;border:1.5px solid rgba(255,255,255,.7);overflow:hidden;background:#1a1f2e;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.star img{width:100%;height:100%;object-fit:cover;display:block}
+.star .ini{font-size:13px}
+.rn{font-family:'Saira Condensed';font-weight:700;font-size:15px;text-transform:uppercase;display:flex;align-items:center;gap:7px;min-width:0}
+.rn.r{justify-content:flex-end;text-align:right}
+.fl{font-size:19px}
+.rt{font-size:11px;color:var(--dim);font-weight:700;font-family:'Saira Condensed';white-space:nowrap}
+.note{color:var(--dim);font-size:11px;margin-top:18px;line-height:1.5;border-top:1px solid var(--line);padding-top:12px}
+</style>
+</head>
+<body>
+<h1>Cards de jogo · trio de fotos</h1>
+<div class="sub">Dados reais dos 6 jogos de amanhã. Esteira mostra as 3 estrelas de cada selecao; lista mostra a estrela principal.</div>
+<div class="sec">⭐ Em destaque · amanhã</div>
+<div class="strip" id="strip"></div>
+<div class="sec">⚽ Próximas partidas</div>
+<div id="rows"></div>
+<div class="note">Fotos do SofaScore. Se uma nao carregar, mostra a inicial do nome.</div>
+<script>
+const FLAG={CUW:"🇨🇼",CIV:"🇨🇮",ECU:"🇪🇨",DEU:"🇩🇪",JPN:"🇯🇵",SWE:"🇸🇪",TUN:"🇹🇳",NLD:"🇳🇱",PRY:"🇵🇾",AUS:"🇦🇺",TUR:"🇹🇷",USA:"🇺🇸"};
+const COL={CIV:"#ff8200",DEU:"#1a1a1a",SWE:"#006aa7",NLD:"#ff6a00",AUS:"#00843d",USA:"#3c3b6e"};
+function ph(id){return "https://api.sofascore.app/api/v1/player/"+id+"/image";}
+function ini(name){var t=name.trim().split(/\s+/);return ((t[0]||"")[0]+((t[t.length-1]||"")[0]||"")).toUpperCase();}
+var GAMES=[
+ {when:"17:00 · Aberta",gc:"CIV",home:{c:"CUW",n:"Curaçao",s:[["Kuwas",839135],["Bacuna",19047],["Noslin",1131009]]},away:{c:"CIV",n:"Costa do Marfim",s:[["Diomande",2087085],["Pépé",191188],["Diallo",930245]]}},
+ {when:"17:00 · Aberta",gc:"DEU",home:{c:"ECU",n:"Equador",s:[["Caicedo",937937],["Pacho",1116571],["Hincapié",1002524]]},away:{c:"DEU",n:"Alemanha",s:[["Kimmich",184661],["Undav",901882],["Schlotterbeck",940871]]}},
+ {when:"20:00 · Aberta",gc:"SWE",home:{c:"JPN",n:"Japão",s:[["Ueda",1606568],["Kubo",919027],["Sano",1008597]]},away:{c:"SWE",n:"Suécia",s:[["Isak",839135],["Gyökeres",959628],["Ayari",1383695]]}},
+ {when:"20:00 · Aberta",gc:"NLD",home:{c:"TUN",n:"Tunísia",s:[["Mejbri",919198],["Talbi",919225],["Elloumi",2018238]]},away:{c:"NLD",n:"Holanda",s:[["van Dijk",138833],["Gravenberch",862967],["van Hecke",910048]]}},
+ {when:"23:00 · Aberta",gc:"AUS",home:{c:"PRY",n:"Paraguai",s:[["Enciso",989801],["Mauricio",986233],["Almirón",226986]]},away:{c:"AUS",n:"Austrália",s:[["Bos",1118467],["Ryan",39573],["Burgess",808680]]}},
+ {when:"23:00 · Aberta",gc:"USA",home:{c:"TUR",n:"Turquia",s:[["Yıldız",1149011],["Çalhanoğlu",135700],["Güler",1407720]]},away:{c:"USA",n:"EUA",s:[["Pulišić",817957],["Balogun",934237],["Freeman",986395]]}},
+];
+function photoEl(cls,name,id){
+  var wrap=document.createElement('div');wrap.className=cls;
+  var img=document.createElement('img');img.src=ph(id);img.alt=name;
+  img.addEventListener('error',function(){wrap.innerHTML='';var s=document.createElement('span');s.className='ini';s.textContent=ini(name);wrap.appendChild(s);});
+  wrap.appendChild(img);return wrap;
+}
+var strip=document.getElementById('strip');
+GAMES.forEach(function(g){
+  var col=COL[g.gc]||"#8B97B8";
+  var card=document.createElement('div');card.className='big';card.style.setProperty('--gc',col);
+  card.innerHTML='<div class="big-head"><span class="comp">⚽ Copa do Mundo FIFA</span><span class="when">'+g.when+'</span></div>'+
+    '<div class="big-mid">'+
+      '<div class="team" data-side="home"><span class="flag">'+FLAG[g.home.c]+'</span><span class="tn">'+g.home.n+'</span><div class="trio"></div></div>'+
+      '<span class="vs">VS</span>'+
+      '<div class="team" data-side="away"><span class="flag">'+FLAG[g.away.c]+'</span><span class="tn">'+g.away.n+'</span><div class="trio"></div></div>'+
+    '</div>'+
+    '<div class="big-go">Escalar time →</div>';
+  ['home','away'].forEach(function(side){
+    var trio=card.querySelector('[data-side="'+side+'"] .trio');
+    g[side].s.forEach(function(p){trio.appendChild(photoEl('pf',p[0],p[1]));});
+  });
+  strip.appendChild(card);
+});
+var rows=document.getElementById('rows');
+GAMES.forEach(function(g){
+  var row=document.createElement('div');row.className='row';
+  row.appendChild(photoEl('star',g.home.s[0][0],g.home.s[0][1]));
+  var l=document.createElement('div');l.className='rn r';l.innerHTML='<span class="fl">'+FLAG[g.home.c]+'</span>'+g.home.n;row.appendChild(l);
+  var x=document.createElement('span');x.className='rt';x.textContent='×';row.appendChild(x);
+  var r=document.createElement('div');r.className='rn';r.innerHTML='<span class="fl">'+FLAG[g.away.c]+'</span>'+g.away.n;row.appendChild(r);
+  row.appendChild(photoEl('star',g.away.s[0][0],g.away.s[0][1]));
+  rows.appendChild(row);
+});
+</script>
+</body>
+</html>
