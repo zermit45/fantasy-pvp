@@ -356,27 +356,17 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .sr-fl{font-size:38px;line-height:1}
 .sr-tn{font-family:'Saira Condensed';font-weight:800;font-size:14px;text-transform:uppercase;text-align:center;color:#fff;letter-spacing:.02em;line-height:1.05}
 .sr-trio{display:flex;justify-content:center;margin-top:4px}
-.sr-pf{width:42px;height:42px;border-radius:50%;border:2px solid rgba(255,255,255,.85);margin-left:-13px;overflow:hidden;padding:2px;background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%);box-shadow:0 2px 7px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Saira Condensed';font-weight:800;font-size:14px;color:#fff}
+.sr-pf{width:42px;height:42px;border-radius:50%;border:2px solid rgba(255,255,255,.85);margin-left:-13px;overflow:hidden;background:#1a1f2e;box-shadow:0 2px 7px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Saira Condensed';font-weight:800;font-size:14px;color:#fff}
 .sr-pf:first-child{margin-left:0}
 .sr-pf:nth-child(1){z-index:3}.sr-pf:nth-child(2){z-index:2}.sr-pf:nth-child(3){z-index:1}
-.sr-pf img{width:100%;height:100%;object-fit:cover;display:block;border-radius:999px;background:transparent;mix-blend-mode:normal;filter:none}
-.sr-pf.ph{background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%)}
+.sr-pf img{width:100%;height:100%;object-fit:cover;display:block}
+.sr-pf.ph{background:#222838}
 
 /* ===== FOTOS MENORES NO POOL / ESCALAÇÃO ===== */
-.pface,.slotpic{width:38px;height:38px;min-width:38px;flex:0 0 38px;border-radius:999px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;padding:2px;background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%);border:1px solid #2A3F67;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04),0 0 0 1px rgba(17,27,49,.55)}
-.pface img,.slotpic img{width:100%;height:100%;object-fit:cover;display:block;border-radius:999px;background:transparent;mix-blend-mode:normal;filter:none}
-.pface.ph,.slotpic.ph{background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%);color:var(--chalk);font-family:'Saira Condensed';font-weight:800;font-size:11px;letter-spacing:.02em}
+.pface,.slotpic{width:38px;height:38px;min-width:38px;flex:0 0 38px;border-radius:999px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:#16233A;border:1px solid #243454;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+.pface img,.slotpic img{width:100%;height:100%;object-fit:cover;display:block;background:#16233A}
+.pface.ph,.slotpic.ph{background:#16233A;color:var(--chalk);font-family:'Saira Condensed';font-weight:800;font-size:11px;letter-spacing:.02em}
 .slotpic{width:42px;height:42px;min-width:42px;flex-basis:42px}
-.slotpic img{filter:none}
-.tinyface,.microface{border-radius:999px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;padding:2px;background:radial-gradient(circle at 35% 30%, #223556 0%, #182743 48%, #111B31 100%);border:1px solid #2A3F67;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04),0 0 0 1px rgba(17,27,49,.55);flex:0 0 auto}
-.tinyface{width:34px;height:34px;min-width:34px}
-.microface{width:28px;height:28px;min-width:28px}
-.tinyface img,.microface img{width:100%;height:100%;object-fit:cover;display:block;border-radius:999px;background:transparent;mix-blend-mode:normal;filter:none}
-.tinyface.ph,.microface.ph{color:var(--chalk);font-family:'Saira Condensed';font-weight:800;letter-spacing:.02em}
-.tinyface.ph{font-size:10px}.microface.ph{font-size:9px}
-.face-inline{display:inline-flex;align-items:center;gap:8px;min-width:0}
-.face-inline .txt{min-width:0}
-
 .prow{gap:9px}
 .prow .nm{font-size:12.5px;line-height:1.25}
 .prow .pr{font-size:13px}
@@ -424,8 +414,8 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part10.js?v=20260625-fix"></script>
 <script src="games-part11.js?v=20260625-fix"></script>
 <script src="games-part12.js?v=20260625-fix"></script>
-<script src="flags.js"></script>
-<script src="fotos-copa.js?v=20260625-namefix"></script>
+<script src="flags.js?v=hardreset1"></script>
+<script src="fotos-copa.js?v=hardreset1"></script>
 <script>
 /* PATCH FOTOS — corrige jogos com ID local usando o MESMO NOME do jogador em outros jogos */
 (function(){
@@ -527,122 +517,12 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 
 <script src="engine.js"></script>
 <script src="apurador.js"></script>
-<script src="app-part1.js?v=20260625"></script>
-<script src="app-part2.js?v=20260625"></script>
-<script src="app-part3.js?v=20260625"></script>
-<script src="app-part4.js?v=20260625"></script>
-<script src="app-part5.js?v=20260625-loadentries-fix"></script>
-<script>
-// Guarda anti-cache: app-part5 precisa carregar antes do app-part6, pois nele ficam buildHTML/saveEntry/loadEntries.
-window.__APP_PART5_OK = (typeof loadEntries === "function" && typeof buildHTML === "function");
-if(!window.__APP_PART5_OK){
-  console.warn("app-part5.js não carregou corretamente: buildHTML/loadEntries ausentes.");
-}
-</script>
-<script src="app-part6.js?v=20260625"></script>
+<script src="app-part1.js?v=hardreset1"></script>
+<script src="app-part2.js?v=hardreset1"></script>
+<script src="app-part3.js?v=hardreset1"></script>
+<script src="app-part4.js?v=hardreset1"></script>
+<script src="app-part5.js?v=hardreset1"></script>
+<script src="app-part6.js?v=hardreset1"></script>
 <script src="draft-patch.js?v=20260622"></script>
-
-<script>
-/* PATCH VISUAL DAS FOTOS
-   Remove SOMENTE fundo branco/quase branco dos retratos via canvas.
-   O rosto/camisa ficam sem filtro; o fundo transparente revela a paleta azul do app. */
-(function(){
-  if(window.__PHOTO_BG_CUT_PATCH__) return;
-  window.__PHOTO_BG_CUT_PATCH__ = true;
-
-  function isTarget(img){
-    return !!(img && img.tagName === "IMG" && img.closest && img.closest(".pface,.slotpic,.sr-pf"));
-  }
-
-  function cutWhiteBackground(img){
-    if(!isTarget(img) || img.dataset.bgcutDone || img.dataset.bgcutRunning) return;
-    var src = img.currentSrc || img.src;
-    if(!src || src.indexOf("data:image/") === 0) return;
-
-    img.dataset.bgcutRunning = "1";
-
-    var im = new Image();
-    im.crossOrigin = "anonymous";
-
-    im.onload = function(){
-      try{
-        var w = im.naturalWidth || im.width;
-        var h = im.naturalHeight || im.height;
-        if(!w || !h) throw new Error("sem dimensoes");
-
-        var canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        var ctx = canvas.getContext("2d", { willReadFrequently:true });
-        ctx.drawImage(im, 0, 0, w, h);
-
-        var data = ctx.getImageData(0, 0, w, h);
-        var px = data.data;
-
-        for(var i=0;i<px.length;i+=4){
-          var r=px[i], g=px[i+1], b=px[i+2];
-
-          // fundo dos retratos é branco/cinza muito claro.
-          // Só apaga pixels muito claros e pouco saturados para preservar rosto/cabelo/camisa.
-          var max = Math.max(r,g,b);
-          var min = Math.min(r,g,b);
-          var sat = max - min;
-
-          if(max > 222 && min > 188 && sat < 42){
-            var strength = Math.min(255, Math.max(0, (max - 222) * 8 + (188 - Math.max(0, 188-min)) ));
-            px[i+3] = Math.max(0, 255 - strength);
-          }
-        }
-
-        ctx.putImageData(data, 0, 0);
-        img.dataset.bgcutDone = "1";
-        img.src = canvas.toDataURL("image/png");
-      }catch(e){
-        // Se algum host bloquear canvas/CORS, deixa a foto original em vez de quebrar.
-        img.dataset.bgcutFail = "1";
-      }finally{
-        delete img.dataset.bgcutRunning;
-      }
-    };
-
-    im.onerror = function(){
-      img.dataset.bgcutFail = "1";
-      delete img.dataset.bgcutRunning;
-    };
-
-    // cache-buster pequeno só para a imagem auxiliar do canvas
-    im.src = src + (src.indexOf("?") >= 0 ? "&" : "?") + "bgcut=1";
-  }
-
-  function scan(){
-    document.querySelectorAll(".pface img,.slotpic img,.sr-pf img").forEach(function(img){
-      if(img.complete && img.naturalWidth) cutWhiteBackground(img);
-    });
-  }
-
-  document.addEventListener("load", function(ev){
-    if(isTarget(ev.target)) cutWhiteBackground(ev.target);
-  }, true);
-
-  var mo = new MutationObserver(function(){
-    scan();
-  });
-
-  function start(){
-    scan();
-    if(document.body){
-      mo.observe(document.body, { childList:true, subtree:true });
-    }
-  }
-
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", start);
-  }else{
-    start();
-  }
-})();
-</script>
-
-
 </body>
 </html>
