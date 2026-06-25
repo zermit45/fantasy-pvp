@@ -593,7 +593,7 @@ async function boot(){
    try{
     APP.view=view;if(roomId)APP.roomId=roomId;
     if(view==="groups"){await loadGroups();}
-    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();await loadDraftSeasons();}
+    if(view==="home"){await loadArchived();await loadGroups();await loadGroupRooms();await loadRounds();await loadPhases();await loadLeagues();await loadDraftSeasons();try{ if(typeof loadMatchResults==="function"){ loadMatchResults().then(function(){ try{render();}catch(e){} }).catch(function(){}); } }catch(e){}}
     if(view==="round"){APP.confOrderMode=false;APP.confOrderDraft=null;APP.confDrag=null;APP.confHover=null;await loadRound(roundId);_openPeekRound={};}
     if(view==="league"){await loadLeague(leagueId);}
     if(view==="phase"){await loadPhase(phaseId);}
