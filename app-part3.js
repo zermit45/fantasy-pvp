@@ -364,6 +364,7 @@ function calNav(delta){
   APP.calMonth=d.getFullYear()+"-"+(d.getMonth()+1);render();
 }
 function toggleShowAll(){APP.homeShowAll=(APP.homeShowAll===true?false:true);render();}
+function toggleProx(){APP.proxCollapsed=(APP.proxCollapsed===true?false:true);renderKeepScroll();}
 function pickCalDay(dayKey){APP.homeDay=decodeURIComponent(dayKey);APP.calOpen=false;render();}
 function setHomeSearch(v){
   APP.homeSearch=v;
@@ -569,8 +570,15 @@ function homeHTML(){
         listaHTML+=`</div>`;
       }
       if(resto.length){
-        listaHTML+=`<div class="sr-sec">⚽ Próximas partidas</div>`;
-        resto.forEach(j=>{
+        const _collapsed=APP.proxCollapsed===true;
+        listaHTML+=`<div class="sr-sec" onclick="toggleProx()" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between">
+          <span>⚽ Próximas partidas <span style="color:var(--dim);font-weight:400">(${resto.length})</span></span>
+          <span style="font-size:13px;color:var(--dim)">${_collapsed?"▸ mostrar":"▾ ocultar"}</span>
+        </div>`;
+        if(!_collapsed){
+          // ordena TODAS as próximas por horário real (mais cedo no topo), ignorando agrupamento por dia
+          const restoOrd=resto.slice().sort((a,b)=>(a.ts||Infinity)-(b.ts||Infinity));
+          restoOrd.forEach(j=>{
           const isOpen=j.status==="open";
           const fo=flagsOf(j.room_id);
           const hora=j.ki?(j.ki.rel?j.ki.rel+" "+j.ki.hh:j.ki.hh):"a definir";
@@ -580,7 +588,8 @@ function homeHTML(){
             <div class="sr-row-r"><span class="sr-nm">${esc(fo.an)}</span><span class="sr-fl2">${fo.af}</span></div>
             <span class="sr-time ${isOpen?"":"closed"}">${hora}${admBtn(j,"sr-adm")}</span>
           </div>`;
-        });
+          });
+        }
       }
     }
   }
