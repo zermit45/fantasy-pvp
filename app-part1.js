@@ -671,6 +671,42 @@ function draftSetting(s,key,fb){
   const st=(s&&s.settings)||{};
   return st[key]!==undefined?st[key]:fb;
 }
+
+// ───────── CONTROLE DE ORÇAMENTO: nunca negativo + reserva pra completar elenco ─────────
+// menor preço entre os jogadores AINDA SEM DONO (livres). Usado pra calcular a reserva
+// mínima necessária pra completar o elenco com os jogadores mais baratos disponíveis.
+function draftMinFreePrice(){
+  try{
+    const owner=draftOwnerMap();
+    const free=draftPlayerCatalog().filter(p=>!owner[p.key]);
+    if(!free.length)return 0;
+    let m=Infinity;
+    free.forEach(p=>{ const v=Number(p.price)||0; if(v<m)m=v; });
+    return isFinite(m)?m:0;
+  }catch(e){ return 0; }
+}
+// quanto o usuário pode gastar AGORA num único jogador, garantindo que ainda
+// consiga completar o elenco (reservando o mínimo pros slots restantes).
+// retorna objeto com: budget, reserve, maxSpend, slotsLeft (após esta compra), canComplete.
+function draftBudgetInfo(s, me, mineCount){
+  const budget=Math.max(0, Number(me?me.budget_left:0));
+  const limit=Number(s&&s.roster_limit||12);
+  const budgetOn=draftSetting(s,"budget_enabled",true);
+  const limitOn=draftSetting(s,"roster_limit_enabled",true);
+  // slots que ainda faltam DEPOIS de comprar mais um jogador
+  const slotsAfter=limitOn?Math.max(0, limit-(mineCount+1)):0;
+  const minFree=draftMinFreePrice();
+  const reserve=budgetOn?slotsAfter*minFree:0;
+  // máximo gastável neste jogador: orçamento menos a reserva dos slots restantes
+  let maxSpend=budgetOn?Math.max(0, budget-reserve):Infinity;
+  // se nem reservando dá pra completar (orçamento apertado demais), libera o budget todo
+  // pra não travar o usuário num beco — o bloqueio duro de "price>budget" ainda vale.
+  const canComplete=!budgetOn||!limitOn||(budget>= (limit-mineCount)*minFree);
+  if(budgetOn && !canComplete) maxSpend=budget;
+  return {budget,reserve,maxSpend,minFree,slotsAfter,slotsLeft:limitOn?Math.max(0,limit-mineCount):0,canComplete,limit};
+}
+window.draftMinFreePrice=draftMinFreePrice;
+window.draftBudgetInfo=draftBudgetInfo;
 async function createDraftSeason(name,budget,rosterLimit,settings){
   const st={...draftSettingsDefault(),...(settings||{})};
   const row={
@@ -709,24 +745,44 @@ async function buyDraftPlayer(playerKey){
   if(draftSetting(s,"auction2_enabled",false)){
     toast("Esta temporada usa Draft por Leilão 2.0. Jogadores só podem ser adquiridos pelo leilão, não por compra direta.");return;
   }
-  const owner=draftOwnerMap()[playerKey];
-  if(owner){toast("Esse jogador já tem dono.");return;}
-  const cat=draftPlayerCatalog().find(p=>p.key===playerKey);
-  if(!cat){toast("Jogador não encontrado.");return;}
-  const mine=(APP.draftRosters||[]).filter(r=>r.username===APP.user.username);
-  if(draftSetting(s,"roster_limit_enabled",true)&&mine.length>=Number(s.roster_limit||12)){toast("Elenco cheio.");return;}
-  if(draftSetting(s,"budget_enabled",true)&&Number(me.budget_left||0)<cat.price){toast("Sem moedas suficientes.");return;}
+  // TRAVA anti-duplo-clique: se já há uma compra em andamento, ignora cliques extras.
+  // (entre o clique e o recarregamento do saldo, vários cliques passavam pela validação
+  //  com o saldo antigo e estouravam o orçamento — agora só processa uma de cada vez.)
+  if(APP._draftBuyLock){return;}
+  APP._draftBuyLock=true;
   try{
+    const owner=draftOwnerMap()[playerKey];
+    if(owner){toast("Esse jogador já tem dono.");return;}
+    const cat=draftPlayerCatalog().find(p=>p.key===playerKey);
+    if(!cat){toast("Jogador não encontrado.");return;}
+    const mine=(APP.draftRosters||[]).filter(r=>r.username===APP.user.username);
+    if(draftSetting(s,"roster_limit_enabled",true)&&mine.length>=Number(s.roster_limit||12)){toast("Elenco cheio.");return;}
+    const price=Number(cat.price)||0;
+    const budgetOn=draftSetting(s,"budget_enabled",true);
+    const budget=Math.max(0, Number(me.budget_left||0));
+    // bloqueio DURO: nunca deixa o saldo ficar negativo
+    if(budgetOn && price>budget){toast("Sem moedas suficientes. Você tem "+budget+" e ele custa "+price+".");return;}
+    // bloqueio de RESERVA: garante que ainda dá pra completar o elenco
+    const info=draftBudgetInfo(s, me, mine.length);
+    if(budgetOn && info.canComplete && price>info.maxSpend){
+      toast("Se comprar por "+price+" você não completa o elenco. Faltam "+info.slotsLeft+" jogadores — pode gastar até "+info.maxSpend+" neste.");
+      return;
+    }
     await sbInsert("draft_rosters",{
       season_id:s.id,username:APP.user.username,player_key:cat.key,player_name:cat.name,
-      player_team:cat.team,pos:cat.pos,base_price:cat.price,current_price:cat.price,acquired_price:cat.price,status:"owned"
+      player_team:cat.team,pos:cat.pos,base_price:price,current_price:price,acquired_price:price,status:"owned"
     });
-    if(draftSetting(s,"budget_enabled",true))await sbUpdate("draft_teams",{budget_left:Number(me.budget_left||0)-cat.price},`season_id=eq.${s.id}&username=eq.${encodeURIComponent(APP.user.username)}`);
-    await sbInsert("draft_transactions",{season_id:s.id,username:APP.user.username,type:"buy",player_key:cat.key,player_name:cat.name,amount:cat.price,meta:{team:cat.team,pos:cat.pos}});
+    if(budgetOn){
+      // clamp em 0: segurança final pra NUNCA gravar saldo negativo
+      const novo=Math.max(0, budget-price);
+      await sbUpdate("draft_teams",{budget_left:novo},`season_id=eq.${s.id}&username=eq.${encodeURIComponent(APP.user.username)}`);
+    }
+    await sbInsert("draft_transactions",{season_id:s.id,username:APP.user.username,type:"buy",player_key:cat.key,player_name:cat.name,amount:price,meta:{team:cat.team,pos:cat.pos}});
     await loadDraftSeason(s.id);
     toast(`${cat.name} comprado!`);
     render();
   }catch(e){toast("Erro: "+e.message);}
+  finally{ APP._draftBuyLock=false; }
 }
 function askCreateDraftSeason(){APP.confirm={mode:"createDraftSeason",label:"Criar Mercado Draft"};render();}
 // confirmação ao sair do Draft (sair pode atrapalhar um leilão em andamento)

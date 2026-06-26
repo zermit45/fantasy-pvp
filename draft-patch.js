@@ -16,6 +16,16 @@
 (function(){
   if(typeof window==="undefined")return;
 
+  // foto do jogador na linha do draft: usa playerPortraitHTML (resolve por nome+time),
+  // que cai pra iniciais se não achar foto. CSS .microface já existe no app.
+  function dphoto(p){
+    try{
+      if(typeof window.playerPortraitHTML!=="function") return "";
+      return '<span class="dface">'+window.playerPortraitHTML({name:p.name,team:p.team,pos:p.pos},"microface")+'</span>';
+    }catch(e){ return ""; }
+  }
+  window.__dphoto=dphoto;
+
   // CONSERTO GLOBAL DE FONTE: o toast e os modais injetados no body herdavam a
   // fonte serif do navegador (o CSS .toast do app não define font-family).
   // Forçamos Inter em todos eles, igual ao resto do app.
@@ -29,7 +39,10 @@
         "body,.toast,#toast,#dMktInfoHost,#dCapsHost{font-family:Inter,system-ui,sans-serif!important}"+
         "#dMktInfoHost *,#dCapsHost *,.toast *{font-family:Inter,system-ui,sans-serif!important}"+
         // títulos display continuam Saira (proposital)
-        "#dMktInfoHost .disp,#dCapsHost .disp{font-family:'Saira Condensed',Inter,sans-serif!important}";
+        "#dMktInfoHost .disp,#dCapsHost .disp{font-family:'Saira Condensed',Inter,sans-serif!important}"+
+        // foto do jogador na linha do draft: alinhada e com leve espaço
+        ".prow .dface{display:inline-flex;align-items:center;margin-right:8px;flex:0 0 auto}"+
+        ".prow .dface .microface{width:30px;height:30px;min-width:30px}";
       document.head.appendChild(st);
     }
   }catch(e){}
@@ -175,13 +188,13 @@
   window.__draftCatFn=catFnSafe;
   window.__loadDraftWatch=loadWatch; // exposto pro wrapper de loadDraftSeason
   function toggleArr(arr,v){var i=arr.indexOf(v);if(i<0)arr.push(v);else arr.splice(i,1);return arr;}
-  window.dMktPos=function(v){if(v==="")APP.dMkt.pos=[];else toggleArr(APP.dMkt.pos,v);APP.dMkt.page=1;if(!liveUpdateFull())renderKeepScroll();};
+  window.dMktPos=function(v){if(v==="")APP.dMkt.pos=[];else toggleArr(APP.dMkt.pos,v);APP.dMkt.page=1;reRender();};
   window.dMktTeamAdd=function(v){if(v&&APP.dMkt.team.indexOf(v)<0)APP.dMkt.team.push(v);APP.dMkt.page=1;reRender();};
-  window.dMktTeamDel=function(v){toggleArr(APP.dMkt.team,v);APP.dMkt.page=1;if(!liveUpdateFull())reRender();};
+  window.dMktTeamDel=function(v){toggleArr(APP.dMkt.team,v);APP.dMkt.page=1;reRender();};
   window.dMktLeagueAdd=function(v){if(v&&APP.dMkt.league.indexOf(v)<0)APP.dMkt.league.push(v);APP.dMkt.page=1;reRender();};
-  window.dMktLeagueDel=function(v){toggleArr(APP.dMkt.league,v);APP.dMkt.page=1;if(!liveUpdateFull())reRender();};
+  window.dMktLeagueDel=function(v){toggleArr(APP.dMkt.league,v);APP.dMkt.page=1;reRender();};
   window.dMktClubAdd=function(v){if(v&&APP.dMkt.club.indexOf(v)<0)APP.dMkt.club.push(v);APP.dMkt.page=1;reRender();};
-  window.dMktClubDel=function(v){toggleArr(APP.dMkt.club,v);APP.dMkt.page=1;if(!liveUpdateFull())reRender();};
+  window.dMktClubDel=function(v){toggleArr(APP.dMkt.club,v);APP.dMkt.page=1;reRender();};
   function liveUpdate(){
     try{
       var s=APP.draftSeason; if(!s)return false;
@@ -322,13 +335,17 @@
     var start=searching?0:(f.page-1)*perPage;
     var pageItems=searching?filtered:filtered.slice(start,start+perPage);
 
+    // info de orçamento (igual pra todos): saldo e máximo gastável respeitando a reserva
+    var _budgetOn=draftSetting(s,"budget_enabled",true);
+    var _budget=Math.max(0, Number(me?me.budget_left:0));
+    var _bInfo=(me&&typeof window.draftBudgetInfo==="function")?window.draftBudgetInfo(s,me,myRoster.length):null;
+
     var rows=pageItems.map(function(p){
       var own=owner[p.key];
+      var face=dphoto(p);
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
       var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
-      // a linha é SEMPRE clicável (a menos que já tenha dono): se não puder comprar,
-      // buyDraftPlayer mostra o motivo no toast em vez de ficar "travado" sem reação.
       var clickable = !own;
       var devBtn=(own && typeof isAdmin==="function" && isAdmin())
         ? '<div style="margin-top:3px"><span class="daychip" style="border-color:var(--red);color:var(--red);font-size:9px;padding:2px 8px" onclick="event.stopPropagation();devReturnPlayer(\''+esc(p.key)+'\')">↩︎ devolver</span></div>'
@@ -341,12 +358,21 @@
       try{ a2pickMode = !!(s&&s.settings&&s.settings.auction2_enabled) && APP.a2Round && APP.a2Round.status==="picking" &&
         !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
       var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')") : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):"");
-      var rowClickable = a2pickMode ? !own : clickable;
-      return '<div class="prow '+(own?"dis":"")+'" style="'+(rowClickable?"cursor:pointer":"")+'" onclick="'+(rowClickable?clickAction:"")+'">'+
+      // bloqueio de compra: sem moedas (duro) OU quebra a reserva pra completar o elenco.
+      // só no modo compra (não leilão), só pra jogador sem dono.
+      var blockBuy=false, blockTag="";
+      if(!a2pickMode && !own && _budgetOn && me){
+        if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
+        else if(_bInfo && _bInfo.canComplete && p.price>_bInfo.maxSpend){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
+      }
+      var rowClickable = a2pickMode ? !own : (clickable && !blockBuy);
+      var disClass=(own||blockBuy)?"dis":"";
+      return '<div class="prow '+disClass+'" style="'+(rowClickable?"cursor:pointer":"")+'" onclick="'+(rowClickable?clickAction:"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
+        face+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
-        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+infoBtn+starBtn+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
-        '<div class="pr mono">'+p.price+'</div>'+
+        '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+infoBtn+starBtn+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+blockTag+'</div>'+
+        '<div class="pr mono"'+(blockBuy?' style="color:var(--red)"':"")+'>'+p.price+'</div>'+
       '</div>';
     }).join("");
     if(!pageItems.length)rows='<p class="p" style="padding:14px;text-align:center">Nenhum jogador com esses filtros.</p>';
@@ -385,6 +411,7 @@
 
     var rows=favs.map(function(p){
       var own=owner[p.key];
+      var face=dphoto(p);
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
       var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
@@ -394,6 +421,7 @@
       var rmBtn='<span class="daychip" style="font-size:11px;padding:3px 9px;margin-left:5px;border-color:var(--red);color:var(--red)" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">✕</span>';
       return '<div class="prow '+(own?"dis":"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
+        face+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
         '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+
           '<div style="margin-top:4px">'+pickBtn+rmBtn+'</div>'+
@@ -478,19 +506,40 @@
     // barra de saldo: moedas restantes + tamanho do elenco (só se entrou como manager)
     var saldoBar="";
     if(me){
-      var moedas=Number(me.budget_left||0);
+      var moedas=Math.max(0, Number(me.budget_left||0));
       var nRoster=myRoster.length;
       var limite=Number(s.roster_limit||12);
       var budgetOn=draftSetting(s,"budget_enabled",true);
-      saldoBar='<div style="display:flex;gap:8px;margin-bottom:10px">'+
-        (budgetOn?'<div style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
+      var limitOn=draftSetting(s,"roster_limit_enabled",true);
+      // meta de elenco: quanto pode gastar por jogador garantindo completar os 12
+      var metaCard="";
+      if(budgetOn && limitOn && typeof window.draftBudgetInfo==="function"){
+        var info=window.draftBudgetInfo(s, me, nRoster);
+        if(info.slotsLeft<=0){
+          metaCard='<div style="flex:1;background:var(--panel2);border:1px solid var(--green);border-radius:10px;padding:9px 12px;text-align:center">'+
+            '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Elenco</div>'+
+            '<div style="font-size:13px;font-weight:800;color:var(--green)">✓ completo</div></div>';
+        } else if(!info.canComplete){
+          metaCard='<div style="flex:1;background:rgba(255,80,80,.08);border:1px solid var(--red);border-radius:10px;padding:9px 12px;text-align:center">'+
+            '<div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:.05em">⚠️ não completa</div>'+
+            '<div style="font-size:11px;color:var(--red);line-height:1.25">faltam '+info.slotsLeft+' e o saldo não cobre nem os mais baratos</div></div>';
+        } else {
+          metaCard='<div style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
+            '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Pode gastar até</div>'+
+            '<div class="mono" style="font-size:20px;font-weight:800;color:var(--green)">'+info.maxSpend+'</div>'+
+            '<div style="font-size:9px;color:var(--dim)">e ainda completa os '+info.slotsLeft+' restantes</div></div>';
+        }
+      }
+      saldoBar='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'+
+        (budgetOn?'<div style="flex:1;min-width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
           '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Suas moedas</div>'+
           '<div class="mono" style="font-size:20px;font-weight:800;color:var(--amber)">'+moedas+'</div>'+
         '</div>':"")+
-        '<div style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
+        '<div style="flex:1;min-width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;text-align:center">'+
           '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">Elenco</div>'+
           '<div class="mono" style="font-size:20px;font-weight:800;color:var(--chalk)">'+nRoster+'<span style="font-size:13px;color:var(--dim)">/'+limite+'</span></div>'+
         '</div>'+
+        metaCard+
       '</div>';
     }
     return '<div id="dMktTop"></div>'+
@@ -1118,6 +1167,8 @@
     if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente para "+p.name+"."); return; }
     // confirmação antes de registrar (escolha é secreta e trava até revelar)
     if(typeof confirm==="function" && !confirm("Confirmar escolha secreta: "+p.name+" ("+p.price+")?\n\nSe mais ninguém escolher ele, vai direto pro seu elenco. Se houver disputa, abre leilão.")) return;
+    // trava anti-duplo-clique
+    if(APP._a2Lock)return; APP._a2Lock=true;
     try{
       await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
         player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
@@ -1126,6 +1177,7 @@
       await a2Load(); reRenderKeep();
       toast&&toast("✓ Escolha registrada em segredo: "+p.name);
     }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
   };
 
   // ---- admin revela e resolve (agrupa conflitos) ----
@@ -1162,7 +1214,8 @@
       player_team:team,pos:pos,base_price:paid,current_price:paid,acquired_price:paid,status:"owned"});
     if(draftSetting(s,"budget_enabled",true)){
       var cur=a2budget(pick.username);
-      await sbUpdate("draft_teams",{budget_left:cur-paid},
+      // clamp em 0: NUNCA grava saldo negativo (o lance já é limitado ao orçamento)
+      await sbUpdate("draft_teams",{budget_left:Math.max(0, cur-paid)},
         "season_id=eq."+s.id+"&username=eq."+encodeURIComponent(pick.username));
     }
     await sbInsert("draft_transactions",{season_id:s.id,username:pick.username,type:"auction",
@@ -1209,8 +1262,10 @@
     var minBid=Math.ceil(Number(pk.player_price)*(1+minPct/100));
     var v=Math.max(minBid, parseInt(value,10)||minBid);
     if(v>a2budget(pk.username)){ toast&&toast("Lance acima do seu saldo."); return; }
+    if(APP._a2Lock)return; APP._a2Lock=true;
     try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRenderKeep();
       toast&&toast("Lance registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
   };
 
   // ---- admin move o round pra fase de consolação ----
@@ -1229,6 +1284,7 @@
     var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
     if(p.price>cap){ toast&&toast("Acima da faixa de consolação ("+cap+")."); return; }
     if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente."); return; }
+    if(APP._a2Lock)return; APP._a2Lock=true;
     try{
       await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
         player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
@@ -1247,6 +1303,7 @@
       if(typeof loadDraftSeason==="function" && APP.draftSeason) await loadDraftSeason(APP.draftSeason.id); // recarrega elencos
       await a2Load(); reRenderKeep();
     }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
   };
 
   // ---- admin encerra o round ----
@@ -1482,7 +1539,7 @@
       }catch(e){}
       // fallback: lista simples
       var free=a2freeAgents().filter(function(p){return p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,40);
-      return h+'<div class="card">'+free.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2Pick(\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
+      return h+'<div class="card">'+free.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2Pick(\''+esc(p.key)+'\')">'+(window.__dphoto?window.__dphoto(p):"")+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
     }
     if(admin){
       var allIn=nPicked>=nTeams && nTeams>0;
@@ -1542,7 +1599,7 @@
       else if(lost.username===me){
         var opts=a2freeAgents().filter(function(p){return p.price<=cap && p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,25);
         if(!opts.length) h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">Sem jogadores na sua faixa/saldo.</div>';
-        h+='<div style="margin-top:6px">'+opts.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2ConsoPick('+lost.id+',\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
+        h+='<div style="margin-top:6px">'+opts.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2ConsoPick('+lost.id+',\''+esc(p.key)+'\')">'+(window.__dphoto?window.__dphoto(p):"")+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
       } else { h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">aguardando '+esc(lost.username)+' escolher...</div>'; }
       h+='</div>';
     });

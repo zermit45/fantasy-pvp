@@ -6,7 +6,7 @@ function draftHTML(){
   const myRoster=(APP.draftRosters||[]).filter(r=>r.username===APP.user?.username);
   const owner=draftOwnerMap();
   const teams=APP.draftTeams||[];
-  const spent=Number(s.budget||300)-Number(me?me.budget_left:s.budget||300);
+  const spent=Math.min(Number(s.budget||300), Number(s.budget||300)-Math.max(0,Number(me?me.budget_left:s.budget||300)));
   const tabs=[["visao","Visão"],["mercado","Mercado"],["elencos","Elencos"],["movs","Transações"]];
   const tab=APP.draftTab||"visao";
   const tabbar=`<div class="postabs" style="margin:12px 0">${tabs.map(([k,l])=>`<div class="ptab${tab===k?" on":""}" onclick="setDraftTab('${k}')">${l}</div>`).join("")}</div>`;
@@ -16,7 +16,7 @@ function draftHTML(){
     body=`<div class="dashgrid">
       <div class="dashitem"><b>${teams.length}</b><span>Managers</span></div>
       <div class="dashitem"><b>${APP.draftRosters.length}</b><span>Jogadores com dono</span></div>
-      <div class="dashitem"><b>${me?Number(me.budget_left||0):"-"}</b><span>Suas moedas</span></div>
+      <div class="dashitem"><b>${me?Math.max(0,Number(me.budget_left||0)):"-"}</b><span>Suas moedas</span></div>
       <div class="dashitem"><b>${myRoster.length}/${s.roster_limit||12}</b><span>Seu elenco</span></div>
     </div>
     ${me?`<div class="prebox" style="border-color:#FF8A4C;color:#FF8A4C;background:color-mix(in srgb,#FF8A4C 10%,transparent)">Você está dentro como <b>${esc(me.team_name)}</b>. Gastou <b>${spent}</b> de <b>${s.budget||300}</b> moedas.</div>`:
@@ -57,7 +57,7 @@ function draftHTML(){
           <div class="h2 disp">${esc(t.team_name||t.username)}</div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em">moedas livres</div>
-            <div class="mono" style="font-size:18px;font-weight:800;color:var(--gold);line-height:1">${Number(t.budget_left||0)}</div>
+            <div class="mono" style="font-size:18px;font-weight:800;color:var(--gold);line-height:1">${Math.max(0,Number(t.budget_left||0))}</div>
           </div>
         </div>
         <p class="p" style="font-size:11px;margin:4px 0">${esc(t.username)} · ${rs.length}/${s.roster_limit||12} jogadores</p>
