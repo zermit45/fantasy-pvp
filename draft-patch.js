@@ -505,7 +505,8 @@
       var tab=APP.draftTab||"visao";
       if(tab==="leilao"){
         var s0=APP.draftSeason; if(!s0)return html;
-        try{ return draftCardWrap(s0, a2PanelHTML(s0)); }catch(e){ return draftCardWrap(s0,'<p class="p">Leilão: '+esc(e.message)+'</p>'); }
+        if(typeof window.a2PanelHTML!=="function") return draftCardWrap(s0,'<p class="p">Carregando leilão…</p>');
+        try{ return draftCardWrap(s0, window.a2PanelHTML(s0)); }catch(e){ return draftCardWrap(s0,'<p class="p">Leilão: '+esc(e.message)+'</p>'); }
       }
       if(tab!=="mercado"&&tab!=="observacao")return html;
       var s=APP.draftSeason; if(!s||APP.draftSchemaMissing)return html;
@@ -1215,6 +1216,7 @@
 
   // ---- UI do painel de leilão (depende da fase) ----
   function a2chip(pos){ return '<span style="font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;background:rgba(240,168,48,.16);color:var(--amber)">'+esc(pos||"?")+'</span>'; }
+  window.a2PanelHTML=function(s){ return a2PanelHTML(s); };
   function a2PanelHTML(s){
     if(APP.a2SchemaMissing) return '<div class="card"><p class="p">⚠️ Faltam as tabelas do Leilão 2.0 no banco. Rode o arquivo <b>draft-leilao-2.0-supabase.sql</b> no Supabase.</p></div>';
     var r=APP.a2Round, me=a2me(), admin=isAdminNow();
