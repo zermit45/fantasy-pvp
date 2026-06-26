@@ -338,7 +338,7 @@
       var starBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:4px;border-color:'+(starOn?"var(--amber)":"var(--line)")+';color:'+(starOn?"var(--amber)":"var(--dim)")+'" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">'+(starOn?"★":"☆")+'</span>';
       // modo leilão: se há round em picking e o usuário ainda não escolheu, o clique vira "escolher pro leilão"
       var a2pickMode=false;
-      try{ a2pickMode = a2on(s) && APP.a2Round && APP.a2Round.status==="picking" &&
+      try{ a2pickMode = !!(s&&s.settings&&s.settings.auction2_enabled) && APP.a2Round && APP.a2Round.status==="picking" &&
         !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
       var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')") : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):"");
       var rowClickable = a2pickMode ? !own : clickable;
@@ -1116,13 +1116,15 @@
     if(!s||!r||!u||r.status!=="picking")return;
     var p=(catFnSafe()||[]).find(function(x){return x.key===playerKey;}); if(!p)return;
     if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente para "+p.name+"."); return; }
+    // confirmação antes de registrar (escolha é secreta e trava até revelar)
+    if(typeof confirm==="function" && !confirm("Confirmar escolha secreta: "+p.name+" ("+p.price+")?\n\nSe mais ninguém escolher ele, vai direto pro seu elenco. Se houver disputa, abre leilão.")) return;
     try{
       await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
         player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
         bid:(a2mode(s)==="priority"?null:p.price),state:"picked",is_consolation:false},
         true,"round_id,username,is_consolation");
       await a2Load(); reRender();
-      toast&&toast("Escolha registrada (em segredo).");
+      toast&&toast("✓ Escolha registrada em segredo: "+p.name);
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
 
@@ -1372,14 +1374,12 @@
     if(!(s&&a2on(s)&&APP.view==="draft"&&APP.draftTab==="leilao"))return;
     var ae=document.activeElement;
     if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return; // não mexe enquanto digita/seleciona
-    // se você está na fase de escolher e ainda não escolheu, NÃO redesenha
-    // (você está navegando o mercado; redesenhar joga o scroll pro topo)
+    // se você está na fase de escolher e ainda não escolheu, PAUSA total do polling
+    // (você está navegando o mercado; qualquer redesenho joga o scroll). Volta após escolher.
     try{
       var r=APP.a2Round;
       if(r && r.status==="picking" && !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;})){
-        // só atualiza silenciosamente o fingerprint, sem redesenhar
-        a2Load().then(function(fp){ _a2LastFp=fp; });
-        return;
+        return; // não faz nada enquanto escolhe
       }
     }catch(e){}
     if(_a2Polling)return; _a2Polling=true;
