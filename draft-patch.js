@@ -815,7 +815,7 @@
     }
     return null;
   }
-
+  window.__draftViolacao=violacao;
   // intercepta buyDraftPlayer pra validar os limites ANTES de comprar.
   // (é chamado pelos cliques, que resolvem window.buyDraftPlayer na hora → interceptação pega)
   if(typeof buyDraftPlayer==="function"){
@@ -1224,6 +1224,12 @@
     // reserva: não pode escolher um jogador que te impeça de completar o elenco
     var ms=a2MaxSpend(u);
     if(p.price>ms){ toast&&toast("Se pegar "+p.name+" ("+p.price+") você não completa o elenco. Pode gastar até "+ms+" neste."); return; }
+    // limites de elenco (máx por seleção/clube/posição/etc.) também valem no leilão
+    if(typeof window.__draftViolacao==="function"){
+      var mineNow=(APP.draftRosters||[]).filter(function(rr){return rr.username===u;});
+      var vio=window.__draftViolacao(s,p,mineNow);
+      if(vio){ toast&&toast("Limite de elenco atingido: "+vio); return; }
+    }
     // confirmação antes de registrar (escolha é secreta e trava até revelar)
     if(typeof confirm==="function" && !confirm("Confirmar escolha secreta: "+p.name+" ("+p.price+")?\n\nSe mais ninguém escolher ele, vai direto pro seu elenco. Se houver disputa, abre leilão.")) return;
     // trava anti-duplo-clique
@@ -1291,31 +1297,48 @@
     if(mode==="priority"){
       grp.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);});
       winner=grp[0]; paid=winner.player_price;
-    } else {
-      // maior lance vence
+    } else if(mode==="blind"){
+      // ÀS CEGAS: maior oferta secreta leva. Empate → NOVA rodada secreta só entre os empatados.
       var maxBid=0;
       grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
       var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
       if(tied.length===1){ winner=tied[0]; paid=maxBid; }
       else {
-        // como resolver empate: padrão é RE-LEILÃO (novo lance até alguém vencer).
-        // alternativas configuráveis: maior orçamento / prioridade / sorteio.
+        // empate no topo → os de oferta MENOR já perdem; os empatados voltam a ofertar (secreto)
+        if(APP._a2Lock)return; APP._a2Lock=true;
+        try{
+          for(var i=0;i<grp.length;i++){
+            var isTop=Number(grp[i].bid||grp[i].player_price)===maxBid;
+            // empatados voltam pra "picked" (nova oferta), guardando o empate como piso (bid)
+            await sbUpdate("draft_picks", isTop?{state:"picked",bid:maxBid}:{state:"lost"}, "id=eq."+grp[i].id);
+          }
+          APP.a2Seen={};               // re-esconde tudo pra nova rodada secreta
+          await a2Load(); reRenderKeep();
+          toast&&toast("Empate em "+maxBid+"! Nova rodada de ofertas secretas entre os empatados.");
+        }catch(e){ toast&&toast("Erro: "+e.message); }
+        finally{ APP._a2Lock=false; }
+        return;
+      }
+    } else {
+      // AO VIVO: maior lance vence; empate → re-leilão (cobrir) ou critério configurado
+      var maxBid=0;
+      grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
+      var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
+      if(tied.length===1){ winner=tied[0]; paid=maxBid; }
+      else {
         var tieMode=(s.settings&&s.settings.auction2_tiebreak)||"reauction";
         if(tieMode==="reauction"){
-          // alguém ainda CONSEGUE dar um lance maior? (humano: tem saldo; bot: saldo E topa pagar)
           var alvo=maxBid+(Number(r.step)||1);
           var podeSubir=tied.some(function(x){
             if(a2budget(x.username)<alvo) return false;
             if(A2_BOTS.indexOf(x.username)>=0) return a2BotMax(x.username,x)>=alvo;
-            return true; // humano com saldo pode subir (se quiser)
+            return true;
           });
           if(podeSubir){
-            // ainda dá pra cobrir → mantém o leilão aberto
             toast&&toast("Empate em "+maxBid+"! Quem quiser levar precisa dar um lance maior.");
             await a2Load(); reRenderKeep();
             return;
           }
-          // NINGUÉM consegue cobrir (saldo/teto esgotado) → desempata por maior saldo (e sorteio se igual)
           tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
           var topB=a2budget(tied[0].username);
           var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
@@ -1323,10 +1346,9 @@
           paid=maxBid;
           toast&&toast("Ninguém pôde cobrir — decidido por maior saldo.");
         } else {
-          // critério alternativo escolhido nas configs
           if(tieMode==="priority"){ tied.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);}); winner=tied[0]; }
           else if(tieMode==="random"){ winner=tied[Math.floor(Math.random()*tied.length)]; }
-          else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; } // budget
+          else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; }
           paid=maxBid;
         }
       }
@@ -1361,6 +1383,27 @@
     if(APP._a2Lock)return; APP._a2Lock=true;
     try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRenderKeep();
       toast&&toast("Lance de "+v+" registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
+  };
+
+  // ---- ÀS CEGAS: enviar a oferta secreta (1 chance, sem ver ninguém) ----
+  // marca state "sealed" pra indicar que o disputante já bateu o martelo da oferta.
+  window.a2SealBid=async function(pickId, value){
+    var s=APP.draftSeason, r=APP.a2Round; var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(pickId);});
+    if(!pk)return;
+    var minPct=Number(s&&s.settings&&s.settings.auction2_min_bid_pct)||0;
+    var base=Math.ceil(Number(pk.player_price)*(1+minPct/100));
+    // num desempate, a nova oferta não pode ser menor que o empate anterior (guardado em bid)
+    var floor=Math.max(base, Number(pk.bid||0));
+    var v=parseInt(value,10)||0;
+    if(v<floor){ toast&&toast("Sua oferta precisa ser pelo menos "+floor+"."); return; }
+    if(v>a2budget(pk.username)){ toast&&toast("Oferta acima do seu saldo."); return; }
+    var ms=a2MaxSpend(pk.username);
+    if(v>ms){ toast&&toast("Essa oferta te impede de completar o elenco. Pode ir até "+ms+"."); return; }
+    if(typeof confirm==="function" && !confirm("Confirmar sua oferta SECRETA de "+v+"?\n\nNo modo às cegas você não vê o lance do oponente e NÃO pode cobrir depois. Quem ofertar mais leva.")) return;
+    if(APP._a2Lock)return; APP._a2Lock=true;
+    try{ await sbUpdate("draft_picks",{bid:v,state:"sealed"},"id=eq."+pk.id); await a2Load(); reRenderKeep();
+      toast&&toast("Oferta secreta enviada."); }catch(e){ toast&&toast("Erro: "+e.message); }
     finally{ APP._a2Lock=false; }
   };
 
@@ -1469,7 +1512,12 @@
         if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})){ jaTinha++; continue; }
         // respeita a reserva: só mira jogadores que o bot pode pagar SEM se impedir de completar o elenco
         var ms=a2MaxSpend(u);
-        var free=a2freeAgents().filter(function(p){return p.price<=ms;}).sort(function(a,b){return b.price-a.price;});
+        var mineBot=(APP.draftRosters||[]).filter(function(rr){return rr.username===u;});
+        var free=a2freeAgents().filter(function(p){
+          if(p.price>ms) return false;
+          if(typeof window.__draftViolacao==="function" && window.__draftViolacao(s,p,mineBot)) return false; // respeita limites de elenco
+          return true;
+        }).sort(function(a,b){return b.price-a.price;});
         if(!free.length){ erros.push(u+": sem jogador na faixa (reserva)"); continue; }
         var pick=free[Math.floor(Math.random()*Math.min(3,free.length))];
         try{
@@ -1493,9 +1541,9 @@
       else toast&&toast("Bots escolheram ("+feitos+" novo(s)"+(jaTinha?", "+jaTinha+" já tinha":"")+").");
     }catch(e){ toast&&toast("Erro bots: "+e.message); }
   };
-  // bots dão lance: a cada clique, em cada conflito, UM bot (o que mais valoriza e
-  // ainda não lidera) cobre o topo atual (+step), dentro do seu teto. Assim o leilão
-  // SOBE e converge num vencedor único, em vez de empatar pra sempre.
+  // bots dão lance:
+  //  • ÀS CEGAS → cada bot envia UMA oferta secreta (sela e pronto, sem cobrir).
+  //  • AO VIVO → a cada clique, UM bot cobre o topo atual (+step), convergindo num vencedor.
   window.a2BotsBid=async function(){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     if(r.mode==="priority"){ toast&&toast("Modo prioridade não tem lance."); return; }
@@ -1504,19 +1552,39 @@
       var picks=APP.a2Picks||[];
       var cks=[]; picks.forEach(function(x){ if(x.conflict_key&&!x.is_consolation&&cks.indexOf(x.conflict_key)<0&&!picks.some(function(y){return y.conflict_key===x.conflict_key&&y.state==="won";})) cks.push(x.conflict_key); });
       var step=Number(r.step)||1, mexeu=0;
-      for(var c=0;c<cks.length;c++){
-        var grp=picks.filter(function(x){return x.conflict_key===cks[c]&&!x.is_consolation&&x.state!=="lost";});
-        if(grp.length<2)continue;
-        var maxBid=0; grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
+
+      if(r.mode==="blind"){
+        // cada bot que ainda não selou a oferta neste conflito envia a sua (secreta)
+        for(var c=0;c<cks.length;c++){
+          var grp=picks.filter(function(x){return x.conflict_key===cks[c]&&!x.is_consolation&&x.state!=="lost";});
+          for(var i=0;i<grp.length;i++){
+            var pk=grp[i]; if(A2_BOTS.indexOf(pk.username)<0) continue;
+            if(pk.state==="sealed") continue;                 // já ofertou nesta rodada
+            var piso=Math.max(Number(pk.player_price)||0, Number(pk.bid||0)); // respeita piso de desempate
+            var oferta=Math.max(piso, a2BotMax(pk.username, pk));
+            oferta=Math.min(oferta, a2budget(pk.username), a2MaxSpend(pk.username));
+            if(oferta<piso) oferta=piso;
+            await sbUpdate("draft_picks",{bid:oferta,state:"sealed"},"id=eq."+pk.id);
+            mexeu++;
+          }
+        }
+        await a2Load(); reRenderKeep();
+        toast&&toast(mexeu?("Bots enviaram "+mexeu+" oferta(s) secreta(s)."):"Bots já tinham ofertado.");
+        return;
+      }
+
+      // AO VIVO (cobrir)
+      for(var c2=0;c2<cks.length;c2++){
+        var grp2=picks.filter(function(x){return x.conflict_key===cks[c2]&&!x.is_consolation&&x.state!=="lost";});
+        if(grp2.length<2)continue;
+        var maxBid=0; grp2.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
         var alvo=maxBid+step;
-        // bots que NÃO lideram sozinhos, topam pagar o alvo e têm saldo
-        var cobridores=grp.filter(function(x){
-          if(A2_BOTS.indexOf(x.username)<0) return false;       // só bots
-          if(Number(x.bid||x.player_price)>=maxBid && grp.filter(function(y){return Number(y.bid||y.player_price)===maxBid;}).length===1) return false; // já é líder único
-          return a2budget(x.username)>=alvo && a2BotMax(x.username,x)>=alvo;
+        var cobridores=grp2.filter(function(x){
+          if(A2_BOTS.indexOf(x.username)<0) return false;
+          if(Number(x.bid||x.player_price)>=maxBid && grp2.filter(function(y){return Number(y.bid||y.player_price)===maxBid;}).length===1) return false;
+          return a2budget(x.username)>=alvo && a2BotMax(x.username,x)>=alvo && a2MaxSpend(x.username)>=alvo;
         });
         if(cobridores.length){
-          // o que MAIS valoriza o jogador cobre
           cobridores.sort(function(a,b){return a2BotMax(b.username,b)-a2BotMax(a.username,a);});
           var ch=cobridores[0];
           await sbUpdate("draft_picks",{bid:alvo},"id=eq."+ch.id);
@@ -1700,54 +1768,63 @@
       h+='<div style="border:1px solid var(--red);border-radius:11px;padding:10px;margin:8px 0;background:color-mix(in srgb,var(--red) 7%,transparent)">';
       h+='<div style="display:flex;align-items:center;gap:6px">'+a2chip(p0.player_pos)+' <b style="flex:1">'+esc(p0.player_name)+'</b> <span style="color:var(--gold);font-weight:800">'+p0.player_price+'</span></div>';
       var mine0=grp.find(function(x){return x.username===me;});
-      var seen=!mine0 || !!APP.a2Seen[ck];  // não-disputante vê tudo; disputante só após "ver oponente"
-      // linha "disputado por" — esconde os VALORES dos outros enquanto eu (disputante) não revelei
+      var isBlind=(r.mode==="blind");
+      var isLive=(r.mode==="live");
+      // em qualquer fase não resolvida, NO ÀS CEGAS os valores ficam ocultos até a revelação (admin resolver).
+      // no ao vivo, o disputante vê após "ver oponente".
+      var seen = isBlind ? done : (!mine0 || !!APP.a2Seen[ck]);
       h+='<div style="font-size:11px;color:var(--dim);margin:4px 0">disputado por: '+grp.map(function(x){
-        var showVal=(r.mode!=="priority") && x.bid && (seen || x.username===me);
-        return esc(x.username)+(showVal?(" ("+x.bid+")"):"");
+        var showVal=(r.mode!=="priority") && x.bid && (seen || (isLive && x.username===me));
+        var selMark=(isBlind && x.state==="sealed" && !done)?" 🔒":"";
+        return esc(x.username)+selMark+(showVal?(" ("+x.bid+")"):"");
       }).join(", ")+'</div>';
       if(done){ var w=grp.find(function(x){return x.state==="won";});
         h+='<div style="font-size:12px;color:var(--green);font-weight:700">🔨 '+esc(w.username)+' venceu por '+w.bid+'</div>';
-      } else {
-        var tieMode=(s.settings&&s.settings.auction2_tiebreak)||"reauction";
-        // aviso de empate só aparece depois que o disputante revelou (ou pra quem não disputa)
-        if(empate && seen){
-          if(tieMode==="reauction"){
-            h+='<div style="font-size:11px;color:var(--amber);font-weight:700;margin:4px 0">⚖️ Empate em '+maxBid+' — quem quiser levar precisa dar um lance maior.</div>';
+      } else if(isBlind){
+        // ───────── ÀS CEGAS: oferta secreta única ─────────
+        var mine=mine0;
+        if(mine){
+          var jaOfertou=(mine.state==="sealed");
+          var pisoB=Math.max(base0, Number(mine.bid||0)); // em desempate, piso = empate anterior
+          if(!jaOfertou){
+            h+='<div style="font-size:11px;color:var(--dim);margin-top:6px">🔒 Oferta secreta. Você só tem <b>uma</b> chance — não dá pra ver o oponente nem cobrir depois. Maior oferta leva.</div>';
+            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+pisoB+'" min="'+pisoB+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2SealBid(\''+mine.id+'\',document.getElementById(\'a2bid_'+mine.id+'\').value)">Enviar oferta</button></div>';
+            h+='<div style="font-size:10px;color:var(--dim);margin-top:3px">Oferta mínima: '+pisoB+'</div>';
           } else {
-            var tbN=tieMode==="priority"?"melhor prioridade":(tieMode==="random"?"sorteio":"maior orçamento");
-            h+='<div style="font-size:11px;color:var(--amber);font-weight:700;margin:4px 0">⚖️ Empate em '+maxBid+' — será decidido por <b>'+tbN+'</b> ao resolver.</div>';
+            h+='<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px">✓ Sua oferta secreta foi enviada. Aguardando a revelação.</div>';
           }
         }
-        // fluxo do próprio usuário: dar lance (secreto) → ver oponente → aumentar/desistir
-        var mine=mine0;
-        if(mine && r.mode!=="priority"){
-          var meu=Number(mine.bid||mine.player_price);
+        if(admin){
+          var nDisp=grp.length;
+          var nSel=grp.filter(function(x){return x.state==="sealed";}).length;
+          h+='<div style="font-size:11px;color:var(--dim);margin-top:6px">Ofertas recebidas: <b>'+nSel+'/'+nDisp+'</b></div>';
+          h+='<button class="btn sm" style="width:100%;margin-top:6px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">🔓 Revelar ofertas e decidir</button>';
+        }
+      } else if(isLive){
+        // ───────── AO VIVO: ver oponente e cobrir ─────────
+        var mineL=mine0;
+        if(mineL){
+          var meu=Number(mineL.bid||mineL.player_price);
           var oppMax=0; grp.forEach(function(x){ if(x.username!==me){ var b=Number(x.bid||x.player_price); if(b>oppMax)oppMax=b; } });
           if(!APP.a2Seen[ck]){
-            // FASE 1 — lance secreto (sem ver o oponente)
-            h+='<div style="font-size:11px;color:var(--dim);margin-top:6px">🔒 Seu lance está guardado em segredo. Ajuste se quiser e confirme.</div>';
-            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+Math.max(meu,base0)+'" min="'+base0+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid(\''+mine.id+'\',document.getElementById(\'a2bid_'+mine.id+'\').value)">Dar lance</button></div>';
-            h+='<div style="font-size:10px;color:var(--dim);margin-top:3px">Lance mínimo: '+base0+'</div>';
-            h+='<button class="btn sm ghost" style="width:100%;margin-top:6px" onclick="a2SeeOpp(\''+esc(ck)+'\')">👁 Ver o lance do seu oponente</button>';
+            h+='<div style="font-size:11px;color:var(--dim);margin-top:6px">Seu lance atual: <b>'+meu+'</b>. Ajuste se quiser.</div>';
+            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mineL.id+'" type="number" inputmode="numeric" value="'+Math.max(meu,base0)+'" min="'+base0+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid(\''+mineL.id+'\',document.getElementById(\'a2bid_'+mineL.id+'\').value)">Dar lance</button></div>';
+            h+='<button class="btn sm ghost" style="width:100%;margin-top:6px" onclick="a2SeeOpp(\''+esc(ck)+'\')">👁 Ver o lance do oponente</button>';
           } else {
-            // FASE 2 — revelado
             if(meu>oppMax){
               h+='<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px">✓ Você está na frente com '+meu+'. Aguarde a resolução.</div>';
             } else {
               var minNext=oppMax+step;
               h+='<div style="font-size:11px;color:var(--chalk);margin-top:6px">Oponente está em <b>'+oppMax+'</b>. Pra levar, ofereça pelo menos <b>'+minNext+'</b>.</div>';
-              h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+minNext+'" min="'+minNext+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid(\''+mine.id+'\',document.getElementById(\'a2bid_'+mine.id+'\').value,'+minNext+')">Aumentar a oferta</button></div>';
-              h+='<button class="btn sm ghost" style="width:100%;margin-top:6px;border-color:var(--red);color:var(--red)" onclick="a2GiveUp(\''+mine.id+'\')">Desistir deste leilão</button>';
+              h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mineL.id+'" type="number" inputmode="numeric" value="'+minNext+'" min="'+minNext+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid(\''+mineL.id+'\',document.getElementById(\'a2bid_'+mineL.id+'\').value,'+minNext+')">Aumentar a oferta</button></div>';
+              h+='<button class="btn sm ghost" style="width:100%;margin-top:6px;border-color:var(--red);color:var(--red)" onclick="a2GiveUp(\''+mineL.id+'\')">Desistir deste leilão</button>';
             }
           }
         }
-        if(admin){
-          var resolveLabel = r.mode==="priority" ? "prioridade"
-            : (empate ? (tieMode==="reauction" ? "maior lance" : (tieMode==="priority"?"prioridade":(tieMode==="random"?"sorteio":"maior orçamento")))
-                      : "maior lance");
-          h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão ('+resolveLabel+')</button>';
-        }
+        if(admin) h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão (maior lance)</button>';
+      } else {
+        // prioridade
+        if(admin) h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão (prioridade)</button>';
       }
       h+='</div>';
     });
