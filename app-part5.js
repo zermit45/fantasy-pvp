@@ -89,7 +89,7 @@ function submitCreateDraftSeason(){
     auction2_min_bid_pct:($("dm_auction2_minbid")?Math.min(100,Math.max(0,parseInt($("dm_auction2_minbid").value,10)||0)):0),
     auction2_timer_secs:($("dm_auction2_timer")?Math.max(0,parseInt($("dm_auction2_timer").value,10)||0):0),
     auction2_per_round:($("dm_auction2_perround")?Math.min(5,Math.max(1,parseInt($("dm_auction2_perround").value,10)||1)):1),
-    auction2_tiebreak:($("dm_auction2_tiebreak")?$("dm_auction2_tiebreak").value:"budget"),
+    auction2_tiebreak:($("dm_auction2_tiebreak")?$("dm_auction2_tiebreak").value:"reauction"),
     lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},
     sell_tax_pct:10
   };

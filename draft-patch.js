@@ -1238,20 +1238,22 @@
       grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
       var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
       if(tied.length===1){ winner=tied[0]; paid=maxBid; }
-      else if(forceTiebreak){
-        // último recurso (admin forçou): aplica o critério configurado
-        var tb=(s.settings&&s.settings.auction2_tiebreak)||"budget";
-        if(tb==="priority"){ tied.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);}); winner=tied[0]; }
-        else if(tb==="random"){ winner=tied[Math.floor(Math.random()*tied.length)]; }
-        else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; }
+      else {
+        // como resolver empate: padrão é RE-LEILÃO (novo lance até alguém vencer).
+        // alternativas configuráveis: maior orçamento / prioridade / sorteio.
+        var tieMode=(s.settings&&s.settings.auction2_tiebreak)||"reauction";
+        if(tieMode==="reauction"){
+          // não resolve: reabre o leilão. Os empatados precisam dar um lance MAIOR
+          // (a2Bid já exige superar o topo atual). Repete até alguém vencer.
+          toast&&toast("Empate em "+maxBid+"! Quem quiser levar precisa dar um lance maior.");
+          await a2Load(); reRenderKeep();
+          return;
+        }
+        // critério alternativo escolhido nas configs
+        if(tieMode==="priority"){ tied.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);}); winner=tied[0]; }
+        else if(tieMode==="random"){ winner=tied[Math.floor(Math.random()*tied.length)]; }
+        else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; } // budget
         paid=maxBid;
-      } else {
-        // EMPATE no topo → NÃO resolve: reabre o leilão. Os empatados precisam dar
-        // um lance MAIOR (a2Bid já exige superar o topo atual). Quem ficou abaixo
-        // do topo segue no grupo mas, na prática, precisa cobrir pra ter chance.
-        toast&&toast("Empate em "+maxBid+"! Os empatados precisam dar um lance maior. Ninguém leva no empate.");
-        await a2Load(); reRenderKeep();
-        return;
       }
     }
     if(APP._a2Lock)return; APP._a2Lock=true;
@@ -1339,23 +1341,36 @@
   // 🤖 DEV — SIMULAR MANAGERS (testar o leilão sozinho)
   // Só admin. Cria bots, faz eles escolherem e darem lance.
   // ============================================================
-  var A2_BOTS=["🤖 Bot Ana","🤖 Bot Bia"];
+  // pool de bots de teste (até 8). A2_BOTS é usado pra DETECTAR se um username é bot.
+  var A2_BOTS=["🤖 Bot Ana","🤖 Bot Bia","🤖 Bot Caio","🤖 Bot Davi","🤖 Bot Edu","🤖 Bot Fafá","🤖 Bot Gabi","🤖 Bot Hugo"];
+  // quantos bots o admin quer na simulação (escolhido antes de adicionar). padrão 2.
+  if(typeof APP._a2BotCount!=="number") APP._a2BotCount=2;
+  function a2BotsActive(){ return A2_BOTS.slice(0, Math.max(1,Math.min(A2_BOTS.length, APP._a2BotCount||2))); }
+  // bots que já estão dentro da temporada (pra fazer escolher/dar lance)
+  function a2BotsInGame(){ return (a2teams()||[]).filter(function(t){return A2_BOTS.indexOf(t.username)>=0;}).map(function(t){return t.username;}); }
+  window.a2SetBotCount=function(n){ APP._a2BotCount=Math.max(1,Math.min(A2_BOTS.length, parseInt(n,10)||2)); reRenderKeep(); };
   window.a2AddBots=async function(){
     var s=APP.draftSeason; if(!s||!a2CanManage())return;
     try{
+      var want=a2BotsActive();
       var base=(APP.draftTeams||[]).length;
-      for(var i=0;i<A2_BOTS.length;i++){
-        await sbInsert("draft_teams",{season_id:s.id,username:A2_BOTS[i],team_name:A2_BOTS[i]+" FC",
+      var add=0;
+      for(var i=0;i<want.length;i++){
+        // não duplica os que já estão
+        if((a2teams()||[]).some(function(t){return t.username===want[i];})) continue;
+        await sbInsert("draft_teams",{season_id:s.id,username:want[i],team_name:want[i]+" FC",
           budget_left:s.budget,waiver_priority:base+i+1},true,"season_id,username");
+        add++;
       }
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
       await a2Load(); reRenderKeep();
-      toast&&toast("2 managers de teste adicionados.");
+      toast&&toast(add+" manager(s) de teste adicionado(s).");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
   window.a2RemoveBots=async function(){
     var s=APP.draftSeason; if(!s||!a2CanManage())return;
     try{
+      // remove TODOS os bots do pool (limpa qualquer um que esteja no jogo)
       for(var i=0;i<A2_BOTS.length;i++){
         await sbDelete("draft_teams","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(A2_BOTS[i]));
         await sbDelete("draft_rosters","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(A2_BOTS[i]));
@@ -1372,13 +1387,11 @@
     try{
       // recarrega antes pra ter o estado atual dos picks
       await a2Load();
-      for(var i=0;i<A2_BOTS.length;i++){
-        var u=A2_BOTS[i];
+      var botsList=a2BotsInGame();
+      if(!botsList.length){ toast&&toast("Nenhum bot na temporada. Adicione bots primeiro."); return; }
+      for(var i=0;i<botsList.length;i++){
+        var u=botsList[i];
         if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})){ jaTinha++; continue; }
-        // o bot precisa existir como manager (draft_teams); se não existe, cria
-        if(!(a2teams()||[]).some(function(t){return t.username===u;})){
-          try{ await sbInsert("draft_teams",{season_id:s.id,username:u,team_name:u+" FC",budget_left:s.budget,waiver_priority:(a2teams()||[]).length+1},true,"season_id,username"); }catch(e){}
-        }
         var bud=a2budget(u)||Number(s.budget)||300;
         var free=a2freeAgents().filter(function(p){return p.price<=bud;}).sort(function(a,b){return b.price-a.price;});
         if(!free.length){ erros.push(u+": sem jogador na faixa"); continue; }
@@ -1517,16 +1530,27 @@
     h+='<p class="p" style="margin:8px 0">Round <b>'+r.round_no+'</b> · fase: <b style="color:var(--amber)">'+esc(r.status)+'</b></p></div>';
     // faixa DEV (só admin): simular managers de teste
     if(admin){
-      var nBots=(a2teams()||[]).filter(function(t){return A2_BOTS.indexOf(t.username)>=0;}).length;
+      var botsInGame=a2BotsInGame();
+      var nBots=botsInGame.length;
       h+='<div class="card" style="border:1px dashed var(--amber);background:color-mix(in srgb,var(--amber) 6%,transparent)">';
       h+='<div class="tag" style="color:var(--amber);margin-bottom:6px">🤖 DEV · SIMULAR MANAGERS</div>';
+      if(nBots===0){
+        // antes de adicionar: escolher QUANTOS bots vão participar
+        h+='<div style="font-size:11px;color:var(--dim);margin-bottom:5px">Quantos bots vão participar?</div>';
+        h+='<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">';
+        [1,2,3,4,5,6,7,8].forEach(function(n){
+          var on=(APP._a2BotCount||2)===n;
+          h+='<div class="daychip'+(on?" on":"")+'" style="min-width:34px;text-align:center" onclick="a2SetBotCount('+n+')">'+n+'</div>';
+        });
+        h+='</div>';
+      }
       h+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
-      if(nBots<A2_BOTS.length) h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2AddBots()">+ 2 bots de teste</button>';
-      else h+='<button class="btn sm ghost" style="width:auto" onclick="a2RemoveBots()">remover bots</button>';
+      if(nBots===0) h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2AddBots()">+ adicionar '+(APP._a2BotCount||2)+' bot(s)</button>';
+      else h+='<button class="btn sm ghost" style="width:auto" onclick="a2RemoveBots()">remover bots ('+nBots+')</button>';
       if(r.status==="picking") h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2BotsPick()">🤖 bots escolhem</button>';
       if(r.status==="resolving"&&r.mode!=="priority") h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2BotsBid()">🤖 bots dão lance</button>';
       if(r.status==="consolation") h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2BotsConso()">🤖 bots na consolação</button>';
-      h+='</div><p class="p" style="font-size:10px;color:var(--dim);margin-top:6px">Pra testar o leilão sozinho: adicione os bots, abra um round e use estes botões em cada fase.</p></div>';
+      h+='</div><p class="p" style="font-size:10px;color:var(--dim);margin-top:6px">Pra testar o leilão sozinho: escolha quantos bots, adicione, abra um round e use estes botões em cada fase.</p></div>';
     }
     if(r.status==="picking") h+=a2PickPhase(s,r,me,admin);
     else if(r.status==="resolving") h+=a2ResolvePhase(s,r,me,admin);
@@ -1601,7 +1625,15 @@
       if(done){ var w=grp.find(function(x){return x.state==="won";});
         h+='<div style="font-size:12px;color:var(--green);font-weight:700">🔨 '+esc(w.username)+' venceu por '+w.bid+'</div>';
       } else {
-        if(empate) h+='<div style="font-size:11px;color:var(--amber);font-weight:700;margin:4px 0">⚖️ Empate em '+maxBid+' — quem quiser levar precisa dar um lance maior.</div>';
+        var tieMode=(s.settings&&s.settings.auction2_tiebreak)||"reauction";
+        if(empate){
+          if(tieMode==="reauction"){
+            h+='<div style="font-size:11px;color:var(--amber);font-weight:700;margin:4px 0">⚖️ Empate em '+maxBid+' — quem quiser levar precisa dar um lance maior.</div>';
+          } else {
+            var tbN=tieMode==="priority"?"melhor prioridade":(tieMode==="random"?"sorteio":"maior orçamento");
+            h+='<div style="font-size:11px;color:var(--amber);font-weight:700;margin:4px 0">⚖️ Empate em '+maxBid+' — será decidido por <b>'+tbN+'</b> ao resolver.</div>';
+          }
+        }
         // lance do próprio usuário (blind/live)
         var mine=grp.find(function(x){return x.username===me;});
         if(mine && r.mode!=="priority"){
@@ -1616,13 +1648,10 @@
           }
         }
         if(admin){
-          h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão ('+ (r.mode==="priority"?"prioridade":"maior lance") +')</button>';
-          // válvula: se o empate persistir e ninguém quiser subir, o admin força o critério configurado
-          if(empate){
-            var tbName=((s.settings&&s.settings.auction2_tiebreak)||"budget");
-            tbName = tbName==="priority"?"prioridade":(tbName==="random"?"sorteio":"maior saldo");
-            h+='<button class="btn sm" style="width:100%;margin-top:6px;background:transparent;border:1px solid var(--dim);color:var(--dim)" onclick="if(confirm(\'Forçar desempate pelo critério: '+tbName+'?\'))a2ResolveConflict(\''+esc(ck)+'\',true)">Forçar desempate ('+tbName+')</button>';
-          }
+          var resolveLabel = r.mode==="priority" ? "prioridade"
+            : (empate ? (tieMode==="reauction" ? "maior lance" : (tieMode==="priority"?"prioridade":(tieMode==="random"?"sorteio":"maior orçamento")))
+                      : "maior lance");
+          h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão ('+resolveLabel+')</button>';
         }
       }
       h+='</div>';

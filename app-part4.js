@@ -1052,8 +1052,9 @@ function confirmModalHTML(){
         <input id="dm_auction2_timer" class="input" type="number" inputmode="numeric" value="0" min="0" style="margin:4px 0 8px" />
         <label style="font-size:11px;color:var(--dim)">Jogadores por round — quantos cada um escolhe por rodada</label>
         <input id="dm_auction2_perround" class="input" type="number" inputmode="numeric" value="1" min="1" max="5" style="margin:4px 0 8px" />
-        <label style="font-size:11px;color:var(--dim)">Empate no lance — quem leva</label>
+        <label style="font-size:11px;color:var(--dim)">Empate no lance — como resolver</label>
         <select id="dm_auction2_tiebreak" class="input" style="margin:4px 0 0">
+          <option value="reauction">Re-leilão (novo lance até alguém vencer)</option>
           <option value="budget">Maior orçamento</option>
           <option value="priority">Melhor prioridade (ordem do draft)</option>
           <option value="random">Sorteio</option>
