@@ -16,10 +16,12 @@ const BASE = { goal:4.6, assist:3.6, sot:2.2, dribble:.85, prgp:.15, pib:0, tib:
 const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, penaltyWon:0, dispossessed:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
 const CAPS = { MATCH:28, FLOOR:-9, CLUTCH:8, TACT:13 };
 // multiplicador de equilíbrio por posição (só nos pontos POSITIVOS) — normaliza médias entre GK/DEF/MID/ATT.
-// Correção SUAVE: defensor pontua um pouco mais fácil, então leva leve desconto; atacante e goleiro ganham leve empurrão.
-// Conservador de propósito (amostra de jogos ainda pequena). Reavaliar com mais jogos apurados.
+// Recalibrado a partir de 56 jogos apurados (com as posições corrigidas pela SofaScore):
+// medido sem multiplicador, o GK pontuava mais fácil (média ~7.63) e o ATT mais difícil (~6.90).
+// Estes valores nivelam DEF/MID/ATT em ~7.07; o GK é POUPADO de propósito (0.97 em vez de 0.927)
+// por ser posição ingrata e com menos opções de escolha — fica levemente acima dos demais.
 // Só vale pros jogos NOVOS; jogos v1 usam 1.0 (ficam intactos).
-const POS_MULT = { GK:1.02, DEF:1.0, MID:1.04, ATT:1.09 };
+const POS_MULT = { GK:0.97, DEF:1.015, MID:0.976, ATT:1.044 };
 const TIER_EMO = {1:0,2:.4,3:.9,4:1.6};
 const r1 = x => Math.round(x*10)/10;
 const tierXG = v => v>0.5?{b:0,t:1} : v>=0.2?{b:1.2,t:2} : v>=0.08?{b:2.6,t:3} : {b:4.2,t:4};
