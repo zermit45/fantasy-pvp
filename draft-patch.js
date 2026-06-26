@@ -1364,25 +1364,35 @@
       toast&&toast("Bots escolheram a consolação.");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
-  // polling do leilão: a cada 3s checa o banco; só redesenha se o estado MUDOU
-  // de verdade. Só roda na aba Leilão. Preserva scroll e nunca atualiza enquanto digita.
+  // polling do leilão: a cada 4s checa o banco; só redesenha se o estado MUDOU
+  // de verdade. Não redesenha enquanto você navega o mercado pra escolher.
   var _a2LastFp=null, _a2Polling=false;
   setInterval(function(){
     var s=APP.draftSeason;
     if(!(s&&a2on(s)&&APP.view==="draft"&&APP.draftTab==="leilao"))return;
     var ae=document.activeElement;
     if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return; // não mexe enquanto digita/seleciona
+    // se você está na fase de escolher e ainda não escolheu, NÃO redesenha
+    // (você está navegando o mercado; redesenhar joga o scroll pro topo)
+    try{
+      var r=APP.a2Round;
+      if(r && r.status==="picking" && !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;})){
+        // só atualiza silenciosamente o fingerprint, sem redesenhar
+        a2Load().then(function(fp){ _a2LastFp=fp; });
+        return;
+      }
+    }catch(e){}
     if(_a2Polling)return; _a2Polling=true;
     a2Load().then(function(fp){
       _a2Polling=false;
       if(fp==null)return;
-      if(_a2LastFp===null){ _a2LastFp=fp; return; } // 1ª passada: memoriza, não redesenha
+      if(_a2LastFp===null){ _a2LastFp=fp; return; }
       if(fp!==_a2LastFp){
         _a2LastFp=fp;
         reRenderKeep();
       }
     }).catch(function(){ _a2Polling=false; });
-  }, 3000);
+  }, 4000);
 
   // ---- UI do painel de leilão (depende da fase) ----
   function a2chip(pos){ return '<span style="font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;background:rgba(240,168,48,.16);color:var(--amber)">'+esc(pos||"?")+'</span>'; }
@@ -1437,6 +1447,11 @@
       var faltam=nTeams-nPicked;
       h+='<p class="p" style="font-size:12px;color:var(--dim);text-align:center;margin:10px 0 2px">'+(faltam>0?("🔒 Escolha guardada em segredo. Esperando "+faltam+" manager"+(faltam>1?"s":"")+"…"):"✅ Todos escolheram! "+(admin?"Pode revelar.":"Aguarde o admin revelar."))+'</p>';
     } else {
+      // botão de revelar (admin) aparece ANTES do mercado, pra não sumir
+      if(admin){
+        var allIn0=nPicked>=nTeams && nTeams>0;
+        h+='<button class="btn" style="margin:4px 0 8px;background:'+(allIn0?"var(--amber)":"var(--panel2)")+';color:'+(allIn0?"#1a1206":"var(--dim)")+'" onclick="a2Reveal()">🔓 Revelar escolhas e resolver'+(allIn0?"":" (faltam "+(nTeams-nPicked)+")")+'</button>';
+      }
       h+='<p class="p" style="font-size:12px;color:var(--amber);margin:6px 0;font-weight:700">🔨 Escolha 1 jogador pro leilão (em segredo) · saldo <span style="color:var(--gold)">'+a2budget(me)+'</span></p>';
       h+='</div>';
       // usa a tela COMPLETA do mercado (cor por posição, busca, filtros, info, paginação)
