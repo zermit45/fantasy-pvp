@@ -1044,6 +1044,8 @@
   // Tabelas: draft_auction_rounds, draft_picks (ver SQL).
   // ============================================================
   function a2on(s){ return !!(s&&s.settings&&s.settings.auction2_enabled); }
+  // redesenha a tela (render é global, definido no app-part)
+  function reRender(){ try{ (typeof render==="function"?render:(typeof renderKeepScroll==="function"?renderKeepScroll:function(){}))(); }catch(e){} }
   // catálogo de jogadores (vem do IIFE do mercado via window.__draftCatFn)
   function catFnSafe(){ try{ return (typeof window.__draftCatFn==="function")?(window.__draftCatFn()||[]):[]; }catch(e){ return []; } }
   function a2mode(s){ return (s&&s.settings&&s.settings.auction2_mode)||"blind"; }
