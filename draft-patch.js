@@ -1105,7 +1105,7 @@
       var no=(prev&&prev[0])?Number(prev[0].round_no)+1:1;
       await sbInsert("draft_auction_rounds",{season_id:s.id,round_no:no,status:"picking",
         mode:a2mode(s),step:a2step(s),conso_pct:a2conso(s)});
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       toast&&toast("Round "+no+" aberto — todos podem escolher.");
     }catch(e){ toast&&toast("Erro ao abrir round: "+e.message); }
   };
@@ -1123,7 +1123,7 @@
         player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
         bid:(a2mode(s)==="priority"?null:p.price),state:"picked",is_consolation:false},
         true,"round_id,username,is_consolation");
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       toast&&toast("✓ Escolha registrada em segredo: "+p.name);
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1146,7 +1146,7 @@
       }
       await sbUpdate("draft_auction_rounds",{status:"resolving"},"id=eq."+r.id);
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id); // recarrega elencos
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
     }catch(e){ toast&&toast("Erro ao revelar: "+e.message); }
   };
 
@@ -1196,7 +1196,7 @@
       for(var i=0;i<grp.length;i++){ if(grp[i].id!==winner.id)
         await sbUpdate("draft_picks",{state:"lost"},"id=eq."+grp[i].id); }
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id); // recarrega elencos
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       toast&&toast(winner.username+" venceu por "+paid+".");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1209,7 +1209,7 @@
     var minBid=Math.ceil(Number(pk.player_price)*(1+minPct/100));
     var v=Math.max(minBid, parseInt(value,10)||minBid);
     if(v>a2budget(pk.username)){ toast&&toast("Lance acima do seu saldo."); return; }
-    try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRender();
+    try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRenderKeep();
       toast&&toast("Lance registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
   };
 
@@ -1217,7 +1217,7 @@
   window.a2ToConsolation=async function(){
     var r=APP.a2Round; if(!r||!a2CanManage())return;
     try{ await sbUpdate("draft_auction_rounds",{status:"consolation"},"id=eq."+r.id);
-      await a2Load(); reRender(); }catch(e){ toast&&toast("Erro: "+e.message); }
+      await a2Load(); reRenderKeep(); }catch(e){ toast&&toast("Erro: "+e.message); }
   };
 
   // ---- perdedor escolhe na consolação (faixa <= conso_pct do disputado) ----
@@ -1245,7 +1245,7 @@
         if(mine) await sbUpdate("draft_picks",{state:"consoled"},"id=eq."+mine.id);
       }
       if(typeof loadDraftSeason==="function" && APP.draftSeason) await loadDraftSeason(APP.draftSeason.id); // recarrega elencos
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
 
@@ -1253,7 +1253,7 @@
   window.a2CloseRound=async function(){
     var r=APP.a2Round; if(!r||!a2CanManage())return;
     try{ await sbUpdate("draft_auction_rounds",{status:"done"},"id=eq."+r.id);
-      await a2Load(); reRender(); toast&&toast("Round encerrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
+      await a2Load(); reRenderKeep(); toast&&toast("Round encerrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
   };
 
   window.a2Load=a2Load;
@@ -1272,7 +1272,7 @@
           budget_left:s.budget,waiver_priority:base+i+1},true,"season_id,username");
       }
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       toast&&toast("2 managers de teste adicionados.");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1284,7 +1284,7 @@
         await sbDelete("draft_rosters","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(A2_BOTS[i]));
       }
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       toast&&toast("Managers de teste removidos.");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1322,7 +1322,7 @@
           }catch(e2){ erros.push(u+": "+e2.message); }
         }
       }
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       if(erros.length) toast&&toast("Bots: "+feitos+" ok, problema: "+erros[0]);
       else toast&&toast("Bots escolheram ("+feitos+" novo(s)"+(jaTinha?", "+jaTinha+" já tinha":"")+").");
     }catch(e){ toast&&toast("Erro bots: "+e.message); }
@@ -1345,25 +1345,43 @@
           if(novo>cur) await sbUpdate("draft_picks",{bid:novo},"id=eq."+pk.id);
         }
       }
-      await a2Load(); reRender();
+      await a2Load(); reRenderKeep();
       toast&&toast("Bots deram lance.");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
   // bots escolhem na consolação (pegam o melhor da faixa)
   window.a2BotsConso=async function(){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
+    var feitos=0, erros=[];
     try{
+      await a2Load();
       var losers=(APP.a2Picks||[]).filter(function(x){return x.state==="lost"&&A2_BOTS.indexOf(x.username)>=0;});
       for(var i=0;i<losers.length;i++){
-        var lost=losers[i];
-        if((APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===lost.username&&x.state==="consoled";})) continue;
+        var lost=losers[i], u=lost.username;
+        // já fez a consolação?
+        if((APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===u&&x.state==="consoled";})) continue;
         var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
-        var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2budget(lost.username);}).sort(function(a,b){return b.price-a.price;});
-        if(!opts.length) continue;
-        await window.a2ConsoPick(lost.id, opts[0].key);
+        var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2budget(u);}).sort(function(a,b){return b.price-a.price;});
+        if(!opts.length){ erros.push(u+": sem jogador na faixa "+cap); continue; }
+        var p=opts[0];
+        try{
+          // insere a escolha de consolação do bot
+          await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+            player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
+            bid:(r.mode==="priority"?null:p.price),state:"picked",is_consolation:true},
+            true,"round_id,username,is_consolation");
+          // concede direto ao bot (sem passar pelo a2ConsoPick que checa usuário logado)
+          await a2GrantPlayer({username:u,player_key:p.key,player_name:p.name,player_pos:p.pos}, p.price);
+          await a2Load();
+          var mine=(APP.a2Picks||[]).find(function(x){return x.is_consolation&&x.player_key===p.key&&x.username===u;});
+          if(mine) await sbUpdate("draft_picks",{state:"consoled"},"id=eq."+mine.id);
+          feitos++;
+        }catch(e){ erros.push(u+": "+e.message); }
       }
-      await a2Load(); reRender();
-      toast&&toast("Bots escolheram a consolação.");
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
+      await a2Load(); reRenderKeep();
+      if(erros.length) toast&&toast("Consolação: "+feitos+" ok · "+erros[0]);
+      else toast&&toast("Bots escolheram a consolação ("+feitos+").");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
   // polling do leilão: a cada 4s checa o banco; só redesenha se o estado MUDOU
