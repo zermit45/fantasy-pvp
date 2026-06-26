@@ -286,7 +286,14 @@ function roundHTML(){
   const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
   const bLocked=boostLocked();
   const roomOrder=(isConf&&(APP.confOrderMode||APP.confOrderDraft))?confRoomOrderIds():(APP.roundRooms||[]).map(rr=>rr.room_id);
-  const jogos=roomOrder.map(rid=>APP.jogos.find(j=>j.room_id===rid)).filter(Boolean);
+  let jogos=roomOrder.map(rid=>APP.jogos.find(j=>j.room_id===rid)).filter(Boolean);
+  // ordena por horário real do jogo (mais cedo no topo); jogos sem horário vão pro fim.
+  // Exceção: no modo CONFIANÇA, quando o usuário está montando/tem ordem própria, respeita a ordem dele.
+  const manualConfOrder=isConf&&(APP.confOrderMode||APP.confOrderDraft);
+  if(!manualConfOrder){
+    const tsOf=j=>{const ki=(typeof kickoffInfo==="function")?kickoffInfo(j.kickoff):null;return ki?ki.ts:Infinity;};
+    jogos=jogos.slice().sort((a,b)=>tsOf(a)-tsOf(b));
+  }
   const rows=jogos.map(j=>{
     const rid=j.room_id;
     const g=window.GAMES.data[rid];
