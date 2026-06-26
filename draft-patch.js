@@ -1073,14 +1073,19 @@
   // ---- carregar o round atual da temporada ----
   APP.a2Round=APP.a2Round||null; APP.a2Picks=APP.a2Picks||[];
   async function a2Load(){
-    var s=APP.draftSeason; if(!s||!a2on(s))return;
+    var s=APP.draftSeason; if(!s||!a2on(s))return null;
     try{
       var rounds=await sb("draft_auction_rounds?season_id=eq."+s.id+"&order=round_no.desc&limit=1");
       APP.a2Round=(rounds&&rounds[0])||null;
       if(APP.a2Round){
         APP.a2Picks=await sb("draft_picks?round_id=eq."+APP.a2Round.id+"&select=*&order=created_at")||[];
       } else { APP.a2Picks=[]; }
-    }catch(e){ APP.a2SchemaMissing=/relation|does not exist|42P01/i.test(e.message); }
+      // assinatura do estado: muda quando alguém escolhe, dá lance, ou a fase muda
+      var fp=(APP.a2Round?(APP.a2Round.id+":"+APP.a2Round.status):"none")+"|"+
+        (APP.a2Picks||[]).map(function(p){return p.id+":"+p.state+":"+(p.bid||0)+":"+(p.player_key||"")+":"+(p.conflict_key||"");}).join(",");
+      APP.a2Fingerprint=fp;
+      return fp;
+    }catch(e){ APP.a2SchemaMissing=/relation|does not exist|42P01/i.test(e.message); return null; }
   }
 
   // ---- admin abre um novo round ----
@@ -1316,7 +1321,24 @@
       toast&&toast("Bots escolheram a consolação.");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
-  setInterval(function(){ var s=APP.draftSeason; if(s&&a2on(s)&&APP.view==="draft"){ a2Load().then(function(){ if(APP.draftTab==="leilao") reRender(); }); } }, 4000);
+  // polling do leilão: a cada 2.5s checa o banco; só redesenha se o estado MUDOU
+  // (evita piscar a tela à toa). Não redesenha enquanto você digita um lance.
+  var _a2LastFp=null, _a2Polling=false;
+  setInterval(function(){
+    var s=APP.draftSeason;
+    if(!(s&&a2on(s)&&APP.view==="draft"&&APP.draftTab==="leilao"))return;
+    if(_a2Polling)return; _a2Polling=true;
+    a2Load().then(function(fp){
+      _a2Polling=false;
+      if(fp==null)return;
+      if(fp!==_a2LastFp){
+        _a2LastFp=fp;
+        var ae=document.activeElement;
+        if(ae && ae.id && ae.id.indexOf("a2bid_")===0) return;
+        reRender();
+      }
+    }).catch(function(){ _a2Polling=false; });
+  }, 2500);
 
   // ---- UI do painel de leilão (depende da fase) ----
   function a2chip(pos){ return '<span style="font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;background:rgba(240,168,48,.16);color:var(--amber)">'+esc(pos||"?")+'</span>'; }
@@ -1352,17 +1374,33 @@
     return h;
   }
   function a2PickPhase(s,r,me,admin){
-    var mine=(APP.a2Picks||[]).find(function(x){return x.username===me && !x.is_consolation;});
-    var nPicked=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation;}).length;
-    var nTeams=(a2teams()||[]).length;
+    var picks=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation;});
+    var mine=picks.find(function(x){return x.username===me;});
+    var nPicked=picks.length;
+    var teams=a2teams()||[];
+    var nTeams=teams.length;
+    var pickedSet={}; picks.forEach(function(x){pickedSet[x.username]=1;});
     var h='<div class="card"><div class="lbl" style="font-size:11px;color:var(--dim);text-transform:uppercase">① escolha simultânea · '+nPicked+'/'+nTeams+' escolheram</div>';
-    if(mine){ h+='<div class="prow" style="border-color:var(--amber)">'+a2chip(mine.player_pos)+' <b style="flex:1;margin:0 8px">'+esc(mine.player_name)+'</b> <span style="color:var(--gold);font-weight:800">'+mine.player_price+'</span> <span style="font-size:10px;color:var(--green);margin-left:6px">✓ sua escolha (secreta)</span></div>'; }
-    else {
+    // barra de status dos managers (mostra QUEM já escolheu, NÃO o que escolheu)
+    if(nTeams){
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">'+teams.map(function(t){
+        var ok=pickedSet[t.username];
+        return '<span style="font-size:10px;font-weight:700;border-radius:999px;padding:3px 9px;border:1px solid '+(ok?"var(--green)":"var(--line)")+';color:'+(ok?"var(--green)":"var(--dim)")+'">'+(ok?"✓ ":"⏳ ")+esc(t.username)+'</span>';
+      }).join("")+'</div>';
+    }
+    if(mine){
+      h+='<div class="prow" style="border-color:var(--amber)">'+a2chip(mine.player_pos)+' <b style="flex:1;margin:0 8px">'+esc(mine.player_name)+'</b> <span style="color:var(--gold);font-weight:800">'+mine.player_price+'</span> <span style="font-size:10px;color:var(--green);margin-left:6px">✓ sua escolha</span></div>';
+      var faltam=nTeams-nPicked;
+      h+='<p class="p" style="font-size:12px;color:var(--dim);text-align:center;margin:10px 0 2px">'+(faltam>0?("🔒 Escolha guardada em segredo. Esperando "+faltam+" manager"+(faltam>1?"s":"")+"…"):"✅ Todos escolheram! "+(admin?"Pode revelar.":"Aguarde o admin revelar."))+'</p>';
+    } else {
       h+='<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0">Escolha 1 jogador (em segredo). Saldo: <b style="color:var(--gold)">'+a2budget(me)+'</b></p>';
       var free=a2freeAgents().filter(function(p){return p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,40);
       h+=free.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2Pick(\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("");
     }
-    if(admin) h+='<button class="btn" style="margin-top:10px;background:var(--amber);color:#1a1206" onclick="a2Reveal()">🔓 Revelar escolhas e resolver</button>';
+    if(admin){
+      var allIn=nPicked>=nTeams && nTeams>0;
+      h+='<button class="btn" style="margin-top:10px;background:'+(allIn?"var(--amber)":"var(--panel2)")+';color:'+(allIn?"#1a1206":"var(--dim)")+'" onclick="a2Reveal()">🔓 Revelar escolhas e resolver'+(allIn?"":" (faltam "+(nTeams-nPicked)+")")+'</button>';
+    }
     return h+'</div>';
   }
   function a2ResolvePhase(s,r,me,admin){
