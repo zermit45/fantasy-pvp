@@ -48,7 +48,7 @@
     if(_promise)return _promise;
     _promise=new Promise(function(res){
       var s=document.createElement("script");
-      s.src="draft-master-players.js?v=20260624-v5fatores-2";
+      s.src="draft-master-players.js?v=20260627-pos-corrigida";
       s.onload=function(){res();};
       s.onerror=function(){_promise=null;res();}; // falhou → catálogo cai no original
       document.head.appendChild(s);
