@@ -53,8 +53,14 @@ function draftHTML(){
     body=teams.length?teams.map(t=>{
       const rs=(APP.draftRosters||[]).filter(r=>r.username===t.username);
       return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${t.username===APP.user?.username?"var(--amber)":"#FF8A4C"}">
-        <div class="h2 disp">${esc(t.team_name||t.username)}</div>
-        <p class="p" style="font-size:11px;margin:4px 0">${esc(t.username)} · ${Number(t.budget_left||0)} moedas · ${rs.length}/${s.roster_limit||12} jogadores</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div class="h2 disp">${esc(t.team_name||t.username)}</div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em">moedas livres</div>
+            <div class="mono" style="font-size:18px;font-weight:800;color:var(--gold);line-height:1">${Number(t.budget_left||0)}</div>
+          </div>
+        </div>
+        <p class="p" style="font-size:11px;margin:4px 0">${esc(t.username)} · ${rs.length}/${s.roster_limit||12} jogadores</p>
         ${rs.length?rs.map(r=>`<div class="line"><span class="face-inline">${typeof playerPortraitHTML==="function"?playerPortraitHTML({name:r.player_name,team:r.player_team,pos:r.pos},"microface"):""}<span class="txt"><b style="color:var(--dim);font-size:10px">${SLOT_LABEL[r.pos]||r.pos}</b> ${esc(r.player_name)} <span class="teamtag" style="--tc:${teamColor(r.player_team)}">${esc(r.player_team)}</span></span></span><span class="mono" style="color:#FF8A4C">${r.current_price}</span></div>`).join(""):`<p class="p">Sem jogadores ainda.</p>`}
       </div>`;
     }).join(""):`<p class="p">Nenhum manager entrou ainda.</p>`;
@@ -62,7 +68,7 @@ function draftHTML(){
     body=APP.draftTransactions.length?APP.draftTransactions.map(tr=>`<div class="line"><span class="face-inline">${typeof playerPortraitHTML==="function"?playerPortraitHTML({name:tr.player_name||"",team:tr.meta&&tr.meta.team?tr.meta.team:"",pos:tr.meta&&tr.meta.pos?tr.meta.pos:""},"microface"):""}<span class="txt"><b style="color:#FF8A4C">${esc(tr.username)}</b> ${esc(tr.type)} · ${esc(tr.player_name||"")}${tr.meta&&tr.meta.team?` <span class="teamtag" style="--tc:${teamColor(tr.meta.team)}">${esc(tr.meta.team)}</span>`:""}</span></span><span class="mono">${tr.amount||0}</span></div>`).join(""):`<p class="p">Nenhuma transação ainda.</p>`;
   }
   return `<div class="card" style="border-color:#FF8A4C">
-    <button class="btn ghost" style="margin-bottom:10px" onclick="go('home')">← Voltar</button>
+    <button class="btn ghost" style="margin-bottom:10px" onclick="confirmLeaveDraft()">← Voltar</button>
     <div class="tag">MERCADO DRAFT · TEMPORADA</div>
     <div class="h2 disp" style="color:#FF8A4C">🏟️ ${esc(s.name)}</div>
     <p class="p" style="margin:8px 0">Status: <b style="color:var(--chalk)">${esc(s.status)}</b> · Mercado: <b style="color:${s.market_status==="open"?"var(--green)":"var(--red)"}">${esc(s.market_status)}</b></p>

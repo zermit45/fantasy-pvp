@@ -537,7 +537,7 @@
       return '<div class="ptab'+(tab===t[0]?" on":"")+'" onclick="setDraftTab(\''+t[0]+'\')">'+t[1]+'</div>';
     }).join("")+'</div>';
     return '<div class="card" style="border-color:#FF8A4C">'+
-      '<button class="btn ghost" style="margin-bottom:10px" onclick="go(\'home\')">← Voltar</button>'+
+      '<button class="btn ghost" style="margin-bottom:10px" onclick="confirmLeaveDraft()">← Voltar</button>'+
       '<div class="tag">MERCADO DRAFT · TEMPORADA</div>'+
       '<div class="h2 disp" style="color:#FF8A4C">🏟️ '+esc(s.name)+'</div>'+
       '<p class="p" style="margin:8px 0">Status: <b style="color:var(--chalk)">'+esc(s.status)+'</b> · Mercado: <b style="color:'+(s.market_status==="open"?"var(--green)":"var(--red)")+'">'+esc(s.market_status)+'</b></p>'+

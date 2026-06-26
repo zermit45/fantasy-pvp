@@ -664,8 +664,6 @@ function draftSettingsDefault(){
     dynamic_prices:true,sell_at_current_price:true,purchase_limit_enabled:true,purchases_per_round:2,
     auto_windows:false,eliminated_player_rule:"discount",waiver_enabled:true,
     trades_enabled:true,pending_offers:true,admin_veto:true,loans_enabled:false,release_clause_enabled:true,free_agent_auction:false,
-    auction2_enabled:false,auction2_mode:"blind",auction2_step:5,auction2_consolation_pct:70,
-    auction2_min_bid_pct:0,auction2_timer_secs:0,auction2_per_round:1,auction2_tiebreak:"budget",
     lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},sell_tax_pct:10
   };
 }
@@ -707,6 +705,10 @@ async function buyDraftPlayer(playerKey){
   if(!s||!me){toast("Entre na temporada antes.");return;}
   if(!draftSetting(s,"free_market",true)){toast("Mercado de livres desligado nesta temporada.");return;}
   if(s.market_status!=="open"){toast("Mercado fechado.");return;}
+  // se o Leilão 2.0 está ativo e há um round aberto (não encerrado), proíbe compra direta
+  if(draftSetting(s,"auction2_enabled",false) && APP.a2Round && APP.a2Round.status && APP.a2Round.status!=="done"){
+    toast("Há um round de leilão em andamento. Resolva/encerre o round antes de comprar no mercado.");return;
+  }
   const owner=draftOwnerMap()[playerKey];
   if(owner){toast("Esse jogador já tem dono.");return;}
   const cat=draftPlayerCatalog().find(p=>p.key===playerKey);
@@ -727,6 +729,16 @@ async function buyDraftPlayer(playerKey){
   }catch(e){toast("Erro: "+e.message);}
 }
 function askCreateDraftSeason(){APP.confirm={mode:"createDraftSeason",label:"Criar Mercado Draft"};render();}
+// confirmação ao sair do Draft (sair pode atrapalhar um leilão em andamento)
+function confirmLeaveDraft(){
+  var s=APP.draftSeason;
+  var emLeilao = s && draftSetting(s,"auction2_enabled",false) && APP.a2Round && APP.a2Round.status && APP.a2Round.status!=="done";
+  var msg = emLeilao
+    ? "Há um round de leilão EM ANDAMENTO. Se você sair agora, pode atrapalhar a rodada para todos.\n\nTem certeza que deseja voltar e sair do Draft?"
+    : "Tem certeza que deseja voltar e sair do Draft?";
+  if(typeof confirm==="function" && !confirm(msg)) return;
+  go("home");
+}
 // Ajuda visual: sugere o teto ideal do craque a partir do orçamento + elenco.
 // Regra: craque ideal ≈ 1/3 do orçamento (25%–33%); banco de jogadores vai até 100.
 function updDraftHint(){
@@ -757,19 +769,7 @@ function updDraftHint(){
   }
   el.innerHTML=msg;
 }
-// Leilão 2.0: alterna o sub-modo no formulário de criação da temporada
-function setA2Mode(m){
-  var hid=document.getElementById("dm_auction2_mode"); if(hid)hid.value=m;
-  ["blind","live","priority"].forEach(function(k){
-    var b=document.getElementById("a2_"+k); if(!b)return;
-    var on=(k===m);
-    b.style.borderColor=on?"var(--amber)":"var(--line)";
-    b.style.background=on?"color-mix(in srgb,var(--amber) 14%,transparent)":"transparent";
-    b.style.color=on?"var(--amber)":"var(--dim)";
-  });
-  var lc=document.getElementById("a2_live_cfg"); if(lc)lc.style.display=(m==="live")?"block":"none";
-}
-function setDraftTab(t){APP.draftTab=t;if(t==="leilao"&&typeof window.a2Load==="function"){window.a2Load().then(function(){renderKeepScroll();});}renderKeepScroll();}
+function setDraftTab(t){APP.draftTab=t;renderKeepScroll();}
 function setDraftSearch(v){
   APP.draftSearch=v;
   render();
