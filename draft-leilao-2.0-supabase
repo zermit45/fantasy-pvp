@@ -1,0 +1,70 @@
+-- ============================================================
+-- DRAFT LEILÃO 2.0 — tabelas novas no Supabase
+-- Rode este SQL no editor SQL do Supabase (uma vez).
+-- ============================================================
+
+-- 1) RODADAS DE LEILÃO: cada "round" do draft por leilão.
+--    O admin abre um round; todos escolhem 1 jogador; o sistema resolve.
+create table if not exists draft_auction_rounds (
+  id          bigserial primary key,
+  season_id   bigint not null,
+  round_no    int not null,                 -- 1,2,3...
+  status      text not null default 'picking',
+              -- picking  = todos escolhendo (segredo)
+              -- resolving= revelado; leilões em andamento
+              -- consolation = perdedores escolhendo faixa menor
+              -- done     = round encerrado
+  mode        text not null default 'blind',-- blind | live | priority (copiado do settings na abertura)
+  step        int  not null default 5,      -- passo do lance (modo live)
+  conso_pct   int  not null default 70,     -- % teto da consolação
+  created_at  timestamptz not null default now(),
+  unique(season_id, round_no)
+);
+
+-- 2) ESCOLHAS / LANCES: 1 linha por (round, manager).
+--    Guarda a escolha simultânea e, se virar leilão, o lance.
+create table if not exists draft_picks (
+  id           bigserial primary key,
+  round_id     bigint not null references draft_auction_rounds(id) on delete cascade,
+  season_id    bigint not null,
+  username     text not null,
+  player_key   text,                        -- jogador escolhido (null = ainda não escolheu / passou)
+  player_name  text,
+  player_pos   text,
+  player_price int,
+  bid          int,                          -- lance (modo blind/live); null nos solos/priority
+  state        text not null default 'picked',
+              -- picked    = escolha feita (aguardando revelação)
+              -- won       = levou o jogador
+              -- lost      = perdeu o leilão (vai pra consolação)
+              -- consoled  = já pegou o de consolação
+              -- passed    = passou (sem jogador na faixa)
+  is_consolation boolean not null default false, -- true = esta linha é uma escolha de consolação
+  conflict_key text,                          -- agrupa quem disputou o mesmo jogador (= player_key do disputado)
+  created_at   timestamptz not null default now(),
+  unique(round_id, username, is_consolation)
+);
+
+-- 3) índices p/ leitura rápida
+create index if not exists idx_apicks_round on draft_picks(round_id);
+create index if not exists idx_arounds_season on draft_auction_rounds(season_id);
+
+-- ============================================================
+-- RLS (Row Level Security): habilite e permita leitura/escrita
+-- autenticada conforme o padrão das suas outras tabelas de draft.
+-- Se as demais tabelas draft_* já usam policies abertas via anon key,
+-- replique o MESMO padrão aqui. Exemplo permissivo (ajuste ao seu padrão):
+-- ============================================================
+alter table draft_auction_rounds enable row level security;
+alter table draft_picks         enable row level security;
+
+-- (exemplo — espelhe a policy que você já usa em draft_rosters/draft_teams)
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename='draft_auction_rounds' and policyname='open_all') then
+    create policy open_all on draft_auction_rounds for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where tablename='draft_picks' and policyname='open_all') then
+    create policy open_all on draft_picks for all using (true) with check (true);
+  end if;
+end $$;

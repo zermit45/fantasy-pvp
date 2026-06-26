@@ -503,6 +503,10 @@
     window.draftHTML=function(){
       var html=_origDraftHTML.apply(this,arguments);
       var tab=APP.draftTab||"visao";
+      if(tab==="leilao"){
+        var s0=APP.draftSeason; if(!s0)return html;
+        try{ return draftCardWrap(s0, a2PanelHTML(s0)); }catch(e){ return draftCardWrap(s0,'<p class="p">Leilão: '+esc(e.message)+'</p>'); }
+      }
       if(tab!=="mercado"&&tab!=="observacao")return html;
       var s=APP.draftSeason; if(!s||APP.draftSchemaMissing)return html;
       try{
@@ -518,6 +522,7 @@
   // recria o "wrapper" do card do draft com um body custom (mesma moldura do app)
   function draftCardWrap(s,body){
     var tabs=[["visao","Visão"],["mercado","Mercado"],["observacao","⭐ Observação"],["elencos","Elencos"],["movs","Transações"]];
+    if(s&&s.settings&&s.settings.auction2_enabled) tabs.splice(1,0,["leilao","🔨 Leilão"]);
     var tab=APP.draftTab||"visao";
     var tabbar='<div class="postabs" style="margin:12px 0;flex-wrap:wrap">'+tabs.map(function(t){
       return '<div class="ptab'+(tab===t[0]?" on":"")+'" onclick="setDraftTab(\''+t[0]+'\')">'+t[1]+'</div>';
@@ -1031,4 +1036,272 @@
   // checa o estado a cada 5s (independente da tela do draft) + injeta o botão
   setTimeout(function(){ fetchMaint(); setInterval(fetchMaint, 5000); }, 2500);
   setInterval(injectMaintButton, 800);
+
+  // ============================================================
+  // 🔨 DRAFT LEILÃO 2.0 — pick simultâneo + leilão + consolação
+  // Tabelas: draft_auction_rounds, draft_picks (ver SQL).
+  // ============================================================
+  function a2on(s){ return !!(s&&s.settings&&s.settings.auction2_enabled); }
+  function a2mode(s){ return (s&&s.settings&&s.settings.auction2_mode)||"blind"; }
+  function a2step(s){ return Number(s&&s.settings&&s.settings.auction2_step)||5; }
+  function a2conso(s){ return Number(s&&s.settings&&s.settings.auction2_consolation_pct)||70; }
+  function a2me(){ return APP.user?APP.user.username:null; }
+  function a2teams(){ return APP.draftTeams||[]; }
+  function a2budget(u){ var t=a2teams().find(function(x){return x.username===u;}); return t?Number(t.budget_left||0):0; }
+  function a2prio(u){ var t=a2teams().find(function(x){return x.username===u;}); return t?Number(t.waiver_priority||999):999; }
+  // jogadores ainda sem dono (livres), do catálogo
+  function a2freeAgents(){
+    var owned={}; (APP.draftRosters||[]).forEach(function(r){owned[r.player_key]=1;});
+    return (catFnSafe()||[]).filter(function(p){return !owned[p.key];});
+  }
+
+  // ---- carregar o round atual da temporada ----
+  APP.a2Round=APP.a2Round||null; APP.a2Picks=APP.a2Picks||[];
+  async function a2Load(){
+    var s=APP.draftSeason; if(!s||!a2on(s))return;
+    try{
+      var rounds=await sb("draft_auction_rounds?season_id=eq."+s.id+"&order=round_no.desc&limit=1");
+      APP.a2Round=(rounds&&rounds[0])||null;
+      if(APP.a2Round){
+        APP.a2Picks=await sb("draft_picks?round_id=eq."+APP.a2Round.id+"&select=*&order=created_at")||[];
+      } else { APP.a2Picks=[]; }
+    }catch(e){ APP.a2SchemaMissing=/relation|does not exist|42P01/i.test(e.message); }
+  }
+
+  // ---- admin abre um novo round ----
+  window.a2OpenRound=async function(){
+    var s=APP.draftSeason; if(!s||!isAdminNow())return;
+    try{
+      var prev=await sb("draft_auction_rounds?season_id=eq."+s.id+"&order=round_no.desc&limit=1");
+      var no=(prev&&prev[0])?Number(prev[0].round_no)+1:1;
+      await sbInsert("draft_auction_rounds",{season_id:s.id,round_no:no,status:"picking",
+        mode:a2mode(s),step:a2step(s),conso_pct:a2conso(s)});
+      await a2Load(); reRender();
+      toast&&toast("Round "+no+" aberto — todos podem escolher.");
+    }catch(e){ toast&&toast("Erro ao abrir round: "+e.message); }
+  };
+
+  // ---- manager faz a escolha simultânea (segredo) ----
+  window.a2Pick=async function(playerKey){
+    var s=APP.draftSeason, r=APP.a2Round, u=a2me();
+    if(!s||!r||!u||r.status!=="picking")return;
+    var p=(catFnSafe()||[]).find(function(x){return x.key===playerKey;}); if(!p)return;
+    if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente para "+p.name+"."); return; }
+    try{
+      await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+        player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
+        bid:(a2mode(s)==="priority"?null:p.price),state:"picked",is_consolation:false},
+        true,"round_id,username,is_consolation");
+      await a2Load(); reRender();
+      toast&&toast("Escolha registrada (em segredo).");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+
+  // ---- admin revela e resolve (agrupa conflitos) ----
+  window.a2Reveal=async function(){
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    try{
+      var picks=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation && x.player_key;});
+      var byPlayer={}; picks.forEach(function(x){(byPlayer[x.player_key]=byPlayer[x.player_key]||[]).push(x);});
+      for(var pk in byPlayer){
+        var grp=byPlayer[pk];
+        if(grp.length===1){
+          await a2GrantPlayer(grp[0], grp[0].player_price);
+          await sbUpdate("draft_picks",{state:"won"},"id=eq."+grp[0].id);
+        } else {
+          for(var i=0;i<grp.length;i++)
+            await sbUpdate("draft_picks",{conflict_key:pk},"id=eq."+grp[i].id);
+        }
+      }
+      await sbUpdate("draft_auction_rounds",{status:"resolving"},"id=eq."+r.id);
+      await a2Load(); reRender();
+    }catch(e){ toast&&toast("Erro ao revelar: "+e.message); }
+  };
+
+  // ---- concede o jogador ao manager (roster + desconto + transação) ----
+  async function a2GrantPlayer(pick, paid){
+    var s=APP.draftSeason;
+    await sbInsert("draft_rosters",{season_id:s.id,username:pick.username,
+      player_key:pick.player_key,player_name:pick.player_name,player_team:(pick.player_pos||""),
+      player_pos:pick.player_pos,price:paid,current_price:paid});
+    if(draftSetting(s,"budget_enabled",true)){
+      var cur=a2budget(pick.username);
+      await sbUpdate("draft_teams",{budget_left:cur-paid},
+        "season_id=eq."+s.id+"&username=eq."+encodeURIComponent(pick.username));
+    }
+    await sbInsert("draft_transactions",{season_id:s.id,username:pick.username,type:"auction",
+      player_key:pick.player_key,player_name:pick.player_name,amount:paid,meta:{pos:pick.player_pos,via:"leilao2.0"}});
+  }
+
+  // ---- resolver UM conflito (admin), conforme o modo ----
+  window.a2ResolveConflict=async function(conflictKey){
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    var grp=(APP.a2Picks||[]).filter(function(x){return x.conflict_key===conflictKey && !x.is_consolation;});
+    if(grp.length<2)return;
+    var mode=r.mode||"blind", winner=null, paid=0;
+    if(mode==="priority"){
+      grp.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);});
+      winner=grp[0]; paid=winner.player_price;
+    } else {
+      grp.forEach(function(x){
+        var b=Number(x.bid||x.player_price);
+        if(!winner || b>paid || (b===paid && a2budget(x.username)>a2budget(winner.username))){winner=x;paid=b;}
+      });
+    }
+    try{
+      await a2GrantPlayer(winner, paid);
+      await sbUpdate("draft_picks",{state:"won",bid:paid},"id=eq."+winner.id);
+      for(var i=0;i<grp.length;i++){ if(grp[i].id!==winner.id)
+        await sbUpdate("draft_picks",{state:"lost"},"id=eq."+grp[i].id); }
+      await a2Load(); reRender();
+      toast&&toast(winner.username+" venceu por "+paid+".");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+
+  // ---- manager dá lance num conflito (blind = secreto; live = cobre o passo) ----
+  window.a2Bid=async function(pickId, value){
+    var s=APP.draftSeason; var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(pickId);});
+    if(!pk)return;
+    var v=Math.max(Number(pk.player_price), parseInt(value,10)||pk.player_price);
+    if(v>a2budget(pk.username)){ toast&&toast("Lance acima do seu saldo."); return; }
+    try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRender();
+      toast&&toast("Lance registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+
+  // ---- admin move o round pra fase de consolação ----
+  window.a2ToConsolation=async function(){
+    var r=APP.a2Round; if(!r||!isAdminNow())return;
+    try{ await sbUpdate("draft_auction_rounds",{status:"consolation"},"id=eq."+r.id);
+      await a2Load(); reRender(); }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+
+  // ---- perdedor escolhe na consolação (faixa <= conso_pct do disputado) ----
+  window.a2ConsoPick=async function(lostPickId, playerKey){
+    var s=APP.draftSeason, r=APP.a2Round, u=a2me();
+    var lost=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(lostPickId);});
+    if(!s||!r||!lost||lost.username!==u)return;
+    var p=(a2freeAgents()).find(function(x){return x.key===playerKey;}); if(!p)return;
+    var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
+    if(p.price>cap){ toast&&toast("Acima da faixa de consolação ("+cap+")."); return; }
+    if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente."); return; }
+    try{
+      await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+        player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
+        bid:(r.mode==="priority"?null:p.price),state:"picked",is_consolation:true},
+        true,"round_id,username,is_consolation");
+      await a2Load();
+      var same=(APP.a2Picks||[]).filter(function(x){return x.is_consolation&&x.player_key===p.key&&x.state==="picked";});
+      if(same.length>1){
+        for(var i=0;i<same.length;i++) await sbUpdate("draft_picks",{conflict_key:"conso:"+p.key},"id=eq."+same[i].id);
+        toast&&toast("Disputa na consolação! Abriu mini-leilão por "+p.name+".");
+      } else {
+        await a2GrantPlayer({username:u,player_key:p.key,player_name:p.name,player_pos:p.pos}, p.price);
+        var mine=(APP.a2Picks||[]).find(function(x){return x.is_consolation&&x.player_key===p.key&&x.username===u;});
+        if(mine) await sbUpdate("draft_picks",{state:"consoled"},"id=eq."+mine.id);
+      }
+      await a2Load(); reRender();
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+
+  // ---- admin encerra o round ----
+  window.a2CloseRound=async function(){
+    var r=APP.a2Round; if(!r||!isAdminNow())return;
+    try{ await sbUpdate("draft_auction_rounds",{status:"done"},"id=eq."+r.id);
+      await a2Load(); reRender(); toast&&toast("Round encerrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+
+  window.a2Load=a2Load;
+  setInterval(function(){ var s=APP.draftSeason; if(s&&a2on(s)&&APP.view==="draft"){ a2Load().then(function(){ if(APP.draftTab==="leilao") reRender(); }); } }, 4000);
+
+  // ---- UI do painel de leilão (depende da fase) ----
+  function a2chip(pos){ return '<span style="font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;background:rgba(240,168,48,.16);color:var(--amber)">'+esc(pos||"?")+'</span>'; }
+  function a2PanelHTML(s){
+    if(APP.a2SchemaMissing) return '<div class="card"><p class="p">⚠️ Faltam as tabelas do Leilão 2.0 no banco. Rode o arquivo <b>draft-leilao-2.0-supabase.sql</b> no Supabase.</p></div>';
+    var r=APP.a2Round, me=a2me(), admin=isAdminNow();
+    var modeName={blind:"🙈 Às cegas",live:"📣 Ao vivo",priority:"🔢 Prioridade"}[a2mode(s)]||a2mode(s);
+    var h='<div class="card"><div class="tag" style="color:var(--amber)">🔨 DRAFT LEILÃO 2.0 · '+modeName+'</div>';
+    if(!r||r.status==="done"){
+      h+='<p class="p" style="margin:8px 0">'+(r?("Round "+r.round_no+" encerrado."):"Nenhum round aberto ainda.")+'</p>';
+      if(admin) h+='<button class="btn" style="background:var(--amber);color:#1a1206" onclick="a2OpenRound()">▶ Abrir novo round</button>';
+      else h+='<p class="p" style="color:var(--dim)">Aguarde o admin abrir um round.</p>';
+      return h+'</div>';
+    }
+    h+='<p class="p" style="margin:8px 0">Round <b>'+r.round_no+'</b> · fase: <b style="color:var(--amber)">'+esc(r.status)+'</b></p></div>';
+    if(r.status==="picking") h+=a2PickPhase(s,r,me,admin);
+    else if(r.status==="resolving") h+=a2ResolvePhase(s,r,me,admin);
+    else if(r.status==="consolation") h+=a2ConsoPhase(s,r,me,admin);
+    return h;
+  }
+  function a2PickPhase(s,r,me,admin){
+    var mine=(APP.a2Picks||[]).find(function(x){return x.username===me && !x.is_consolation;});
+    var nPicked=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation;}).length;
+    var nTeams=(a2teams()||[]).length;
+    var h='<div class="card"><div class="lbl" style="font-size:11px;color:var(--dim);text-transform:uppercase">① escolha simultânea · '+nPicked+'/'+nTeams+' escolheram</div>';
+    if(mine){ h+='<div class="prow" style="border-color:var(--amber)">'+a2chip(mine.player_pos)+' <b style="flex:1;margin:0 8px">'+esc(mine.player_name)+'</b> <span style="color:var(--gold);font-weight:800">'+mine.player_price+'</span> <span style="font-size:10px;color:var(--green);margin-left:6px">✓ sua escolha (secreta)</span></div>'; }
+    else {
+      h+='<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0">Escolha 1 jogador (em segredo). Saldo: <b style="color:var(--gold)">'+a2budget(me)+'</b></p>';
+      var free=a2freeAgents().filter(function(p){return p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,40);
+      h+=free.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2Pick(\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("");
+    }
+    if(admin) h+='<button class="btn" style="margin-top:10px;background:var(--amber);color:#1a1206" onclick="a2Reveal()">🔓 Revelar escolhas e resolver</button>';
+    return h+'</div>';
+  }
+  function a2ResolvePhase(s,r,me,admin){
+    var picks=APP.a2Picks||[];
+    var solos=picks.filter(function(x){return x.state==="won" && !x.is_consolation && !x.conflict_key;});
+    var conflictKeys=[]; picks.forEach(function(x){ if(x.conflict_key && !x.is_consolation && conflictKeys.indexOf(x.conflict_key)<0) conflictKeys.push(x.conflict_key); });
+    var h='<div class="card"><div class="lbl" style="font-size:11px;color:var(--dim);text-transform:uppercase">② revelação & leilões</div>';
+    if(solos.length){ h+='<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0">Sem disputa:</p>';
+      solos.forEach(function(x){ h+='<div class="prow" style="border-color:var(--green)">'+a2chip(x.player_pos)+' <b style="flex:1;margin:0 8px">'+esc(x.player_name)+'</b> <span style="font-size:11px;color:var(--green)">'+esc(x.username)+' levou por '+x.player_price+'</span></div>'; }); }
+    conflictKeys.forEach(function(ck){
+      var grp=picks.filter(function(x){return x.conflict_key===ck && !x.is_consolation;});
+      var p0=grp[0]; var done=grp.some(function(x){return x.state==="won";});
+      h+='<div style="border:1px solid var(--red);border-radius:11px;padding:10px;margin:8px 0;background:color-mix(in srgb,var(--red) 7%,transparent)">';
+      h+='<div style="display:flex;align-items:center;gap:6px">'+a2chip(p0.player_pos)+' <b style="flex:1">'+esc(p0.player_name)+'</b> <span style="color:var(--gold);font-weight:800">'+p0.player_price+'</span></div>';
+      h+='<div style="font-size:11px;color:var(--dim);margin:4px 0">disputado por: '+grp.map(function(x){return esc(x.username)+(x.bid&&r.mode!=="priority"?(" ("+x.bid+")"):"");}).join(", ")+'</div>';
+      if(done){ var w=grp.find(function(x){return x.state==="won";});
+        h+='<div style="font-size:12px;color:var(--green);font-weight:700">🔨 '+esc(w.username)+' venceu por '+w.bid+'</div>';
+      } else {
+        // lance do próprio usuário (blind/live)
+        var mine=grp.find(function(x){return x.username===me;});
+        if(mine && r.mode!=="priority"){
+          if(r.mode==="blind"){
+            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+(mine.bid||p0.player_price)+'" min="'+p0.player_price+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+',document.getElementById(\'a2bid_'+mine.id+'\').value)">Dar lance</button></div>';
+          } else { // live
+            h+='<button class="btn sm" style="width:auto;margin-top:6px;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+','+((mine.bid||p0.player_price)+r.step)+')">Cobrir → '+((mine.bid||p0.player_price)+r.step)+'</button>';
+          }
+        }
+        if(admin) h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão ('+ (r.mode==="priority"?"prioridade":"maior lance") +')</button>';
+      }
+      h+='</div>';
+    });
+    var allResolved=conflictKeys.every(function(ck){return picks.some(function(x){return x.conflict_key===ck&&x.state==="won";});});
+    if(admin && allResolved){
+      var hasLosers=picks.some(function(x){return x.state==="lost";});
+      h+= hasLosers
+        ? '<button class="btn" style="margin-top:10px;background:var(--amber);color:#1a1206" onclick="a2ToConsolation()">→ Ir para consolação</button>'
+        : '<button class="btn" style="margin-top:10px;background:var(--green);color:#06210f" onclick="a2CloseRound()">✓ Encerrar round</button>';
+    }
+    return h+'</div>';
+  }
+  function a2ConsoPhase(s,r,me,admin){
+    var losers=(APP.a2Picks||[]).filter(function(x){return x.state==="lost";});
+    var h='<div class="card"><div class="lbl" style="font-size:11px;color:var(--dim);text-transform:uppercase">③ consolação · faixa até '+r.conso_pct+'%</div>';
+    losers.forEach(function(lost){
+      var alreadyConsoled=(APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===lost.username&&(x.state==="consoled");});
+      var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
+      h+='<div style="border:1px solid var(--line);border-radius:11px;padding:10px;margin:8px 0">';
+      h+='<div style="font-size:12px;color:var(--dim)">'+esc(lost.username)+' perdeu <b style="color:var(--chalk)">'+esc(lost.player_name)+'</b> → pega até <b style="color:var(--gold)">'+cap+'</b></div>';
+      if(alreadyConsoled){ h+='<div style="font-size:11px;color:var(--green);margin-top:4px">✓ já escolheu na consolação</div>'; }
+      else if(lost.username===me){
+        var opts=a2freeAgents().filter(function(p){return p.price<=cap && p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,25);
+        if(!opts.length) h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">Sem jogadores na sua faixa/saldo.</div>';
+        h+='<div style="margin-top:6px">'+opts.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2ConsoPick('+lost.id+',\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
+      } else { h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">aguardando '+esc(lost.username)+' escolher...</div>'; }
+      h+='</div>';
+    });
+    var allConsoled=losers.every(function(l){return (APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===l.username&&x.state==="consoled";});});
+    if(admin && allConsoled) h+='<button class="btn" style="margin-top:10px;background:var(--green);color:#06210f" onclick="a2CloseRound()">✓ Encerrar round</button>';
+    return h+'</div>';
+  }
 })();

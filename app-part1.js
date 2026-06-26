@@ -664,6 +664,7 @@ function draftSettingsDefault(){
     dynamic_prices:true,sell_at_current_price:true,purchase_limit_enabled:true,purchases_per_round:2,
     auto_windows:false,eliminated_player_rule:"discount",waiver_enabled:true,
     trades_enabled:true,pending_offers:true,admin_veto:true,loans_enabled:false,release_clause_enabled:true,free_agent_auction:false,
+    auction2_enabled:false,auction2_mode:"blind",auction2_step:5,auction2_consolation_pct:70,
     lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},sell_tax_pct:10
   };
 }
@@ -755,7 +756,19 @@ function updDraftHint(){
   }
   el.innerHTML=msg;
 }
-function setDraftTab(t){APP.draftTab=t;renderKeepScroll();}
+// Leilão 2.0: alterna o sub-modo no formulário de criação da temporada
+function setA2Mode(m){
+  var hid=document.getElementById("dm_auction2_mode"); if(hid)hid.value=m;
+  ["blind","live","priority"].forEach(function(k){
+    var b=document.getElementById("a2_"+k); if(!b)return;
+    var on=(k===m);
+    b.style.borderColor=on?"var(--amber)":"var(--line)";
+    b.style.background=on?"color-mix(in srgb,var(--amber) 14%,transparent)":"transparent";
+    b.style.color=on?"var(--amber)":"var(--dim)";
+  });
+  var lc=document.getElementById("a2_live_cfg"); if(lc)lc.style.display=(m==="live")?"block":"none";
+}
+function setDraftTab(t){APP.draftTab=t;if(t==="leilao"&&typeof window.a2Load==="function"){window.a2Load().then(function(){renderKeepScroll();});}renderKeepScroll();}
 function setDraftSearch(v){
   APP.draftSearch=v;
   render();

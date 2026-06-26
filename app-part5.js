@@ -82,6 +82,10 @@ function submitCreateDraftSeason(){
     loans_enabled:on("dm_loans"),
     release_clause_enabled:on("dm_clause"),
     free_agent_auction:on("dm_auction"),
+    auction2_enabled:on("dm_auction2"),
+    auction2_mode:($("dm_auction2_mode")?$("dm_auction2_mode").value:"blind"),
+    auction2_step:($("dm_auction2_step")?Math.max(1,parseInt($("dm_auction2_step").value,10)||5):5),
+    auction2_consolation_pct:($("dm_auction2_conso")?Math.min(100,Math.max(10,parseInt($("dm_auction2_conso").value,10)||70)):70),
     lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},
     sell_tax_pct:10
   };

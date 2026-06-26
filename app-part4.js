@@ -1019,6 +1019,25 @@ function confirmModalHTML(){
       ${ck("dm_loans","Empréstimos",false,false,"Jogador vai e volta por período definido.")}
       ${ck("dm_clause","Multa rescisória",true,false,"Permite comprar pagando cláusula configurada.")}
       ${ck("dm_auction","Leilão por jogadores livres",false,false,"Ao invés de compra direta, jogador livre vai a leilão.")}
+      <div class="tag" style="margin:12px 0 6px;color:#f0a830">🔨 DRAFT POR LEILÃO 2.0</div>
+      ${ck("dm_auction2","Ativar Draft por Leilão 2.0",false,false,"Todos escolhem 1 jogador ao mesmo tempo. Se 2+ querem o mesmo, abre leilão; quem perde pega um jogador de faixa menor.")}
+      <script>setTimeout(function(){var c=document.getElementById("dm_auction2");if(c)c.onchange=function(){var b=document.getElementById("auction2cfg");if(b)b.style.display=c.checked?"block":"none";};},0);</script>
+      <div id="auction2cfg" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px;margin:4px 0 8px;background:rgba(240,168,48,.04)">
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Como o leilão decide o vencedor:</div>
+        <div class="seg" style="display:flex;gap:6px;margin-bottom:10px">
+          <button type="button" id="a2_blind" class="a2mode on" onclick="setA2Mode('blind')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber);font-size:11px;font-weight:800;cursor:pointer">🙈 Às cegas</button>
+          <button type="button" id="a2_live" class="a2mode" onclick="setA2Mode('live')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:11px;font-weight:800;cursor:pointer">📣 Ao vivo</button>
+          <button type="button" id="a2_priority" class="a2mode" onclick="setA2Mode('priority')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:11px;font-weight:800;cursor:pointer">🔢 Prioridade</button>
+        </div>
+        <input type="hidden" id="dm_auction2_mode" value="blind" />
+        <div id="a2_live_cfg" style="display:none">
+          <label style="font-size:11px;color:var(--dim)">Passo do lance (ao vivo)</label>
+          <input id="dm_auction2_step" class="input" type="number" inputmode="numeric" value="5" min="1" style="margin:4px 0 8px" />
+        </div>
+        <label style="font-size:11px;color:var(--dim)">Faixa da consolação — quem perde pega jogador até esta % do preço do disputado</label>
+        <input id="dm_auction2_conso" class="input" type="number" inputmode="numeric" value="70" min="10" max="100" style="margin:4px 0 0" />
+        <div style="font-size:10px;color:var(--dim);margin-top:4px">Ex: 70 = perdedor só pode pegar jogadores que custam até 70% do preço do jogador disputado.</div>
+      </div>
       <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
