@@ -665,6 +665,7 @@ function draftSettingsDefault(){
     auto_windows:false,eliminated_player_rule:"discount",waiver_enabled:true,
     trades_enabled:true,pending_offers:true,admin_veto:true,loans_enabled:false,release_clause_enabled:true,free_agent_auction:false,
     auction2_enabled:false,auction2_mode:"blind",auction2_step:5,auction2_consolation_pct:70,
+    auction2_min_bid_pct:0,auction2_timer_secs:0,auction2_per_round:1,auction2_tiebreak:"budget",
     lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},sell_tax_pct:10
   };
 }

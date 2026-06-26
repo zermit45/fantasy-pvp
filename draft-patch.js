@@ -1163,10 +1163,16 @@
       grp.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);});
       winner=grp[0]; paid=winner.player_price;
     } else {
-      grp.forEach(function(x){
-        var b=Number(x.bid||x.player_price);
-        if(!winner || b>paid || (b===paid && a2budget(x.username)>a2budget(winner.username))){winner=x;paid=b;}
-      });
+      // maior lance vence; empate decidido pela regra configurada
+      var tb=(s.settings&&s.settings.auction2_tiebreak)||"budget";
+      var maxBid=0;
+      grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
+      var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
+      if(tied.length===1){ winner=tied[0]; }
+      else if(tb==="priority"){ tied.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);}); winner=tied[0]; }
+      else if(tb==="random"){ winner=tied[Math.floor(Math.random()*tied.length)]; }
+      else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; } // budget
+      paid=maxBid;
     }
     try{
       await a2GrantPlayer(winner, paid);
@@ -1182,7 +1188,9 @@
   window.a2Bid=async function(pickId, value){
     var s=APP.draftSeason; var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(pickId);});
     if(!pk)return;
-    var v=Math.max(Number(pk.player_price), parseInt(value,10)||pk.player_price);
+    var minPct=Number(s&&s.settings&&s.settings.auction2_min_bid_pct)||0;
+    var minBid=Math.ceil(Number(pk.player_price)*(1+minPct/100));
+    var v=Math.max(minBid, parseInt(value,10)||minBid);
     if(v>a2budget(pk.username)){ toast&&toast("Lance acima do seu saldo."); return; }
     try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRender();
       toast&&toast("Lance registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
@@ -1265,22 +1273,41 @@
   // bots escolhem na fase de pick (miram os mais caros que cabem → tende a colidir com você)
   window.a2BotsPick=async function(){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage()||r.status!=="picking")return;
+    var feitos=0, jaTinha=0, erros=[];
     try{
+      // recarrega antes pra ter o estado atual dos picks
+      await a2Load();
       for(var i=0;i<A2_BOTS.length;i++){
         var u=A2_BOTS[i];
-        if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})) continue; // já escolheu
-        var bud=a2budget(u);
+        if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})){ jaTinha++; continue; }
+        // o bot precisa existir como manager (draft_teams); se não existe, cria
+        if(!(a2teams()||[]).some(function(t){return t.username===u;})){
+          try{ await sbInsert("draft_teams",{season_id:s.id,username:u,team_name:u+" FC",budget_left:s.budget,waiver_priority:(a2teams()||[]).length+1},true,"season_id,username"); }catch(e){}
+        }
+        var bud=a2budget(u)||Number(s.budget)||300;
         var free=a2freeAgents().filter(function(p){return p.price<=bud;}).sort(function(a,b){return b.price-a.price;});
-        if(!free.length) continue;
-        var pick=free[Math.floor(Math.random()*Math.min(3,free.length))]; // 1 dos 3 mais caros
-        await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
-          player_key:pick.key,player_name:pick.name,player_pos:pick.pos,player_price:pick.price,
-          bid:(r.mode==="priority"?null:pick.price),state:"picked",is_consolation:false},
-          true,"round_id,username,is_consolation");
+        if(!free.length){ erros.push(u+": sem jogador na faixa"); continue; }
+        var pick=free[Math.floor(Math.random()*Math.min(3,free.length))];
+        try{
+          var res=await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+            player_key:pick.key,player_name:pick.name,player_pos:pick.pos,player_price:pick.price,
+            bid:(r.mode==="priority"?null:pick.price),state:"picked",is_consolation:false},
+            true,"round_id,username,is_consolation");
+          feitos++;
+        }catch(e){
+          // fallback: se o upsert por constraint falhar, tenta insert simples
+          try{
+            await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+              player_key:pick.key,player_name:pick.name,player_pos:pick.pos,player_price:pick.price,
+              bid:(r.mode==="priority"?null:pick.price),state:"picked",is_consolation:false});
+            feitos++;
+          }catch(e2){ erros.push(u+": "+e2.message); }
+        }
       }
       await a2Load(); reRender();
-      toast&&toast("Bots escolheram.");
-    }catch(e){ toast&&toast("Erro: "+e.message); }
+      if(erros.length) toast&&toast("Bots: "+feitos+" ok, problema: "+erros[0]);
+      else toast&&toast("Bots escolheram ("+feitos+" novo(s)"+(jaTinha?", "+jaTinha+" já tinha":"")+").");
+    }catch(e){ toast&&toast("Erro bots: "+e.message); }
   };
   // bots dão lance num conflito (blind: 5-25% acima; live: cobre se valer)
   window.a2BotsBid=async function(){
@@ -1423,7 +1450,9 @@
         var mine=grp.find(function(x){return x.username===me;});
         if(mine && r.mode!=="priority"){
           if(r.mode==="blind"){
-            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+(mine.bid||p0.player_price)+'" min="'+p0.player_price+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+',document.getElementById(\'a2bid_'+mine.id+'\').value)">Dar lance</button></div>';
+            var minPct0=Number(s.settings&&s.settings.auction2_min_bid_pct)||0;
+            var minBid0=Math.ceil(Number(p0.player_price)*(1+minPct0/100));
+            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+(mine.bid||minBid0)+'" min="'+minBid0+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+',document.getElementById(\'a2bid_'+mine.id+'\').value)">Dar lance</button></div>'+(minPct0>0?'<div style="font-size:10px;color:var(--dim);margin-top:3px">Lance mínimo: '+minBid0+' (+'+minPct0+'%)</div>':"");
           } else { // live
             h+='<button class="btn sm" style="width:auto;margin-top:6px;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+','+((mine.bid||p0.player_price)+r.step)+')">Cobrir → '+((mine.bid||p0.player_price)+r.step)+'</button>';
           }

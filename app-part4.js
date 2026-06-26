@@ -1037,6 +1037,19 @@ function confirmModalHTML(){
         <label style="font-size:11px;color:var(--dim)">Faixa da consolação — quem perde pega jogador até esta % do preço do disputado</label>
         <input id="dm_auction2_conso" class="input" type="number" inputmode="numeric" value="70" min="10" max="100" style="margin:4px 0 0" />
         <div style="font-size:10px;color:var(--dim);margin-top:4px">Ex: 70 = perdedor só pode pegar jogadores que custam até 70% do preço do jogador disputado.</div>
+        <div style="border-top:1px solid var(--line);margin:12px 0 8px"></div>
+        <label style="font-size:11px;color:var(--dim)">Lance mínimo — quanto acima do preço o lance precisa ser (%)</label>
+        <input id="dm_auction2_minbid" class="input" type="number" inputmode="numeric" value="0" min="0" max="100" style="margin:4px 0 8px" />
+        <label style="font-size:11px;color:var(--dim)">Tempo limite por round (segundos · 0 = sem limite)</label>
+        <input id="dm_auction2_timer" class="input" type="number" inputmode="numeric" value="0" min="0" style="margin:4px 0 8px" />
+        <label style="font-size:11px;color:var(--dim)">Jogadores por round — quantos cada um escolhe por rodada</label>
+        <input id="dm_auction2_perround" class="input" type="number" inputmode="numeric" value="1" min="1" max="5" style="margin:4px 0 8px" />
+        <label style="font-size:11px;color:var(--dim)">Empate no lance — quem leva</label>
+        <select id="dm_auction2_tiebreak" class="input" style="margin:4px 0 0">
+          <option value="budget">Maior orçamento</option>
+          <option value="priority">Melhor prioridade (ordem do draft)</option>
+          <option value="random">Sorteio</option>
+        </select>
       </div>
       <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
