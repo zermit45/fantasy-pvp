@@ -336,7 +336,13 @@
       var infoBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:6px;border-color:var(--blue);color:var(--blue)" onclick="event.stopPropagation();dMktInfo(\''+esc(p.key)+'\')">ⓘ</span>';
       var starOn=isWatched(p.key);
       var starBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:4px;border-color:'+(starOn?"var(--amber)":"var(--line)")+';color:'+(starOn?"var(--amber)":"var(--dim)")+'" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">'+(starOn?"★":"☆")+'</span>';
-      return '<div class="prow '+(own?"dis":"")+'" style="'+(clickable?"cursor:pointer":"")+'" onclick="'+(clickable?"buyDraftPlayer('"+esc(p.key)+"')":"")+'">'+
+      // modo leilão: se há round em picking e o usuário ainda não escolheu, o clique vira "escolher pro leilão"
+      var a2pickMode=false;
+      try{ a2pickMode = a2on(s) && APP.a2Round && APP.a2Round.status==="picking" &&
+        !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
+      var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')") : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):"");
+      var rowClickable = a2pickMode ? !own : clickable;
+      return '<div class="prow '+(own?"dis":"")+'" style="'+(rowClickable?"cursor:pointer":"")+'" onclick="'+(rowClickable?clickAction:"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
         '<div class="pos mono pc-'+p.pos+'">'+(SLOT_LABEL[p.pos]||p.pos)+'</div>'+
         '<div class="nm">'+esc(p.name)+'<span class="teamtag" style="--tc:'+teamColor(p.team)+';margin-left:6px">'+esc(p.team)+'</span>'+infoBtn+starBtn+(own?' <span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'+devBtn:"")+'</div>'+
@@ -402,6 +408,7 @@
   }
 
   // monta o HTML da aba mercado nova
+  window.__draftMarketHTML=function(s,me,owner,myRoster){ return marketTabHTML(s,me,owner,myRoster); };
   function marketTabHTML(s,me,owner,myRoster){
     var f=APP.dMkt;
     var q=normT(APP.draftSearch||"");
@@ -1141,16 +1148,20 @@
   // ---- concede o jogador ao manager (roster + desconto + transação) ----
   async function a2GrantPlayer(pick, paid){
     var s=APP.draftSeason;
+    // pega o time real do jogador do catálogo (a tabela usa player_team + pos)
+    var cat=(catFnSafe()||[]).find(function(p){return p.key===pick.player_key;});
+    var team=(cat&&(cat.team||cat.player_team))||"";
+    var pos=pick.player_pos||(cat&&cat.pos)||"";
     await sbInsert("draft_rosters",{season_id:s.id,username:pick.username,
-      player_key:pick.player_key,player_name:pick.player_name,player_team:(pick.player_pos||""),
-      player_pos:pick.player_pos,price:paid,current_price:paid});
+      player_key:pick.player_key,player_name:pick.player_name,
+      player_team:team,pos:pos,base_price:paid,current_price:paid,acquired_price:paid,status:"owned"});
     if(draftSetting(s,"budget_enabled",true)){
       var cur=a2budget(pick.username);
       await sbUpdate("draft_teams",{budget_left:cur-paid},
         "season_id=eq."+s.id+"&username=eq."+encodeURIComponent(pick.username));
     }
     await sbInsert("draft_transactions",{season_id:s.id,username:pick.username,type:"auction",
-      player_key:pick.player_key,player_name:pick.player_name,amount:paid,meta:{pos:pick.player_pos,via:"leilao2.0"}});
+      player_key:pick.player_key,player_name:pick.player_name,amount:paid,meta:{pos:pos,team:team,via:"leilao2.0"}});
   }
 
   // ---- resolver UM conflito (admin), conforme o modo ----
@@ -1420,9 +1431,19 @@
       var faltam=nTeams-nPicked;
       h+='<p class="p" style="font-size:12px;color:var(--dim);text-align:center;margin:10px 0 2px">'+(faltam>0?("🔒 Escolha guardada em segredo. Esperando "+faltam+" manager"+(faltam>1?"s":"")+"…"):"✅ Todos escolheram! "+(admin?"Pode revelar.":"Aguarde o admin revelar."))+'</p>';
     } else {
-      h+='<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0">Escolha 1 jogador (em segredo). Saldo: <b style="color:var(--gold)">'+a2budget(me)+'</b></p>';
+      h+='<p class="p" style="font-size:12px;color:var(--amber);margin:6px 0;font-weight:700">🔨 Escolha 1 jogador pro leilão (em segredo) · saldo <span style="color:var(--gold)">'+a2budget(me)+'</span></p>';
+      h+='</div>';
+      // usa a tela COMPLETA do mercado (cor por posição, busca, filtros, info, paginação)
+      try{
+        var owner={}; (APP.draftRosters||[]).forEach(function(rr){owner[rr.player_key]=rr.username;});
+        var myRoster=(APP.draftRosters||[]).filter(function(rr){return APP.user&&rr.username===APP.user.username;});
+        if(typeof window.__draftMarketHTML==="function"){
+          return h+window.__draftMarketHTML(s,(a2teams()||[]).find(function(t){return t.username===me;}),owner,myRoster);
+        }
+      }catch(e){}
+      // fallback: lista simples
       var free=a2freeAgents().filter(function(p){return p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,40);
-      h+=free.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2Pick(\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("");
+      return h+'<div class="card">'+free.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2Pick(\''+esc(p.key)+'\')">'+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
     }
     if(admin){
       var allIn=nPicked>=nTeams && nTeams>0;
