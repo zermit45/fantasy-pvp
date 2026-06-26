@@ -1053,6 +1053,8 @@
   function a2on(s){ return !!(s&&s.settings&&s.settings.auction2_enabled); }
   // redesenha a tela (render é global, definido no app-part)
   function reRender(){ try{ (typeof render==="function"?render:(typeof renderKeepScroll==="function"?renderKeepScroll:function(){}))(); }catch(e){} }
+  // versão que PRESERVA o scroll (usada pelo polling automático, pra tela não pular)
+  function reRenderKeep(){ try{ if(typeof renderKeepScroll==="function") renderKeepScroll(); else if(typeof render==="function") render(); }catch(e){} }
   // catálogo de jogadores (vem do IIFE do mercado via window.__draftCatFn)
   function catFnSafe(){ try{ return (typeof window.__draftCatFn==="function")?(window.__draftCatFn()||[]):[]; }catch(e){ return []; } }
   function a2mode(s){ return (s&&s.settings&&s.settings.auction2_mode)||"blind"; }
@@ -1141,6 +1143,7 @@
         }
       }
       await sbUpdate("draft_auction_rounds",{status:"resolving"},"id=eq."+r.id);
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id); // recarrega elencos
       await a2Load(); reRender();
     }catch(e){ toast&&toast("Erro ao revelar: "+e.message); }
   };
@@ -1190,6 +1193,7 @@
       await sbUpdate("draft_picks",{state:"won",bid:paid},"id=eq."+winner.id);
       for(var i=0;i<grp.length;i++){ if(grp[i].id!==winner.id)
         await sbUpdate("draft_picks",{state:"lost"},"id=eq."+grp[i].id); }
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id); // recarrega elencos
       await a2Load(); reRender();
       toast&&toast(winner.username+" venceu por "+paid+".");
     }catch(e){ toast&&toast("Erro: "+e.message); }
@@ -1238,6 +1242,7 @@
         var mine=(APP.a2Picks||[]).find(function(x){return x.is_consolation&&x.player_key===p.key&&x.username===u;});
         if(mine) await sbUpdate("draft_picks",{state:"consoled"},"id=eq."+mine.id);
       }
+      if(typeof loadDraftSeason==="function" && APP.draftSeason) await loadDraftSeason(APP.draftSeason.id); // recarrega elencos
       await a2Load(); reRender();
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1359,24 +1364,25 @@
       toast&&toast("Bots escolheram a consolação.");
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
-  // polling do leilão: a cada 2.5s checa o banco; só redesenha se o estado MUDOU
-  // (evita piscar a tela à toa). Não redesenha enquanto você digita um lance.
+  // polling do leilão: a cada 3s checa o banco; só redesenha se o estado MUDOU
+  // de verdade. Só roda na aba Leilão. Preserva scroll e nunca atualiza enquanto digita.
   var _a2LastFp=null, _a2Polling=false;
   setInterval(function(){
     var s=APP.draftSeason;
     if(!(s&&a2on(s)&&APP.view==="draft"&&APP.draftTab==="leilao"))return;
+    var ae=document.activeElement;
+    if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return; // não mexe enquanto digita/seleciona
     if(_a2Polling)return; _a2Polling=true;
     a2Load().then(function(fp){
       _a2Polling=false;
       if(fp==null)return;
+      if(_a2LastFp===null){ _a2LastFp=fp; return; } // 1ª passada: memoriza, não redesenha
       if(fp!==_a2LastFp){
         _a2LastFp=fp;
-        var ae=document.activeElement;
-        if(ae && ae.id && ae.id.indexOf("a2bid_")===0) return;
-        reRender();
+        reRenderKeep();
       }
     }).catch(function(){ _a2Polling=false; });
-  }, 2500);
+  }, 3000);
 
   // ---- UI do painel de leilão (depende da fase) ----
   function a2chip(pos){ return '<span style="font-size:10px;font-weight:800;border-radius:6px;padding:2px 6px;background:rgba(240,168,48,.16);color:var(--amber)">'+esc(pos||"?")+'</span>'; }
