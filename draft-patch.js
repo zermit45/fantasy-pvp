@@ -1050,6 +1050,15 @@
   function a2step(s){ return Number(s&&s.settings&&s.settings.auction2_step)||5; }
   function a2conso(s){ return Number(s&&s.settings&&s.settings.auction2_consolation_pct)||70; }
   function a2me(){ return APP.user?APP.user.username:null; }
+  // quem controla o leilão: o DONO da temporada OU um admin (não precisa do modo DEV)
+  function a2CanManage(){
+    try{
+      var s=APP.draftSeason;
+      if(isAdminNow()) return true;
+      if(s && APP.user && s.created_by===APP.user.username) return true;
+    }catch(e){}
+    return false;
+  }
   function a2teams(){ return APP.draftTeams||[]; }
   function a2budget(u){ var t=a2teams().find(function(x){return x.username===u;}); return t?Number(t.budget_left||0):0; }
   function a2prio(u){ var t=a2teams().find(function(x){return x.username===u;}); return t?Number(t.waiver_priority||999):999; }
@@ -1074,7 +1083,7 @@
 
   // ---- admin abre um novo round ----
   window.a2OpenRound=async function(){
-    var s=APP.draftSeason; if(!s||!isAdminNow())return;
+    var s=APP.draftSeason; if(!s||!a2CanManage())return;
     try{
       var prev=await sb("draft_auction_rounds?season_id=eq."+s.id+"&order=round_no.desc&limit=1");
       var no=(prev&&prev[0])?Number(prev[0].round_no)+1:1;
@@ -1103,7 +1112,7 @@
 
   // ---- admin revela e resolve (agrupa conflitos) ----
   window.a2Reveal=async function(){
-    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     try{
       var picks=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation && x.player_key;});
       var byPlayer={}; picks.forEach(function(x){(byPlayer[x.player_key]=byPlayer[x.player_key]||[]).push(x);});
@@ -1139,7 +1148,7 @@
 
   // ---- resolver UM conflito (admin), conforme o modo ----
   window.a2ResolveConflict=async function(conflictKey){
-    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     var grp=(APP.a2Picks||[]).filter(function(x){return x.conflict_key===conflictKey && !x.is_consolation;});
     if(grp.length<2)return;
     var mode=r.mode||"blind", winner=null, paid=0;
@@ -1174,7 +1183,7 @@
 
   // ---- admin move o round pra fase de consolação ----
   window.a2ToConsolation=async function(){
-    var r=APP.a2Round; if(!r||!isAdminNow())return;
+    var r=APP.a2Round; if(!r||!a2CanManage())return;
     try{ await sbUpdate("draft_auction_rounds",{status:"consolation"},"id=eq."+r.id);
       await a2Load(); reRender(); }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1209,7 +1218,7 @@
 
   // ---- admin encerra o round ----
   window.a2CloseRound=async function(){
-    var r=APP.a2Round; if(!r||!isAdminNow())return;
+    var r=APP.a2Round; if(!r||!a2CanManage())return;
     try{ await sbUpdate("draft_auction_rounds",{status:"done"},"id=eq."+r.id);
       await a2Load(); reRender(); toast&&toast("Round encerrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
   };
@@ -1222,7 +1231,7 @@
   // ============================================================
   var A2_BOTS=["🤖 Bot Ana","🤖 Bot Bia"];
   window.a2AddBots=async function(){
-    var s=APP.draftSeason; if(!s||!isAdminNow())return;
+    var s=APP.draftSeason; if(!s||!a2CanManage())return;
     try{
       var base=(APP.draftTeams||[]).length;
       for(var i=0;i<A2_BOTS.length;i++){
@@ -1235,7 +1244,7 @@
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
   window.a2RemoveBots=async function(){
-    var s=APP.draftSeason; if(!s||!isAdminNow())return;
+    var s=APP.draftSeason; if(!s||!a2CanManage())return;
     try{
       for(var i=0;i<A2_BOTS.length;i++){
         await sbDelete("draft_teams","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(A2_BOTS[i]));
@@ -1248,7 +1257,7 @@
   };
   // bots escolhem na fase de pick (miram os mais caros que cabem → tende a colidir com você)
   window.a2BotsPick=async function(){
-    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow()||r.status!=="picking")return;
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage()||r.status!=="picking")return;
     try{
       for(var i=0;i<A2_BOTS.length;i++){
         var u=A2_BOTS[i];
@@ -1268,7 +1277,7 @@
   };
   // bots dão lance num conflito (blind: 5-25% acima; live: cobre se valer)
   window.a2BotsBid=async function(){
-    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     if(r.mode==="priority"){ toast&&toast("Modo prioridade não tem lance."); return; }
     try{
       var picks=APP.a2Picks||[];
@@ -1290,7 +1299,7 @@
   };
   // bots escolhem na consolação (pegam o melhor da faixa)
   window.a2BotsConso=async function(){
-    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     try{
       var losers=(APP.a2Picks||[]).filter(function(x){return x.state==="lost"&&A2_BOTS.indexOf(x.username)>=0;});
       for(var i=0;i<losers.length;i++){
@@ -1312,7 +1321,7 @@
   window.a2PanelHTML=function(s){ return a2PanelHTML(s); };
   function a2PanelHTML(s){
     if(APP.a2SchemaMissing) return '<div class="card"><p class="p">⚠️ Faltam as tabelas do Leilão 2.0 no banco. Rode o arquivo <b>draft-leilao-2.0-supabase.sql</b> no Supabase.</p></div>';
-    var r=APP.a2Round, me=a2me(), admin=isAdminNow();
+    var r=APP.a2Round, me=a2me(), admin=a2CanManage();
     var modeName={blind:"🙈 Às cegas",live:"📣 Ao vivo",priority:"🔢 Prioridade"}[a2mode(s)]||a2mode(s);
     var h='<div class="card"><div class="tag" style="color:var(--amber)">🔨 DRAFT LEILÃO 2.0 · '+modeName+'</div>';
     if(!r||r.status==="done"){
