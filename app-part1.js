@@ -705,9 +705,9 @@ async function buyDraftPlayer(playerKey){
   if(!s||!me){toast("Entre na temporada antes.");return;}
   if(!draftSetting(s,"free_market",true)){toast("Mercado de livres desligado nesta temporada.");return;}
   if(s.market_status!=="open"){toast("Mercado fechado.");return;}
-  // se o Leilão 2.0 está ativo e há um round aberto (não encerrado), proíbe compra direta
-  if(draftSetting(s,"auction2_enabled",false) && APP.a2Round && APP.a2Round.status && APP.a2Round.status!=="done"){
-    toast("Há um round de leilão em andamento. Resolva/encerre o round antes de comprar no mercado.");return;
+  // com Leilão 2.0 ativo, NÃO existe compra direta — jogadores só são adquiridos via leilão
+  if(draftSetting(s,"auction2_enabled",false)){
+    toast("Esta temporada usa Draft por Leilão 2.0. Jogadores só podem ser adquiridos pelo leilão, não por compra direta.");return;
   }
   const owner=draftOwnerMap()[playerKey];
   if(owner){toast("Esse jogador já tem dono.");return;}
