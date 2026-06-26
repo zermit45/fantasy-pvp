@@ -1223,7 +1223,8 @@
   }
 
   // ---- resolver UM conflito (admin), conforme o modo ----
-  window.a2ResolveConflict=async function(conflictKey){
+  // forceTiebreak: só quando o admin decide encerrar um empate persistente pelo critério configurado.
+  window.a2ResolveConflict=async function(conflictKey, forceTiebreak){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     var grp=(APP.a2Picks||[]).filter(function(x){return x.conflict_key===conflictKey && !x.is_consolation;});
     if(grp.length<2)return;
@@ -1232,17 +1233,28 @@
       grp.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);});
       winner=grp[0]; paid=winner.player_price;
     } else {
-      // maior lance vence; empate decidido pela regra configurada
-      var tb=(s.settings&&s.settings.auction2_tiebreak)||"budget";
+      // maior lance vence
       var maxBid=0;
       grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
       var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
-      if(tied.length===1){ winner=tied[0]; }
-      else if(tb==="priority"){ tied.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);}); winner=tied[0]; }
-      else if(tb==="random"){ winner=tied[Math.floor(Math.random()*tied.length)]; }
-      else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; } // budget
-      paid=maxBid;
+      if(tied.length===1){ winner=tied[0]; paid=maxBid; }
+      else if(forceTiebreak){
+        // último recurso (admin forçou): aplica o critério configurado
+        var tb=(s.settings&&s.settings.auction2_tiebreak)||"budget";
+        if(tb==="priority"){ tied.sort(function(a,b){return a2prio(a.username)-a2prio(b.username);}); winner=tied[0]; }
+        else if(tb==="random"){ winner=tied[Math.floor(Math.random()*tied.length)]; }
+        else { tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);}); winner=tied[0]; }
+        paid=maxBid;
+      } else {
+        // EMPATE no topo → NÃO resolve: reabre o leilão. Os empatados precisam dar
+        // um lance MAIOR (a2Bid já exige superar o topo atual). Quem ficou abaixo
+        // do topo segue no grupo mas, na prática, precisa cobrir pra ter chance.
+        toast&&toast("Empate em "+maxBid+"! Os empatados precisam dar um lance maior. Ninguém leva no empate.");
+        await a2Load(); reRenderKeep();
+        return;
+      }
     }
+    if(APP._a2Lock)return; APP._a2Lock=true;
     try{
       await a2GrantPlayer(winner, paid);
       await sbUpdate("draft_picks",{state:"won",bid:paid},"id=eq."+winner.id);
@@ -1252,19 +1264,27 @@
       await a2Load(); reRenderKeep();
       toast&&toast(winner.username+" venceu por "+paid+".");
     }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
   };
 
   // ---- manager dá lance num conflito (blind = secreto; live = cobre o passo) ----
   window.a2Bid=async function(pickId, value){
-    var s=APP.draftSeason; var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(pickId);});
+    var s=APP.draftSeason, r=APP.a2Round; var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(pickId);});
     if(!pk)return;
     var minPct=Number(s&&s.settings&&s.settings.auction2_min_bid_pct)||0;
-    var minBid=Math.ceil(Number(pk.player_price)*(1+minPct/100));
-    var v=Math.max(minBid, parseInt(value,10)||minBid);
+    var base=Math.ceil(Number(pk.player_price)*(1+minPct/100));
+    var step=Number(r&&r.step)||1;
+    // maior lance dos OUTROS no mesmo conflito: o seu lance precisa SUPERAR esse topo
+    var grp=(APP.a2Picks||[]).filter(function(x){return x.conflict_key===pk.conflict_key && !x.is_consolation;});
+    var maxOther=0;
+    grp.forEach(function(x){ if(String(x.id)!==String(pk.id)){ var b=Number(x.bid||x.player_price); if(b>maxOther)maxOther=b; } });
+    var minBid=Math.max(base, maxOther>0?(maxOther+step):base);
+    var v=parseInt(value,10)||0;
+    if(v<minBid){ toast&&toast("Lance precisa ser pelo menos "+minBid+" pra cobrir o lance atual."); return; }
     if(v>a2budget(pk.username)){ toast&&toast("Lance acima do seu saldo."); return; }
     if(APP._a2Lock)return; APP._a2Lock=true;
     try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRenderKeep();
-      toast&&toast("Lance registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
+      toast&&toast("Lance de "+v+" registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
     finally{ APP._a2Lock=false; }
   };
 
@@ -1384,22 +1404,33 @@
       else toast&&toast("Bots escolheram ("+feitos+" novo(s)"+(jaTinha?", "+jaTinha+" já tinha":"")+").");
     }catch(e){ toast&&toast("Erro bots: "+e.message); }
   };
-  // bots dão lance num conflito (blind: 5-25% acima; live: cobre se valer)
+  // bots dão lance num conflito: cobrem o MAIOR lance atual (topo+step) até um teto razoável.
   window.a2BotsBid=async function(){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     if(r.mode==="priority"){ toast&&toast("Modo prioridade não tem lance."); return; }
     try{
       var picks=APP.a2Picks||[];
       var cks=[]; picks.forEach(function(x){ if(x.conflict_key&&!x.is_consolation&&cks.indexOf(x.conflict_key)<0&&!picks.some(function(y){return y.conflict_key===x.conflict_key&&y.state==="won";})) cks.push(x.conflict_key); });
+      var step=Number(r.step)||1;
       for(var c=0;c<cks.length;c++){
         var grp=picks.filter(function(x){return x.conflict_key===cks[c]&&!x.is_consolation;});
         for(var i=0;i<grp.length;i++){
           var pk=grp[i]; if(A2_BOTS.indexOf(pk.username)<0) continue;
           var cur=Number(pk.bid||pk.player_price), bud=a2budget(pk.username);
-          var novo;
-          if(r.mode==="blind"){ novo=Math.min(bud, Math.round(pk.player_price*(1.05+Math.random()*0.20))); }
-          else { novo=(cur+r.step<=Math.min(bud, pk.player_price*1.3) && Math.random()>0.3) ? cur+r.step : cur; }
-          if(novo>cur) await sbUpdate("draft_picks",{bid:novo},"id=eq."+pk.id);
+          // maior lance dos OUTROS no conflito
+          var maxOther=0; grp.forEach(function(x){ if(String(x.id)!==String(pk.id)){ var b=Number(x.bid||x.player_price); if(b>maxOther)maxOther=b; } });
+          // teto que o bot topa pagar por este jogador (não paga um absurdo)
+          var teto=Math.min(bud, Math.round(Number(pk.player_price)*(1.30+Math.random()*0.15)));
+          var novo=cur;
+          if(r.mode==="blind"){
+            // lance secreto inicial: 5-25% acima do preço base
+            novo=Math.min(teto, Math.round(Number(pk.player_price)*(1.05+Math.random()*0.20)));
+          }
+          // se está empatado/atrás do topo, tenta COBRIR (topo+step) dentro do teto
+          if(maxOther>=cur && (maxOther+step)<=teto){
+            if(r.mode==="blind" || Math.random()>0.25) novo=Math.max(novo, maxOther+step);
+          }
+          if(novo>cur && novo<=bud) await sbUpdate("draft_picks",{bid:novo},"id=eq."+pk.id);
         }
       }
       await a2Load(); reRenderKeep();
@@ -1557,24 +1588,42 @@
     conflictKeys.forEach(function(ck){
       var grp=picks.filter(function(x){return x.conflict_key===ck && !x.is_consolation;});
       var p0=grp[0]; var done=grp.some(function(x){return x.state==="won";});
+      // topo atual e empate
+      var step=Number(r.step)||1;
+      var minPct0=Number(s.settings&&s.settings.auction2_min_bid_pct)||0;
+      var base0=Math.ceil(Number(p0.player_price)*(1+minPct0/100));
+      var maxBid=0; grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
+      var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
+      var empate=(r.mode!=="priority" && tied.length>1);
       h+='<div style="border:1px solid var(--red);border-radius:11px;padding:10px;margin:8px 0;background:color-mix(in srgb,var(--red) 7%,transparent)">';
       h+='<div style="display:flex;align-items:center;gap:6px">'+a2chip(p0.player_pos)+' <b style="flex:1">'+esc(p0.player_name)+'</b> <span style="color:var(--gold);font-weight:800">'+p0.player_price+'</span></div>';
       h+='<div style="font-size:11px;color:var(--dim);margin:4px 0">disputado por: '+grp.map(function(x){return esc(x.username)+(x.bid&&r.mode!=="priority"?(" ("+x.bid+")"):"");}).join(", ")+'</div>';
       if(done){ var w=grp.find(function(x){return x.state==="won";});
         h+='<div style="font-size:12px;color:var(--green);font-weight:700">🔨 '+esc(w.username)+' venceu por '+w.bid+'</div>';
       } else {
+        if(empate) h+='<div style="font-size:11px;color:var(--amber);font-weight:700;margin:4px 0">⚖️ Empate em '+maxBid+' — quem quiser levar precisa dar um lance maior.</div>';
         // lance do próprio usuário (blind/live)
         var mine=grp.find(function(x){return x.username===me;});
         if(mine && r.mode!=="priority"){
+          // piso do MEU lance: precisa superar o maior lance dos OUTROS
+          var maxOther=0; grp.forEach(function(x){ if(String(x.id)!==String(mine.id)){ var b=Number(x.bid||x.player_price); if(b>maxOther)maxOther=b; } });
+          var minBid0=Math.max(base0, maxOther>0?(maxOther+step):base0);
           if(r.mode==="blind"){
-            var minPct0=Number(s.settings&&s.settings.auction2_min_bid_pct)||0;
-            var minBid0=Math.ceil(Number(p0.player_price)*(1+minPct0/100));
-            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+(mine.bid||minBid0)+'" min="'+minBid0+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+',document.getElementById(\'a2bid_'+mine.id+'\').value)">Dar lance</button></div>'+(minPct0>0?'<div style="font-size:10px;color:var(--dim);margin-top:3px">Lance mínimo: '+minBid0+' (+'+minPct0+'%)</div>':"");
+            h+='<div style="display:flex;gap:6px;margin-top:6px"><input id="a2bid_'+mine.id+'" type="number" inputmode="numeric" value="'+Math.max(Number(mine.bid||0),minBid0)+'" min="'+minBid0+'" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--chalk);font-weight:700;text-align:center"><button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2Bid(\''+mine.id+'\',document.getElementById(\'a2bid_'+mine.id+'\').value)">Dar lance</button></div>'+
+              '<div style="font-size:10px;color:var(--dim);margin-top:3px">Lance mínimo: '+minBid0+(maxOther>0?" (cobre o atual de "+maxOther+")":"")+'</div>';
           } else { // live
-            h+='<button class="btn sm" style="width:auto;margin-top:6px;background:var(--amber);color:#1a1206" onclick="a2Bid('+mine.id+','+((mine.bid||p0.player_price)+r.step)+')">Cobrir → '+((mine.bid||p0.player_price)+r.step)+'</button>';
+            h+='<button class="btn sm" style="width:auto;margin-top:6px;background:var(--amber);color:#1a1206" onclick="a2Bid(\''+mine.id+'\','+minBid0+')">Cobrir → '+minBid0+'</button>';
           }
         }
-        if(admin) h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão ('+ (r.mode==="priority"?"prioridade":"maior lance") +')</button>';
+        if(admin){
+          h+='<button class="btn sm" style="width:100%;margin-top:8px;background:var(--amber);color:#1a1206" onclick="a2ResolveConflict(\''+esc(ck)+'\')">Resolver este leilão ('+ (r.mode==="priority"?"prioridade":"maior lance") +')</button>';
+          // válvula: se o empate persistir e ninguém quiser subir, o admin força o critério configurado
+          if(empate){
+            var tbName=((s.settings&&s.settings.auction2_tiebreak)||"budget");
+            tbName = tbName==="priority"?"prioridade":(tbName==="random"?"sorteio":"maior saldo");
+            h+='<button class="btn sm" style="width:100%;margin-top:6px;background:transparent;border:1px solid var(--dim);color:var(--dim)" onclick="if(confirm(\'Forçar desempate pelo critério: '+tbName+'?\'))a2ResolveConflict(\''+esc(ck)+'\',true)">Forçar desempate ('+tbName+')</button>';
+          }
+        }
       }
       h+='</div>';
     });
@@ -1599,7 +1648,7 @@
       else if(lost.username===me){
         var opts=a2freeAgents().filter(function(p){return p.price<=cap && p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,25);
         if(!opts.length) h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">Sem jogadores na sua faixa/saldo.</div>';
-        h+='<div style="margin-top:6px">'+opts.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2ConsoPick('+lost.id+',\''+esc(p.key)+'\')">'+(window.__dphoto?window.__dphoto(p):"")+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
+        h+='<div style="margin-top:6px">'+opts.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2ConsoPick(\''+lost.id+'\',\''+esc(p.key)+'\')">'+(window.__dphoto?window.__dphoto(p):"")+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
       } else { h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">aguardando '+esc(lost.username)+' escolher...</div>'; }
       h+='</div>';
     });
