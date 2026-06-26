@@ -172,6 +172,7 @@
     }catch(e){ toast&&toast("Erro ao salvar favorito: "+e.message); }
   };
   function catFnSafe(){ try{ return cachedCatalog(); }catch(e){ return []; } }
+  window.__draftCatFn=catFnSafe;
   window.__loadDraftWatch=loadWatch; // exposto pro wrapper de loadDraftSeason
   function toggleArr(arr,v){var i=arr.indexOf(v);if(i<0)arr.push(v);else arr.splice(i,1);return arr;}
   window.dMktPos=function(v){if(v==="")APP.dMkt.pos=[];else toggleArr(APP.dMkt.pos,v);APP.dMkt.page=1;if(!liveUpdateFull())renderKeepScroll();};
@@ -1043,6 +1044,8 @@
   // Tabelas: draft_auction_rounds, draft_picks (ver SQL).
   // ============================================================
   function a2on(s){ return !!(s&&s.settings&&s.settings.auction2_enabled); }
+  // catálogo de jogadores (vem do IIFE do mercado via window.__draftCatFn)
+  function catFnSafe(){ try{ return (typeof window.__draftCatFn==="function")?(window.__draftCatFn()||[]):[]; }catch(e){ return []; } }
   function a2mode(s){ return (s&&s.settings&&s.settings.auction2_mode)||"blind"; }
   function a2step(s){ return Number(s&&s.settings&&s.settings.auction2_step)||5; }
   function a2conso(s){ return Number(s&&s.settings&&s.settings.auction2_consolation_pct)||70; }
@@ -1212,6 +1215,96 @@
   };
 
   window.a2Load=a2Load;
+
+  // ============================================================
+  // 🤖 DEV — SIMULAR MANAGERS (testar o leilão sozinho)
+  // Só admin. Cria bots, faz eles escolherem e darem lance.
+  // ============================================================
+  var A2_BOTS=["🤖 Bot Ana","🤖 Bot Bia"];
+  window.a2AddBots=async function(){
+    var s=APP.draftSeason; if(!s||!isAdminNow())return;
+    try{
+      var base=(APP.draftTeams||[]).length;
+      for(var i=0;i<A2_BOTS.length;i++){
+        await sbInsert("draft_teams",{season_id:s.id,username:A2_BOTS[i],team_name:A2_BOTS[i]+" FC",
+          budget_left:s.budget,waiver_priority:base+i+1},true,"season_id,username");
+      }
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
+      await a2Load(); reRender();
+      toast&&toast("2 managers de teste adicionados.");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+  window.a2RemoveBots=async function(){
+    var s=APP.draftSeason; if(!s||!isAdminNow())return;
+    try{
+      for(var i=0;i<A2_BOTS.length;i++){
+        await sbDelete("draft_teams","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(A2_BOTS[i]));
+        await sbDelete("draft_rosters","season_id=eq."+s.id+"&username=eq."+encodeURIComponent(A2_BOTS[i]));
+      }
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
+      await a2Load(); reRender();
+      toast&&toast("Managers de teste removidos.");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+  // bots escolhem na fase de pick (miram os mais caros que cabem → tende a colidir com você)
+  window.a2BotsPick=async function(){
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow()||r.status!=="picking")return;
+    try{
+      for(var i=0;i<A2_BOTS.length;i++){
+        var u=A2_BOTS[i];
+        if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})) continue; // já escolheu
+        var bud=a2budget(u);
+        var free=a2freeAgents().filter(function(p){return p.price<=bud;}).sort(function(a,b){return b.price-a.price;});
+        if(!free.length) continue;
+        var pick=free[Math.floor(Math.random()*Math.min(3,free.length))]; // 1 dos 3 mais caros
+        await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+          player_key:pick.key,player_name:pick.name,player_pos:pick.pos,player_price:pick.price,
+          bid:(r.mode==="priority"?null:pick.price),state:"picked",is_consolation:false},
+          true,"round_id,username,is_consolation");
+      }
+      await a2Load(); reRender();
+      toast&&toast("Bots escolheram.");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+  // bots dão lance num conflito (blind: 5-25% acima; live: cobre se valer)
+  window.a2BotsBid=async function(){
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    if(r.mode==="priority"){ toast&&toast("Modo prioridade não tem lance."); return; }
+    try{
+      var picks=APP.a2Picks||[];
+      var cks=[]; picks.forEach(function(x){ if(x.conflict_key&&!x.is_consolation&&cks.indexOf(x.conflict_key)<0&&!picks.some(function(y){return y.conflict_key===x.conflict_key&&y.state==="won";})) cks.push(x.conflict_key); });
+      for(var c=0;c<cks.length;c++){
+        var grp=picks.filter(function(x){return x.conflict_key===cks[c]&&!x.is_consolation;});
+        for(var i=0;i<grp.length;i++){
+          var pk=grp[i]; if(A2_BOTS.indexOf(pk.username)<0) continue;
+          var cur=Number(pk.bid||pk.player_price), bud=a2budget(pk.username);
+          var novo;
+          if(r.mode==="blind"){ novo=Math.min(bud, Math.round(pk.player_price*(1.05+Math.random()*0.20))); }
+          else { novo=(cur+r.step<=Math.min(bud, pk.player_price*1.3) && Math.random()>0.3) ? cur+r.step : cur; }
+          if(novo>cur) await sbUpdate("draft_picks",{bid:novo},"id=eq."+pk.id);
+        }
+      }
+      await a2Load(); reRender();
+      toast&&toast("Bots deram lance.");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
+  // bots escolhem na consolação (pegam o melhor da faixa)
+  window.a2BotsConso=async function(){
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!isAdminNow())return;
+    try{
+      var losers=(APP.a2Picks||[]).filter(function(x){return x.state==="lost"&&A2_BOTS.indexOf(x.username)>=0;});
+      for(var i=0;i<losers.length;i++){
+        var lost=losers[i];
+        if((APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===lost.username&&x.state==="consoled";})) continue;
+        var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
+        var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2budget(lost.username);}).sort(function(a,b){return b.price-a.price;});
+        if(!opts.length) continue;
+        await window.a2ConsoPick(lost.id, opts[0].key);
+      }
+      await a2Load(); reRender();
+      toast&&toast("Bots escolheram a consolação.");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+  };
   setInterval(function(){ var s=APP.draftSeason; if(s&&a2on(s)&&APP.view==="draft"){ a2Load().then(function(){ if(APP.draftTab==="leilao") reRender(); }); } }, 4000);
 
   // ---- UI do painel de leilão (depende da fase) ----
@@ -1229,6 +1322,19 @@
       return h+'</div>';
     }
     h+='<p class="p" style="margin:8px 0">Round <b>'+r.round_no+'</b> · fase: <b style="color:var(--amber)">'+esc(r.status)+'</b></p></div>';
+    // faixa DEV (só admin): simular managers de teste
+    if(admin){
+      var nBots=(a2teams()||[]).filter(function(t){return A2_BOTS.indexOf(t.username)>=0;}).length;
+      h+='<div class="card" style="border:1px dashed var(--amber);background:color-mix(in srgb,var(--amber) 6%,transparent)">';
+      h+='<div class="tag" style="color:var(--amber);margin-bottom:6px">🤖 DEV · SIMULAR MANAGERS</div>';
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+      if(nBots<A2_BOTS.length) h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2AddBots()">+ 2 bots de teste</button>';
+      else h+='<button class="btn sm ghost" style="width:auto" onclick="a2RemoveBots()">remover bots</button>';
+      if(r.status==="picking") h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2BotsPick()">🤖 bots escolhem</button>';
+      if(r.status==="resolving"&&r.mode!=="priority") h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2BotsBid()">🤖 bots dão lance</button>';
+      if(r.status==="consolation") h+='<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="a2BotsConso()">🤖 bots na consolação</button>';
+      h+='</div><p class="p" style="font-size:10px;color:var(--dim);margin-top:6px">Pra testar o leilão sozinho: adicione os bots, abra um round e use estes botões em cada fase.</p></div>';
+    }
     if(r.status==="picking") h+=a2PickPhase(s,r,me,admin);
     else if(r.status==="resolving") h+=a2ResolvePhase(s,r,me,admin);
     else if(r.status==="consolation") h+=a2ConsoPhase(s,r,me,admin);
