@@ -359,13 +359,20 @@
         !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
       var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')") : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):"");
       // bloqueio de compra: sem moedas (duro) OU quebra a reserva pra completar o elenco.
-      // só no modo compra (não leilão), só pra jogador sem dono.
       var blockBuy=false, blockTag="";
       if(!a2pickMode && !own && _budgetOn && me){
         if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
         else if(_bInfo && _bInfo.canComplete && p.price>_bInfo.maxSpend){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
       }
-      var rowClickable = a2pickMode ? !own : (clickable && !blockBuy);
+      // mesma proteção na ESCOLHA do leilão (reserva pra completar o elenco)
+      if(a2pickMode && !own && _budgetOn && me && typeof window.__a2MaxSpend==="function"){
+        try{
+          var ums=window.__a2MaxSpend(APP.user&&APP.user.username);
+          if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
+          else if(p.price>ums){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
+        }catch(e){}
+      }
+      var rowClickable = a2pickMode ? (!own && !blockBuy) : (clickable && !blockBuy);
       var disClass=(own||blockBuy)?"dis":"";
       return '<div class="prow '+disClass+'" style="'+(rowClickable?"cursor:pointer":"")+'" onclick="'+(rowClickable?clickAction:"")+'">'+
         '<div class="posbar pb-'+p.pos+'"></div>'+
@@ -1130,8 +1137,34 @@
     var h=0; for(var i=0;i<str.length;i++){ h=(h*31+str.charCodeAt(i))>>>0; }
     var frac=(h%1000)/1000;                 // 0..1 estável por bot+jogador
     var ceil=Math.round(price*(1.12+frac*0.50)); // topa entre 1.12x e 1.62x o preço
-    return Math.min(ceil, a2budget(u));
+    return Math.min(ceil, a2MaxSpend(u));   // nunca acima do que pode gastar reservando o resto
   }
+  // ── RESERVA pra completar o elenco (vale pra QUALQUER manager: bot ou humano) ──
+  function a2RosterCount(u){ return (APP.draftRosters||[]).filter(function(r){return r.username===u;}).length; }
+  function a2MinFreePrice(){
+    var owned={}; (APP.draftRosters||[]).forEach(function(r){owned[r.player_key]=1;});
+    var free=(catFnSafe()||[]).filter(function(p){return !owned[p.key];});
+    if(!free.length)return 0;
+    var m=Infinity; free.forEach(function(p){ var v=Number(p.price)||0; if(v<m)m=v; });
+    return isFinite(m)?m:0;
+  }
+  // máximo que um manager pode gastar AGORA num único jogador, garantindo ainda
+  // completar o elenco com os mais baratos disponíveis.
+  function a2MaxSpend(u){
+    var s=APP.draftSeason; if(!s) return 0;
+    if(!draftSetting(s,"budget_enabled",true)) return Infinity;
+    var budget=a2budget(u);
+    if(!draftSetting(s,"roster_limit_enabled",true)) return budget;
+    var limit=Number(s.roster_limit||12);
+    var have=a2RosterCount(u);
+    var minFree=a2MinFreePrice();
+    var slotsAfter=Math.max(0, limit-(have+1));   // slots que faltam DEPOIS de pegar este
+    var maxSpend=Math.max(0, budget-slotsAfter*minFree);
+    // se já é impossível completar (orçamento apertado demais), libera o budget todo
+    var canComplete = budget >= (limit-have)*minFree;
+    return canComplete ? maxSpend : budget;
+  }
+  window.__a2MaxSpend=a2MaxSpend;
   // estado: o humano já pediu pra ver o lance do oponente neste conflito?
   if(!APP.a2Seen) APP.a2Seen={};
   window.a2SeeOpp=function(ck){ APP.a2Seen[ck]=true; reRenderKeep(); };
@@ -1188,6 +1221,9 @@
     if(!s||!r||!u||r.status!=="picking")return;
     var p=(catFnSafe()||[]).find(function(x){return x.key===playerKey;}); if(!p)return;
     if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente para "+p.name+"."); return; }
+    // reserva: não pode escolher um jogador que te impeça de completar o elenco
+    var ms=a2MaxSpend(u);
+    if(p.price>ms){ toast&&toast("Se pegar "+p.name+" ("+p.price+") você não completa o elenco. Pode gastar até "+ms+" neste."); return; }
     // confirmação antes de registrar (escolha é secreta e trava até revelar)
     if(typeof confirm==="function" && !confirm("Confirmar escolha secreta: "+p.name+" ("+p.price+")?\n\nSe mais ninguém escolher ele, vai direto pro seu elenco. Se houver disputa, abre leilão.")) return;
     // trava anti-duplo-clique
@@ -1320,6 +1356,8 @@
     var v=parseInt(value,10)||0;
     if(v<minBid){ toast&&toast("Lance precisa ser pelo menos "+minBid+"."); return; }
     if(v>a2budget(pk.username)){ toast&&toast("Lance acima do seu saldo."); return; }
+    var ms=a2MaxSpend(pk.username);
+    if(v>ms){ toast&&toast("Lance de "+v+" te impede de completar o elenco. Pode ir até "+ms+"."); return; }
     if(APP._a2Lock)return; APP._a2Lock=true;
     try{ await sbUpdate("draft_picks",{bid:v},"id=eq."+pk.id); await a2Load(); reRenderKeep();
       toast&&toast("Lance de "+v+" registrado."); }catch(e){ toast&&toast("Erro: "+e.message); }
@@ -1342,6 +1380,7 @@
     var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
     if(p.price>cap){ toast&&toast("Acima da faixa de consolação ("+cap+")."); return; }
     if(p.price>a2budget(u)){ toast&&toast("Saldo insuficiente."); return; }
+    if(p.price>a2MaxSpend(u)){ toast&&toast("Isso te impede de completar o elenco. Pode gastar até "+a2MaxSpend(u)+"."); return; }
     if(APP._a2Lock)return; APP._a2Lock=true;
     try{
       await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
@@ -1428,9 +1467,10 @@
       for(var i=0;i<botsList.length;i++){
         var u=botsList[i];
         if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})){ jaTinha++; continue; }
-        var bud=a2budget(u)||Number(s.budget)||300;
-        var free=a2freeAgents().filter(function(p){return p.price<=bud;}).sort(function(a,b){return b.price-a.price;});
-        if(!free.length){ erros.push(u+": sem jogador na faixa"); continue; }
+        // respeita a reserva: só mira jogadores que o bot pode pagar SEM se impedir de completar o elenco
+        var ms=a2MaxSpend(u);
+        var free=a2freeAgents().filter(function(p){return p.price<=ms;}).sort(function(a,b){return b.price-a.price;});
+        if(!free.length){ erros.push(u+": sem jogador na faixa (reserva)"); continue; }
         var pick=free[Math.floor(Math.random()*Math.min(3,free.length))];
         try{
           var res=await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
@@ -1500,7 +1540,7 @@
         // já fez a consolação?
         if((APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===u&&x.state==="consoled";})) continue;
         var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
-        var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2budget(u);}).sort(function(a,b){return b.price-a.price;});
+        var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2MaxSpend(u);}).sort(function(a,b){return b.price-a.price;});
         if(!opts.length){ erros.push(u+": sem jogador na faixa "+cap); continue; }
         var p=opts[0];
         try{
