@@ -431,33 +431,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .face-inline{display:inline-flex;align-items:center;gap:8px;min-width:0}
 .face-inline .txt{min-width:0}
 
-/* ===== ESCUDOS SÓ NA LISTA DE PARTIDAS ===== */
-.matchcrest{
-  width:24px;
-  height:24px;
-  min-width:24px;
-  border-radius:999px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:2px;
-  overflow:hidden;
-  background:radial-gradient(circle at 35% 30%, #243A61 0%, #182843 48%, #101A2F 100%);
-  border:1px solid #2D426B;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 0 1px rgba(7,11,22,.75);
-  color:var(--chalk);
-  font-family:'Saira Condensed';
-  font-weight:900;
-  font-size:10px;
-}
-.matchcrest img{width:100%;height:100%;object-fit:contain;display:block;border-radius:999px;filter:none!important;mix-blend-mode:normal!important}
-.brmatchline{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;width:100%;min-width:0}
-.brteam{display:flex;align-items:center;gap:7px;min-width:0}
-.brteam.away{justify-content:flex-end}
-.brteam .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brscore{font-family:'JetBrains Mono';font-size:15px;font-weight:900;color:var(--blue);white-space:nowrap;text-align:center}
-.brscore.vs{color:var(--amber)}
-
 </style>
 </head>
 <body>
@@ -483,62 +456,10 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part17.js?v=20260627-fix-ids"></script>
 <script src="games-part18.js?v=20260627-cpvksa-uruesp"></script>
 <script src="games-part19.js?v=20260627-nzlbel-egyirn"></script>
-<script src="games-part20.js?v=br-correto-20260627"></script>
+<script src="games-part20.js?v=20260627-brasileirao-r18-bloco1"></script>
 <script src="flags.js?v=photo-v3-real"></script>
 <script src="fotos-copa.js?v=ronaldfoto-20260627b"></script>
-<script src="fotos-brasileirao.js?v=br-correto-20260627"></script>
-<script>
-/* HELPERS BRASILEIRÃO — escudos apenas nas listas de partidas. */
-(function(){
-  "use strict";
-  if(window.__BR_LIST_HELPERS__) return;
-  window.__BR_LIST_HELPERS__ = true;
-
-  function escAttr(v){
-    return String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-  }
-  function escText(v){
-    return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  }
-  function initials(v){
-    return String(v||"?").trim().split(/\s+/).filter(Boolean).map(function(w){return w[0];}).slice(0,3).join("").toUpperCase() || "?";
-  }
-  window.crestImageError = function(img){
-    try{
-      if(!img.dataset.triedDirect && img.dataset.direct && img.src !== img.dataset.direct){
-        img.dataset.triedDirect = "1";
-        img.src = img.dataset.direct;
-        return;
-      }
-      if(img.parentNode){
-        img.parentNode.textContent = img.dataset.initials || "?";
-      }
-    }catch(e){}
-  };
-  window.matchCrestHTML = function(teamCode){
-    var code = String(teamCode||"").toUpperCase();
-    var url = (typeof crestOf === "function") ? crestOf(code) : (window.CLUB_CRESTS && window.CLUB_CRESTS[code]);
-    var direct = (typeof crestOfDirect === "function") ? crestOfDirect(code) : (window.CLUB_CRESTS_DIRECT && window.CLUB_CRESTS_DIRECT[code]);
-    var ini = initials(code);
-    if(!url) return '<span class="matchcrest">' + escText(ini) + '</span>';
-    return '<span class="matchcrest"><img src="' + escAttr(url) + '" data-direct="' + escAttr(direct||url) + '" data-initials="' + escAttr(ini) + '" loading="lazy" decoding="async" onerror="window.crestImageError&&window.crestImageError(this)"></span>';
-  };
-  window.matchListTeamsHTML = function(j, score){
-    try{
-      var g = window.GAMES && window.GAMES.data ? window.GAMES.data[j.room_id] : null;
-      var pp = g && g.prepool;
-      if(!pp || !pp.home || !pp.away) return "";
-      if(!(window.CLUB_CRESTS && (window.CLUB_CRESTS[pp.home.code] || window.CLUB_CRESTS[pp.away.code]))) return "";
-      var mid = score ? score.replace(/\s+/g," ").replace("-", " × ") : "VS";
-      return '<div class="brmatchline">' +
-        '<span class="brteam home">' + window.matchCrestHTML(pp.home.code) + '<span class="name">' + escText(pp.home.name || pp.home.code) + '</span></span>' +
-        '<span class="brscore' + (score ? "" : " vs") + '">' + escText(mid) + '</span>' +
-        '<span class="brteam away"><span class="name">' + escText(pp.away.name || pp.away.code) + '</span>' + window.matchCrestHTML(pp.away.code) + '</span>' +
-      '</div>';
-    }catch(e){ return ""; }
-  };
-})();
-</script>
+<script src="fotos-brasileirao.js?v=20260627-faces-sofascore-direto-v4"></script>
 <script>
 /* PATCH FOTOS — corrige jogos com ID local usando o MESMO NOME do jogador em outros jogos */
 (function(){
@@ -642,10 +563,10 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="apurador.js"></script>
 <script src="app-part1.js?v=orcamento-20260627"></script>
 <script src="app-part2.js?v=photo-v3-real"></script>
-<script src="app-part3.js?v=br-correto-20260627"></script>
-<script src="app-part4.js?v=br-correto-20260627"></script>
+<script src="app-part3.js?v=scroll-lock-20260627"></script>
+<script src="app-part4.js?v=20260627-fix-pendencia-escalacao"></script>
 <script src="app-part5.js?v=releilao-bots-20260627"></script>
-<script src="app-part6.js?v=br-correto-20260627"></script>
+<script src="app-part6.js?v=dream-fotos-20260627"></script>
 
 <script>
 /* HELPER RETRATOS V3 — usado em Draft/Resultados/Base */
