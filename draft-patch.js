@@ -340,6 +340,12 @@
     var _budget=Math.max(0, Number(me?me.budget_left:0));
     var _bInfo=(me&&typeof window.draftBudgetInfo==="function")?window.draftBudgetInfo(s,me,myRoster.length):null;
 
+    // ─ içado pra FORA do loop: não dependem do jogador, então calcula UMA vez (evita O(n²)) ─
+    var _a2pickMode=false;
+    try{ _a2pickMode = !!(s&&s.settings&&s.settings.auction2_enabled) && APP.a2Round && APP.a2Round.status==="picking" &&
+      !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
+    var _a2ums=(_a2pickMode && _budgetOn && me && typeof window.__a2MaxSpend==="function") ? window.__a2MaxSpend(APP.user&&APP.user.username) : null;
+
     var rows=pageItems.map(function(p){
       var own=owner[p.key];
       var face=dphoto(p);
@@ -353,10 +359,8 @@
       var infoBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:6px;border-color:var(--blue);color:var(--blue)" onclick="event.stopPropagation();dMktInfo(\''+esc(p.key)+'\')">ⓘ</span>';
       var starOn=isWatched(p.key);
       var starBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:4px;border-color:'+(starOn?"var(--amber)":"var(--line)")+';color:'+(starOn?"var(--amber)":"var(--dim)")+'" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">'+(starOn?"★":"☆")+'</span>';
-      // modo leilão: se há round em picking e o usuário ainda não escolheu, o clique vira "escolher pro leilão"
-      var a2pickMode=false;
-      try{ a2pickMode = !!(s&&s.settings&&s.settings.auction2_enabled) && APP.a2Round && APP.a2Round.status==="picking" &&
-        !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
+      // modo leilão: usa o valor já calculado fora do loop
+      var a2pickMode=_a2pickMode;
       var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')") : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):"");
       // bloqueio de compra: sem moedas (duro) OU quebra a reserva pra completar o elenco.
       var blockBuy=false, blockTag="";
@@ -364,13 +368,10 @@
         if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
         else if(_bInfo && _bInfo.canComplete && p.price>_bInfo.maxSpend){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
       }
-      // mesma proteção na ESCOLHA do leilão (reserva pra completar o elenco)
-      if(a2pickMode && !own && _budgetOn && me && typeof window.__a2MaxSpend==="function"){
-        try{
-          var ums=window.__a2MaxSpend(APP.user&&APP.user.username);
-          if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
-          else if(p.price>ums){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
-        }catch(e){}
+      // mesma proteção na ESCOLHA do leilão (reserva pra completar o elenco) — usa _a2ums içado
+      if(a2pickMode && !own && _budgetOn && me && _a2ums!=null){
+        if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
+        else if(p.price>_a2ums){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
       }
       var rowClickable = a2pickMode ? (!own && !blockBuy) : (clickable && !blockBuy);
       var disClass=(own||blockBuy)?"dis":"";
@@ -754,7 +755,7 @@
   var _trashTimer=setInterval(function(){
     // só injeta quando há temporadas listadas na tela
     if(document.querySelector('.roomrow'))injectTrash();
-  },600);
+  },2500);
 })();
 
 // ============================================================
@@ -922,7 +923,7 @@
       anchor.parentNode.insertBefore(btn, anchor);
     }catch(e){}
   }
-  setInterval(injectCapsButton, 700);
+  setInterval(injectCapsButton, 2500);
 })();
 
 // ============================================================
@@ -1099,8 +1100,8 @@
   }
 
   // checa o estado a cada 5s (independente da tela do draft) + injeta o botão
-  setTimeout(function(){ fetchMaint(); setInterval(fetchMaint, 5000); }, 2500);
-  setInterval(injectMaintButton, 800);
+  setTimeout(function(){ fetchMaint(); setInterval(fetchMaint, 12000); }, 2500);
+  setInterval(injectMaintButton, 2500);
 
   // ============================================================
   // 🔨 DRAFT LEILÃO 2.0 — pick simultâneo + leilão + consolação
@@ -1304,6 +1305,21 @@
       var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
       if(tied.length===1){ winner=tied[0]; paid=maxBid; }
       else {
+        // ALGUÉM dos empatados consegue (e, se bot, topa) oferecer acima do empate?
+        var podeSubir=tied.some(function(x){
+          var teto=Math.min(a2budget(x.username), a2MaxSpend(x.username));
+          if(A2_BOTS.indexOf(x.username)>=0) teto=Math.min(teto, a2BotMax(x.username,x));
+          return teto>maxBid;
+        });
+        if(!podeSubir){
+          // ninguém pode subir (empate travado no teto/piso) → decide já: maior saldo, sorteio se igual
+          tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
+          var topB=a2budget(tied[0].username);
+          var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
+          winner=topTied[Math.floor(Math.random()*topTied.length)];
+          paid=maxBid;
+          toast&&toast("Empate em "+maxBid+" e ninguém pôde aumentar — decidido por maior saldo.");
+        } else {
         // empate no topo → os de oferta MENOR já perdem; os empatados voltam a ofertar (secreto)
         if(APP._a2Lock)return; APP._a2Lock=true;
         try{
@@ -1318,6 +1334,7 @@
         }catch(e){ toast&&toast("Erro: "+e.message); }
         finally{ APP._a2Lock=false; }
         return;
+        }
       }
     } else {
       // AO VIVO: maior lance vence; empate → re-leilão (cobrir) ou critério configurado
