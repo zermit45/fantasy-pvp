@@ -1500,6 +1500,26 @@
     var lost=(APP.a2Picks||[]).find(function(x){return x.state==="lost"&&x.username===u;});
     return lost?Math.floor(Number(lost.player_price)*(Number(r.conso_pct)||70)/100):Infinity;
   }
+  // existe ALGUM jogador livre que esse usuário consegue pegar na consolação?
+  // (dentro da faixa E que ele consiga pagar sem furar a reserva pra completar o elenco)
+  function a2ConsoHasOpts(u){
+    try{
+      var lim=Math.min(a2ConsoCap(u), a2budget(u), a2MaxSpend(u));
+      return a2freeAgents().some(function(p){ return Number(p.price)<=lim; });
+    }catch(e){ return false; }
+  }
+  // PASSAR a consolação: o perdedor fica SEM jogador neste round.
+  // É o caminho de saída quando não há jogador na faixa OU ele não tem como pagar.
+  window.a2ConsoPass=async function(lostPickId, silent){
+    var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(lostPickId);});
+    if(!pk||pk.state!=="lost")return;
+    if(!silent && typeof confirm==="function" && !confirm("Passar a consolação?\n\nNão há jogador na sua faixa que você consiga pagar, então você fica SEM jogador neste round."))return;
+    if(APP._a2Lock)return; APP._a2Lock=true;
+    try{ await sbUpdate("draft_picks",{state:"passed"},"id=eq."+pk.id); await a2Load(); reRenderKeep();
+      if(!silent) toast&&toast("Você passou a consolação (ficou sem jogador)."); }
+    catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
+  };
   // ---- oferta SECRETA num mini-leilão de consolação (às cegas) ----
   window.a2ConsoSealBid=async function(pickId, value){
     var s=APP.draftSeason, r=APP.a2Round;
@@ -1741,13 +1761,13 @@
 
       // PASSO 2: bots que perderam e ainda não escolheram → escolhem (sem conceder ainda)
       var losers=picks.filter(function(p){return p.state==="lost"&&A2_BOTS.indexOf(p.username)>=0;});
-      var escolheu=0, erros=[];
+      var escolheu=0, passou=0, erros=[];
       for(var li=0;li<losers.length;li++){
         var lost=losers[li], u=lost.username;
         if(picks.some(function(p){return p.is_consolation&&p.username===u&&(p.state==="consoled"||p.state==="picked"||p.state==="sealed");})) continue;
         var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
         var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2MaxSpend(u);}).sort(function(a,b){return b.price-a.price;});
-        if(!opts.length){ erros.push(u+": sem jogador na faixa "+cap); continue; }
+        if(!opts.length){ await sbUpdate("draft_picks",{state:"passed"},"id=eq."+lost.id); passou++; continue; }
         var p=opts[Math.floor(Math.random()*Math.min(3,opts.length))]; // varia um pouco p/ gerar disputas
         await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
           player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
@@ -1768,8 +1788,8 @@
       }
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
       await a2Load(); reRenderKeep();
-      var msg="Bots: "+concedidos+" concedido(s)"+(conflitos?(", "+conflitos+" disputa(s) — clique de novo p/ ofertarem"):"");
-      toast&&toast(erros.length?(msg+" · "+erros[0]):msg);
+      var msg="Bots: "+concedidos+" concedido(s)"+(passou?(", "+passou+" passou(aram) — sem jogador na faixa"):"")+(conflitos?(", "+conflitos+" disputa(s) — clique de novo p/ ofertarem"):"");
+      toast&&toast(msg);
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
   // polling do leilão: a cada 4s checa o banco; só redesenha se o estado MUDOU
@@ -2020,16 +2040,29 @@
       }
       h+='<div class="card"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">'+esc(lost.username)+' perdeu <b style="color:var(--chalk)">'+esc(lost.player_name)+'</b> → pega até <b style="color:var(--gold)">'+cap+'</b></div>';
       if(lost.username===me){
-        // MERCADO COMPLETO com filtros (nome/posição/time) — o computeResults já está em modo consolação
-        try{
-          var owner={}; (APP.draftRosters||[]).forEach(function(rr){owner[rr.player_key]=rr.username;});
-          var myRoster=(APP.draftRosters||[]).filter(function(rr){return APP.user&&rr.username===APP.user.username;});
-          var meTeam=(a2teams()||[]).find(function(t){return t.username===me;});
-          if(typeof window.__draftMarketHTML==="function") h+=window.__draftMarketHTML(s,meTeam,owner,myRoster);
-          else h+='<div class="p">Carregando mercado…</div>';
-        }catch(e){ h+='<div class="p">Erro no mercado: '+esc(e.message)+'</div>'; }
+        var temOpts=a2ConsoHasOpts(me);
+        if(!temOpts){
+          // SEM saída: nenhum jogador na faixa que ele consiga pagar → fica sem jogador
+          h+='<div style="font-size:12px;color:var(--red);margin-bottom:8px">😕 Nenhum jogador na sua faixa (até '+cap+') que você consiga pagar agora. Você fica sem jogador neste round.</div>';
+          h+='<button class="btn" style="background:var(--amber);color:#1a1206" onclick="window.a2ConsoPass(\''+lost.id+'\')">Passar (ficar sem jogador)</button>';
+        } else {
+          // MERCADO COMPLETO com filtros (nome/posição/time) — computeResults já em modo consolação
+          try{
+            var owner={}; (APP.draftRosters||[]).forEach(function(rr){owner[rr.player_key]=rr.username;});
+            var myRoster=(APP.draftRosters||[]).filter(function(rr){return APP.user&&rr.username===APP.user.username;});
+            var meTeam=(a2teams()||[]).find(function(t){return t.username===me;});
+            if(typeof window.__draftMarketHTML==="function") h+=window.__draftMarketHTML(s,meTeam,owner,myRoster);
+            else h+='<div class="p">Carregando mercado…</div>';
+          }catch(e){ h+='<div class="p">Erro no mercado: '+esc(e.message)+'</div>'; }
+          h+='<button class="btn ghost" style="margin-top:8px;border-color:var(--line);color:var(--dim)" onclick="window.a2ConsoPass(\''+lost.id+'\')">ou passar (não quero gastar)</button>';
+        }
       } else { h+='<div style="font-size:11px;color:var(--dim)">aguardando '+esc(lost.username)+' escolher...</div>'; }
       h+='</div>';
+    });
+
+    // (C) quem PASSOU (sem jogador na faixa / sem saldo) — fica sem jogador neste round
+    picks.filter(function(x){return x.state==="passed";}).forEach(function(pp){
+      h+='<div class="card" style="padding:8px 12px;opacity:.65"><div style="font-size:12px;color:var(--dim)">'+esc(pp.username)+' perdeu <b style="color:var(--chalk)">'+esc(pp.player_name)+'</b> · <span style="color:var(--red)">passou — ficou sem jogador</span></div></div>';
     });
 
     var allConsoled=losers.every(function(l){return picks.some(function(x){return x.is_consolation&&x.username===l.username&&x.state==="consoled";});});
