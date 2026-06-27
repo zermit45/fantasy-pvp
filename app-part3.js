@@ -400,7 +400,13 @@ function renderKeepScroll(){
   const ae=document.activeElement;
   if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)){try{ae.blur();}catch(e){}}
   render();
-  restoreScroll(snap);
+  // restore SÍNCRONO imediato (antes do navegador pintar) — elimina o "pulo pro topo"
+  try{
+    window.scrollTo(0,snap.y||0);
+    const m=document.querySelector(".modal"); if(m&&snap.hasModal)m.scrollTop=snap.my||0;
+    const pool=document.querySelector(".pool"); if(pool&&snap.hasPool)pool.scrollTop=snap.pool||0;
+  }catch(e){}
+  restoreScroll(snap); // reforços tardios p/ conteúdo que assenta depois (imagens, etc.)
 }
 // === FOTOS DA COPA: trio de estrelas por time ===
 // Retorna o HTML do trio de fotos (3 maiores price) de um time num jogo.

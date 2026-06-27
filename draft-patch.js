@@ -321,7 +321,9 @@
     var pmin=f.pmin===""?null:Number(f.pmin), pmax=f.pmax===""?null:Number(f.pmax);
     var amin=f.amin===""?null:Number(f.amin), amax=f.amax===""?null:Number(f.amax);
     var fp=f.pos||[], ft=f.team||[], fl=f.league||[], fc=f.club||[];
+    var _ban=(APP.draftSeason&&APP.draftSeason.settings&&APP.draftSeason.settings.banned_players)||[];
     var filtered=all.filter(function(p){
+      if(_ban.length && _ban.indexOf(p.key)>=0) return false; // banidos saíram do jogo
       if(fp.length && fp.indexOf(p.pos)<0) return false;
       if(ft.length && ft.indexOf(p.team)<0) return false;
       if(fl.length && fl.indexOf(p.league)<0) return false;
@@ -1163,13 +1165,26 @@
   function a2prio(u){ var t=a2teams().find(function(x){return x.username===u;}); return t?Number(t.waiver_priority||999):999; }
   // teto que um BOT topa pagar por um jogador — determinístico (hash do bot+jogador),
   // assim bots têm limites DIFERENTES e um sempre acaba vencendo (não empatam pra sempre).
+  // reserva CONSERVADORA pros bots: garante completar o elenco pegando os slots restantes
+  // pelos jogadores mais baratos disponíveis (+ margem), pra NÃO gastarem tudo e travarem.
+  function a2BotMaxSpend(u){
+    var s=APP.draftSeason; var budget=a2budget(u);
+    if(!draftSetting(s,"roster_limit_enabled",true)) return budget;
+    var slotsAfter=Math.max(0, a2RosterLimit(u)-(a2RosterCount(u)+1));
+    if(slotsAfter<=0) return budget;
+    var free=a2freeAgents().map(function(p){return Number(p.price)||0;}).sort(function(a,b){return a-b;});
+    var reserve=0;
+    for(var i=0;i<slotsAfter;i++){ reserve += (i<free.length?free[i]:(free.length?free[free.length-1]:0)); }
+    reserve=Math.ceil(reserve*1.15); // 15% de margem pra não raspar o orçamento
+    return Math.max(0, budget-reserve);
+  }
   function a2BotMax(u, pick){
     var price=Number(pick.player_price||pick.price||0);
     var str=String(u)+"|"+String(pick.player_key||pick.key||"");
     var h=0; for(var i=0;i<str.length;i++){ h=(h*31+str.charCodeAt(i))>>>0; }
     var frac=(h%1000)/1000;                 // 0..1 estável por bot+jogador
-    var ceil=Math.round(price*(1.12+frac*0.50)); // topa entre 1.12x e 1.62x o preço
-    return Math.min(ceil, a2MaxSpend(u));   // nunca acima do que pode gastar reservando o resto
+    var ceil=Math.round(price*(1.05+frac*0.30)); // topa entre 1.05x e 1.35x (menos agressivo que antes)
+    return Math.min(ceil, a2BotMaxSpend(u));  // reserva conservadora: nunca gasta o que precisa pra completar
   }
   // ── RESERVA pra completar o elenco (vale pra QUALQUER manager: bot ou humano) ──
   function a2RosterCount(u){ return (APP.draftRosters||[]).filter(function(r){return r.username===u;}).length; }
@@ -1184,12 +1199,17 @@
     var mine=(APP.draftRosters||[]).filter(function(r){return r.username===u;});
     var worst=null, wp=-1;
     mine.forEach(function(r){ var p=Number(r.acquired_price||r.current_price||r.base_price||0); if(p>wp){wp=p;worst=r;} });
-    if(worst){
-      await sbDelete("draft_rosters","season_id=eq."+s.id+"&player_key=eq."+encodeURIComponent(worst.player_key)+"&username=eq."+encodeURIComponent(u));
-      try{ await sbInsert("draft_transactions",{season_id:s.id,username:u,type:"conso_penalty",player_key:worst.player_key,player_name:worst.player_name,amount:0,meta:{motivo:"sem jogador na faixa — punição",via:"leilao2.0"}}); }catch(e){}
-    }
-    // +1 vaga a menos (não reembolsa — perde jogador E o que gastou nele)
     var settings=Object.assign({}, s.settings||{});
+    if(worst){
+      // tira do elenco (perde de verdade) — SEM reembolso (não devolve budget_left)
+      await sbDelete("draft_rosters","season_id=eq."+s.id+"&player_key=eq."+encodeURIComponent(worst.player_key)+"&username=eq."+encodeURIComponent(u));
+      // jogador sai do JOGO: vai pra lista de banidos → NÃO volta ao mercado, ninguém pega
+      var ban=(settings.banned_players||[]).slice();
+      if(ban.indexOf(worst.player_key)<0) ban.push(worst.player_key);
+      settings.banned_players=ban;
+      try{ await sbInsert("draft_transactions",{season_id:s.id,username:u,type:"conso_penalty",player_key:worst.player_key,player_name:worst.player_name,amount:0,meta:{motivo:"sem jogador na faixa — punição (banido, sem reembolso)",via:"leilao2.0"}}); }catch(e){}
+    }
+    // +1 vaga a menos (perde o jogador E o que gastou nele)
     var pens=Object.assign({}, settings.roster_penalties||{});
     pens[u]=(Number(pens[u])||0)+1;
     settings.roster_penalties=pens;
@@ -1236,6 +1256,8 @@
   // jogadores ainda sem dono (livres), do catálogo
   function a2freeAgents(){
     var owned={}; (APP.draftRosters||[]).forEach(function(r){owned[r.player_key]=1;});
+    var ban=(APP.draftSeason&&APP.draftSeason.settings&&APP.draftSeason.settings.banned_players)||[];
+    ban.forEach(function(k){owned[k]=1;}); // banidos não voltam pro mercado
     return (catFnSafe()||[]).filter(function(p){return !owned[p.key];});
   }
 
@@ -1682,16 +1704,24 @@
       for(var i=0;i<botsList.length;i++){
         var u=botsList[i];
         if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})){ jaTinha++; continue; }
-        // respeita a reserva: só mira jogadores que o bot pode pagar SEM se impedir de completar o elenco
-        var ms=a2MaxSpend(u);
+        // respeita a reserva conservadora: mira jogadores que cabem SEM impedir de completar o elenco
+        var ms=a2BotMaxSpend(u);
         var mineBot=(APP.draftRosters||[]).filter(function(rr){return rr.username===u;});
-        var free=a2freeAgents().filter(function(p){
-          if(p.price>ms) return false;
-          if(typeof window.__draftViolacao==="function" && window.__draftViolacao(s,p,mineBot)) return false; // respeita limites de elenco
+        function botFree(teto){ return a2freeAgents().filter(function(p){
+          if(p.price>teto) return false;
+          if(typeof window.__draftViolacao==="function" && window.__draftViolacao(s,p,mineBot)) return false;
           return true;
-        }).sort(function(a,b){return b.price-a.price;});
-        if(!free.length){ erros.push(u+": sem jogador na faixa (reserva)"); continue; }
-        var pick=free[Math.floor(Math.random()*Math.min(3,free.length))];
+        }); }
+        var free=botFree(ms).sort(function(a,b){return b.price-a.price;});
+        var pick;
+        if(free.length){
+          pick=free[Math.floor(Math.random()*Math.min(3,free.length))];
+        } else {
+          // último recurso (não trava o round): pega o MAIS BARATO que o saldo paga
+          var any=botFree(a2budget(u)).sort(function(a,b){return a.price-b.price;});
+          if(!any.length){ erros.push(u+": sem jogador que caiba no saldo"); continue; }
+          pick=any[0];
+        }
         try{
           var res=await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
             player_key:pick.key,player_name:pick.name,player_pos:pick.pos,player_price:pick.price,
