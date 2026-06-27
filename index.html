@@ -431,6 +431,35 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .face-inline{display:inline-flex;align-items:center;gap:8px;min-width:0}
 .face-inline .txt{min-width:0}
 
+/* ===== ESCUDOS DE CLUBES — mesma paleta das fotos ===== */
+.clubcrest,.teamcrest{
+  border-radius:999px;
+  overflow:hidden;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:2px;
+  background:radial-gradient(circle at 35% 30%, #243A61 0%, #182843 48%, #101A2F 100%);
+  border:2px solid #2D426B;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.05),
+    0 0 0 1px rgba(7,11,22,.75),
+    0 4px 12px rgba(0,0,0,.30);
+  flex:0 0 auto;
+  vertical-align:middle;
+}
+.clubcrest{width:30px;height:30px;min-width:30px}
+.clubcrest.sm{width:24px;height:24px;min-width:24px;border-width:1px;padding:1px}
+.clubcrest.xs{width:18px;height:18px;min-width:18px;border-width:1px;padding:1px}
+.teamcrest{width:42px;height:42px;min-width:42px}
+.clubcrest img,.teamcrest img{width:100%;height:100%;object-fit:contain;display:block;border-radius:999px;filter:none!important;mix-blend-mode:normal!important}
+.clubcrest.ph,.teamcrest.ph{color:var(--chalk);font-family:'Saira Condensed';font-weight:900;letter-spacing:.02em;font-size:10px}
+.teamcrest.ph{font-size:14px}
+.crestpair{display:inline-flex;align-items:center;margin-right:8px;vertical-align:middle}
+.crestpair .clubcrest+.clubcrest{margin-left:-7px}
+.teamWithCrest{display:inline-flex;align-items:center;gap:8px;justify-content:inherit}
+.teamtag .clubcrest{margin-right:4px}
+
 </style>
 </head>
 <body>
@@ -460,6 +489,151 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="flags.js?v=photo-v3-real"></script>
 <script src="fotos-copa.js?v=ronaldfoto-20260627b"></script>
 <script src="fotos-brasileirao.js?v=20260627-faces-weserv-v3"></script>
+<script>
+/* PATCH ESCUDOS — usa CLUB_CRESTS do Brasileirão sem depender de app-part. */
+(function(){
+  "use strict";
+  if(window.__BR_CLUB_CREST_PATCH__) return;
+  window.__BR_CLUB_CREST_PATCH__ = true;
+
+  function escAttr(v){
+    return String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  }
+  function initials(v){
+    return String(v||"?").trim().split(/\s+/).filter(Boolean).map(function(w){return w[0];}).slice(0,3).join("").toUpperCase() || "?";
+  }
+  function norm(v){
+    try{
+      return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    }catch(e){
+      return String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    }
+  }
+  function getGames(){
+    return (window.GAMES && window.GAMES.data) ? window.GAMES.data : {};
+  }
+  function variantsFor(g){
+    var pp = g && g.prepool;
+    if(!pp) return [];
+    var h = pp.home || {}, a = pp.away || {};
+    return [
+      pp.match_name,
+      (h.name||h.code||"") + "×" + (a.name||a.code||""),
+      (h.name||h.code||"") + " x " + (a.name||a.code||""),
+      (h.code||"") + "×" + (a.code||""),
+      (h.code||"") + " x " + (a.code||"")
+    ].map(norm).filter(Boolean);
+  }
+  function findGameFromText(text){
+    var target = norm(text);
+    if(!target) return null;
+    var data = getGames();
+    for(var id in data){
+      var vars = variantsFor(data[id]);
+      for(var i=0;i<vars.length;i++){
+        if(target.indexOf(vars[i]) >= 0 || vars[i].indexOf(target) >= 0) return data[id];
+      }
+    }
+    return null;
+  }
+
+  window.crestImageError = function(img){
+    try{
+      if(!img.dataset.triedDirect && img.dataset.direct && img.src !== img.dataset.direct){
+        img.dataset.triedDirect = "1";
+        img.src = img.dataset.direct;
+        return;
+      }
+      if(img.parentNode){
+        img.parentNode.classList.add("ph");
+        img.parentNode.textContent = img.dataset.initials || "?";
+      }
+    }catch(e){}
+  };
+
+  window.teamCrestHTML = function(teamCode, cls){
+    try{
+      cls = cls || "clubcrest";
+      var code = String(teamCode||"").toUpperCase();
+      var url = (typeof crestOf === "function") ? crestOf(code) : (window.CLUB_CRESTS && window.CLUB_CRESTS[code]);
+      var direct = (typeof crestOfDirect === "function") ? crestOfDirect(code) : (window.CLUB_CRESTS_DIRECT && window.CLUB_CRESTS_DIRECT[code]);
+      var ini = initials(code);
+      if(!url) return '<span class="' + escAttr(cls) + ' ph">' + escAttr(ini) + '</span>';
+      return '<span class="' + escAttr(cls) + '"><img src="' + escAttr(url) + '" data-direct="' + escAttr(direct||url) + '" data-initials="' + escAttr(ini) + '" loading="lazy" decoding="async" onerror="window.crestImageError&&window.crestImageError(this)"></span>';
+    }catch(e){ return ""; }
+  };
+
+  function pairHTML(pp){
+    if(!pp || !pp.home || !pp.away) return "";
+    return '<span class="crestpair">' +
+      window.teamCrestHTML(pp.home.code, "clubcrest sm") +
+      window.teamCrestHTML(pp.away.code, "clubcrest sm") +
+    '</span>';
+  }
+  function htmlToNode(html){
+    var tmp = document.createElement("span");
+    tmp.innerHTML = html;
+    return tmp.firstElementChild;
+  }
+  function injectIntoTitle(el){
+    if(!el || el.dataset.crestInjected === "1") return;
+    var game = findGameFromText(el.textContent);
+    if(!game || !game.prepool) return;
+    var node = htmlToNode(pairHTML(game.prepool));
+    if(!node) return;
+    el.insertBefore(node, el.firstChild);
+    el.dataset.crestInjected = "1";
+  }
+  function injectScorebar(){
+    var pp = null;
+    try{ if(typeof APP !== "undefined" && APP.prepool) pp = APP.prepool; }catch(e){}
+    if(!pp) return;
+    document.querySelectorAll(".scorebar .team").forEach(function(el){
+      if(el.dataset.crestInjected === "1") return;
+      var txt = norm(el.textContent);
+      var code = null;
+      if(txt === norm(pp.home.name) || txt === norm(pp.home.code)) code = pp.home.code;
+      if(txt === norm(pp.away.name) || txt === norm(pp.away.code)) code = pp.away.code;
+      if(!code) return;
+      var node = htmlToNode(window.teamCrestHTML(code, "teamcrest"));
+      if(!node) return;
+      el.classList.add("teamWithCrest");
+      el.insertBefore(node, el.firstChild);
+      el.dataset.crestInjected = "1";
+    });
+  }
+  function injectTeamTags(){
+    document.querySelectorAll(".teamtag").forEach(function(el){
+      if(el.dataset.crestInjected === "1") return;
+      var code = String(el.textContent||"").trim().toUpperCase();
+      if(!code || !(window.CLUB_CRESTS && window.CLUB_CRESTS[code])) return;
+      var node = htmlToNode(window.teamCrestHTML(code, "clubcrest xs"));
+      if(!node) return;
+      el.insertBefore(node, el.firstChild);
+      el.dataset.crestInjected = "1";
+    });
+  }
+  function scan(){
+    document.querySelectorAll(".gamecard .nm,.nextTitle,.previewgame .pvname").forEach(injectIntoTitle);
+    injectScorebar();
+    injectTeamTags();
+  }
+  var scheduled = false;
+  function schedule(){
+    if(scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(function(){ scheduled = false; scan(); });
+  }
+  function start(){
+    scan();
+    if(document.body){
+      new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});
+    }
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
+})();
+</script>
 <script>
 /* PATCH FOTOS — corrige jogos com ID local usando o MESMO NOME do jogador em outros jogos */
 (function(){
