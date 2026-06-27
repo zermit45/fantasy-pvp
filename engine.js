@@ -244,7 +244,14 @@ function makeEngine(match){
   function dvgMult(team){
     const opp=team===match.homeCode?match.awayCode:match.homeCode;
     const edge=forcaAjustada(opp)-forcaAjustada(team); // quão + forte é o oponente
-    return 1+Math.min(0.14,Math.max(0,edge/1450));
+    let bonus=Math.min(0.14,Math.max(0,edge/1450)); // bônus underdog por força ajustada
+    // BÔNUS DE VISITANTE: em jogo com mando real (não-neutro), o time visitante
+    // joga sob pressão de jogar fora → recebe o bônus cheio (+14%), SEMPRE ligado,
+    // independente de ser favorito ou não. Combina com o underdog mas respeita o teto.
+    if(!match.neutral && team===match.awayCode){
+      bonus=0.14;
+    }
+    return 1+bonus;
   }
   function minFactor(p){if(p.started||p.min>=45)return 1.0;return p.min/90;}
   function redPenalty(red){if(!red)return 0;const h1=red.m<=50;if(red.doubleYellow)return h1?-3.0:-2.0;return h1?B.redH1:B.redH2;}
@@ -440,7 +447,10 @@ function makeEngine(match){
     if(clutch>0)push(`Clutch 85'+ (cap +${CAPS.CLUTCH})`,r1(clutch));
     const posSub=Math.max(0,baseTot-conc-neg)+dif+Math.max(0,ctx)+clutch;
     const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
-    if(dvg>0.05)push(`DvG underdog ×${dm.toFixed(3)}`,r1(dvg));
+    if(dvg>0.05){
+      const isVisit=!match.neutral && p.team===match.awayCode;
+      push(`${isVisit?"Bônus visitante":"DvG underdog"} ×${dm.toFixed(3)}`,r1(dvg));
+    }
     let tact=0;const T=TACTICS[tacticKey];
     // TÁTICA — assimetria proposital entre ACERTAR e ERRAR:
     //  • COMPLETA (full): cada jogador ganha um bônus PROPORCIONAL à própria
