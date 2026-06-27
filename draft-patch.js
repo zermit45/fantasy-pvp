@@ -375,7 +375,7 @@
       var own=owner[p.key];
       var face=dphoto(p);
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
-      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||12));
+      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||6));
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
       var clickable = !own;
       var devBtn=(own && typeof isAdmin==="function" && isAdmin())
@@ -454,7 +454,7 @@
       var own=owner[p.key];
       var face=dphoto(p);
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
-      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||12));
+      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||6));
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
       var pickBtn = own
         ? '<span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'
@@ -549,7 +549,7 @@
     if(me){
       var moedas=Math.max(0, Number(me.budget_left||0));
       var nRoster=myRoster.length;
-      var limite=(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||12));
+      var limite=(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||6));
       var budgetOn=draftSetting(s,"budget_enabled",true);
       var limitOn=draftSetting(s,"roster_limit_enabled",true);
       // meta de elenco: quanto pode gastar por jogador garantindo completar os 12
@@ -692,6 +692,12 @@
     if(!confirm("RESETAR a temporada inteira? Remove TODOS os jogadores de TODOS os managers e devolve o orçamento. Não dá pra desfazer."))return;
     try{
       await sbDelete("draft_rosters","season_id=eq."+s.id);
+      // alinha o tamanho do elenco ao PvP (5 titulares + banco = 6) e limpa banidos/punições
+      try{
+        var st=Object.assign({}, s.settings||{}); st.banned_players=[]; st.roster_penalties={};
+        await sbUpdate("draft_seasons",{roster_limit:6,settings:st},"id=eq."+s.id);
+        s.roster_limit=6; s.settings=st;
+      }catch(e){}
       // devolve budget cheio a todos os times
       var budget=Number(s.budget||300);
       var teams=APP.draftTeams||[];
@@ -810,12 +816,26 @@
     var m={}; try{ (catFn()||[]).forEach(function(p){m[p.key]=p;}); }catch(e){}
     return m;
   }
+  // limites da ESCALAÇÃO (sempre ativos): o elenco tem que formar GK, DEF, MEI, ATA, FLEX e BANCO
+  // (5 titulares + banco, igual ao PvP). Logo: no máx 3 de uma posição de linha, e 1 de cada obrigatória.
+  var POS_MAX={GK:2, DEF:3, MID:3, ATT:3};
+  var POS_REQ=["GK","DEF","MID","ATT"];
   function violacao(s, cat, mine){
-    var c=caps(s); if(!c||!Object.keys(c).length)return null;
     var byKey=catalogByKey();
-    // resolve os atributos dos jogadores que já tenho
     var meus=mine.map(function(r){ return byKey[r.player_key]||{team:r.player_team,pos:r.pos}; });
-
+    // (1) máximo por posição (ex.: no máximo 3 atacantes)
+    if(cat.pos && POS_MAX[cat.pos]!=null){
+      var nPos=meus.filter(function(p){return p&&p.pos===cat.pos;}).length;
+      if(nPos>=POS_MAX[cat.pos]) return "posição "+cat.pos+" (máx "+POS_MAX[cat.pos]+")";
+    }
+    // (2) reserva vaga pras posições obrigatórias que ainda faltam (pra dar pra completar o time)
+    var limit=Number((s&&s.roster_limit)||6);
+    var tenho={}; meus.forEach(function(p){ if(p&&p.pos) tenho[p.pos]=(tenho[p.pos]||0)+1; });
+    var faltamDepois=POS_REQ.filter(function(p){return p!==cat.pos && !tenho[p];}).length;
+    var slotsDepois=limit-(meus.length+1);
+    if(faltamDepois>slotsDepois) return "reserve vaga p/ completar GK/DEF/MEI/ATA";
+    // (3) limites configuráveis pelo admin (país, liga, seleção, clube, idade…)
+    var c=caps(s); if(!c||!Object.keys(c).length)return null;
     function contaMesma(attr){ return meus.filter(function(p){return p&&p[attr]!=null&&p[attr]===cat[attr];}).length; }
 
     if(c.country&&c.country.enabled&&cat.country){
@@ -1190,33 +1210,69 @@
   function a2RosterCount(u){ return (APP.draftRosters||[]).filter(function(r){return r.username===u;}).length; }
   // "vaga a menos" por punição — guardada em settings.roster_penalties (sem coluna nova no banco)
   function a2RosterPenalty(u){ try{ var s=APP.draftSeason; var pe=(s&&s.settings&&s.settings.roster_penalties)||{}; return Number(pe[u])||0; }catch(e){ return 0; } }
-  function a2RosterLimit(u){ var s=APP.draftSeason; return Math.max(0, Number((s&&s.roster_limit)||12) - a2RosterPenalty(u)); }
+  function a2RosterLimit(u){ var s=APP.draftSeason; return Math.max(0, Number((s&&s.roster_limit)||6) - a2RosterPenalty(u)); }
   window.__a2RosterLimit=a2RosterLimit;
   // PUNIÇÃO da consolação: perde o jogador + CARO do elenco (sem reembolso) e fica com 1 vaga a menos.
   // Só é aplicada a quem perdeu a disputa e NÃO tinha como pegar ninguém na faixa (sem saldo/sem opção).
-  async function a2ApplyConsoPenalty(u){
+  // perde o jogador + CARO do elenco: sai do jogo (banido, não volta ao mercado), SEM reembolso.
+  // withSlotPenalty=true também tira 1 vaga do elenco (usado na consolação).
+  async function a2LoseTopPlayer(u, withSlotPenalty){
     var s=APP.draftSeason; if(!s)return null;
     var mine=(APP.draftRosters||[]).filter(function(r){return r.username===u;});
     var worst=null, wp=-1;
     mine.forEach(function(r){ var p=Number(r.acquired_price||r.current_price||r.base_price||0); if(p>wp){wp=p;worst=r;} });
     var settings=Object.assign({}, s.settings||{});
     if(worst){
-      // tira do elenco (perde de verdade) — SEM reembolso (não devolve budget_left)
       await sbDelete("draft_rosters","season_id=eq."+s.id+"&player_key=eq."+encodeURIComponent(worst.player_key)+"&username=eq."+encodeURIComponent(u));
-      // jogador sai do JOGO: vai pra lista de banidos → NÃO volta ao mercado, ninguém pega
       var ban=(settings.banned_players||[]).slice();
       if(ban.indexOf(worst.player_key)<0) ban.push(worst.player_key);
-      settings.banned_players=ban;
-      try{ await sbInsert("draft_transactions",{season_id:s.id,username:u,type:"conso_penalty",player_key:worst.player_key,player_name:worst.player_name,amount:0,meta:{motivo:"sem jogador na faixa — punição (banido, sem reembolso)",via:"leilao2.0"}}); }catch(e){}
+      settings.banned_players=ban; // sai do jogo: não volta ao mercado, sem reembolso
+      try{ await sbInsert("draft_transactions",{season_id:s.id,username:u,type:"conso_penalty",player_key:worst.player_key,player_name:worst.player_name,amount:0,meta:{motivo:"punição (banido, sem reembolso)",via:"leilao2.0"}}); }catch(e){}
     }
-    // +1 vaga a menos (perde o jogador E o que gastou nele)
-    var pens=Object.assign({}, settings.roster_penalties||{});
-    pens[u]=(Number(pens[u])||0)+1;
-    settings.roster_penalties=pens;
+    if(withSlotPenalty){
+      var pens=Object.assign({}, settings.roster_penalties||{});
+      pens[u]=(Number(pens[u])||0)+1;
+      settings.roster_penalties=pens;
+    }
     await sbUpdate("draft_seasons",{settings:settings},"id=eq."+s.id);
     s.settings=settings;
     return worst;
   }
+  async function a2ApplyConsoPenalty(u){ return a2LoseTopPlayer(u, true); }
+  // consegue comprar ALGUM jogador com o saldo atual? (respeitando limites de elenco)
+  function a2CanPickAny(u){
+    try{
+      var bud=a2budget(u);
+      var mineR=(APP.draftRosters||[]).filter(function(r){return r.username===u;});
+      return a2freeAgents().some(function(p){
+        if(Number(p.price)>bud) return false;
+        if(typeof window.__draftViolacao==="function" && window.__draftViolacao(APP.draftSeason,p,mineR)) return false;
+        return true;
+      });
+    }catch(e){ return true; }
+  }
+  window.__a2CanPickAny=a2CanPickAny;
+  // PASSAR o round no picking (só quem não consegue comprar ninguém): perde o + caro, sem vaga a menos
+  window.a2PickPass=async function(){
+    var s=APP.draftSeason, r=APP.a2Round, u=a2me();
+    if(!s||!r||!u||r.status!=="picking")return;
+    if(a2CanPickAny(u)){ toast&&toast("Você ainda consegue comprar — escolha um jogador."); return; }
+    if((APP.a2Picks||[]).some(function(x){return x.username===u&&!x.is_consolation;})){ return; }
+    if(typeof confirm==="function" && !confirm("⚠️ Passar o round?\n\nVocê não tem saldo pra comprar ninguém. Ao passar, você PERDE o jogador mais caro do seu time (sem reembolso, ele sai do jogo).\n\nConfirmar?"))return;
+    if(APP._a2Lock)return; APP._a2Lock=true;
+    try{
+      // registra o passe (conta como "escolheu" pra o round poder avançar), sem jogador
+      await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+        player_key:"__passed__",player_name:"(passou)",player_pos:null,player_price:0,
+        bid:null,state:"passed",is_consolation:false}, true,"round_id,username,is_consolation");
+      var lost=await a2LoseTopPlayer(u, false);
+      await a2Load();
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
+      reRenderKeep();
+      toast&&toast("Você passou o round. Punição: perdeu "+(lost?lost.player_name:"o + caro")+".");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
+  };
   function a2MinFreePrice(){
     var owned={}; (APP.draftRosters||[]).forEach(function(r){owned[r.player_key]=1;});
     var free=(catFnSafe()||[]).filter(function(p){return !owned[p.key];});
@@ -1327,7 +1383,7 @@
   window.a2Reveal=async function(){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
     try{
-      var picks=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation && x.player_key;});
+      var picks=(APP.a2Picks||[]).filter(function(x){return !x.is_consolation && x.player_key && x.state!=="passed";});
       var byPlayer={}; picks.forEach(function(x){(byPlayer[x.player_key]=byPlayer[x.player_key]||[]).push(x);});
       for(var pk in byPlayer){
         var grp=byPlayer[pk];
@@ -1712,15 +1768,33 @@
           if(typeof window.__draftViolacao==="function" && window.__draftViolacao(s,p,mineBot)) return false;
           return true;
         }); }
-        var free=botFree(ms).sort(function(a,b){return b.price-a.price;});
-        var pick;
+        var free=botFree(ms);
+        // PRIORIZA completar as posições obrigatórias que ainda faltam (GK/DEF/MEI/ATA) → time válido
+        var tenhoB={}; mineBot.forEach(function(rr){ if(rr.pos) tenhoB[rr.pos]=(tenhoB[rr.pos]||0)+1; });
+        var faltandoB=["GK","DEF","MID","ATT"].filter(function(p){return !tenhoB[p];});
+        if(faltandoB.length){
+          var prefer=free.filter(function(p){return faltandoB.indexOf(p.pos)>=0;});
+          if(prefer.length) free=prefer;
+        }
+        free.sort(function(a,b){return b.price-a.price;});
+        var pick=null;
         if(free.length){
           pick=free[Math.floor(Math.random()*Math.min(3,free.length))];
         } else {
-          // último recurso (não trava o round): pega o MAIS BARATO que o saldo paga
-          var any=botFree(a2budget(u)).sort(function(a,b){return a.price-b.price;});
-          if(!any.length){ erros.push(u+": sem jogador que caiba no saldo"); continue; }
-          pick=any[0];
+          var any=botFree(a2budget(u));
+          if(faltandoB.length){ var anyP=any.filter(function(p){return faltandoB.indexOf(p.pos)>=0;}); if(anyP.length) any=anyP; }
+          any.sort(function(a,b){return a.price-b.price;});
+          if(any.length) pick=any[0];
+        }
+        if(!pick){
+          // bot sem saldo pra ninguém → passa o round (perde o + caro), pra NÃO travar
+          try{
+            await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+              player_key:"__passed__",player_name:"(passou)",player_pos:null,player_price:0,
+              bid:null,state:"passed",is_consolation:false}, true,"round_id,username,is_consolation");
+            await a2LoseTopPlayer(u, false); feitos++;
+          }catch(e){ erros.push(u+": "+e.message); }
+          continue;
         }
         try{
           var res=await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
@@ -1953,6 +2027,10 @@
         h+='<button class="btn" style="margin:4px 0 8px;background:'+(allIn0?"var(--amber)":"var(--panel2)")+';color:'+(allIn0?"#1a1206":"var(--dim)")+'" onclick="a2Reveal()">🔓 Revelar escolhas e resolver'+(allIn0?"":" (faltam "+(nTeams-nPicked)+")")+'</button>';
       }
       h+='<p class="p" style="font-size:12px;color:var(--amber);margin:6px 0;font-weight:700">🔨 Escolha 1 jogador pro leilão (em segredo) · saldo <span style="color:var(--gold)">'+a2budget(me)+'</span></p>';
+      if(!a2CanPickAny(me)){
+        h+='<div style="font-size:12px;color:var(--red);margin:8px 0;text-align:center">⚠️ Você não tem saldo pra comprar nenhum jogador. Pode passar o round, mas <b>perde o jogador mais caro</b> do seu time (ele sai do jogo).</div>';
+        h+='<button class="btn" style="background:var(--red);color:#fff;margin-bottom:8px" onclick="window.a2PickPass()">Passar round (perde o + caro)</button>';
+      }
       h+='</div>';
       // usa a tela COMPLETA do mercado (cor por posição, busca, filtros, info, paginação)
       try{
