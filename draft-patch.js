@@ -18,10 +18,16 @@
 
   // foto do jogador na linha do draft: usa playerPortraitHTML (resolve por nome+time),
   // que cai pra iniciais se não achar foto. CSS .microface já existe no app.
+  var _dphotoCache={};
   function dphoto(p){
     try{
       if(typeof window.playerPortraitHTML!=="function") return "";
-      return '<span class="dface">'+window.playerPortraitHTML({name:p.name,team:p.team,pos:p.pos},"microface")+'</span>';
+      // memoiza por jogador: a foto não muda, então resolve o lookup (caro) só 1x
+      var k=(p&&p.key)||((p&&p.name||"")+"|"+(p&&p.team||""));
+      var c=_dphotoCache[k]; if(c!==undefined) return c;
+      var html='<span class="dface">'+window.playerPortraitHTML({name:p.name,team:p.team,pos:p.pos},"microface")+'</span>';
+      _dphotoCache[k]=html;
+      return html;
     }catch(e){ return ""; }
   }
   window.__dphoto=dphoto;

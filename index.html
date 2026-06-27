@@ -563,7 +563,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="app-part3.js?v=prox-20260627"></script>
 <script src="app-part4.js?v=releilao-bots-20260627"></script>
 <script src="app-part5.js?v=releilao-bots-20260627"></script>
-<script src="app-part6.js?v=photo-v4-bgfix"></script>
+<script src="app-part6.js?v=dream-fotos-20260627"></script>
 
 <script>
 /* HELPER RETRATOS V3 — usado em Draft/Resultados/Base */
@@ -577,19 +577,32 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
     try{ return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,""); }
     catch(e){ return String(v||"").toLowerCase().replace(/[^a-z0-9]/g,""); }
   }
-  function findMetaByNameTeam(name, team){
+  var _metaIdx=null, _metaIdxN=-1;
+  function buildMetaIdx(){
+    var idx={};
     try{
-      var gn = norm(name), gt = String(team||"");
-      var data = (window.GAMES && window.GAMES.data) ? window.GAMES.data : {};
+      var data=(window.GAMES && window.GAMES.data) ? window.GAMES.data : {};
       for(var rid in data){
         var ps = data[rid] && data[rid].prepool && data[rid].prepool.players ? data[rid].prepool.players : [];
         for(var i=0;i<ps.length;i++){
-          var p = ps[i];
-          if(gt && String(p.team) !== gt) continue;
-          if(norm(p.name) !== gn) continue;
-          return {roomId:rid,id:p.id,team:p.team,name:p.name,pos:p.pos};
+          var p=ps[i], kn=norm(p.name), kt=kn+"|"+String(p.team||"");
+          if(idx[kt]===undefined) idx[kt]={roomId:rid,id:p.id,team:p.team,name:p.name,pos:p.pos};
+          if(idx[kn]===undefined) idx[kn]={roomId:rid,id:p.id,team:p.team,name:p.name,pos:p.pos};
         }
       }
+    }catch(e){}
+    return idx;
+  }
+  function findMetaByNameTeam(name, team){
+    try{
+      var data=(window.GAMES && window.GAMES.data) ? window.GAMES.data : {};
+      var n=0; for(var _r in data) n++;
+      if(!_metaIdx || n!==_metaIdxN){ _metaIdx=buildMetaIdx(); _metaIdxN=n; }
+      var gn=norm(name), gt=String(team||"");
+      var hit=_metaIdx[gn+"|"+gt];
+      if(hit) return hit;
+      if(!gt){ var h2=_metaIdx[gn]; if(h2) return h2; }
+      return null;
     }catch(e){}
     return null;
   }
@@ -772,6 +785,6 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 })();
 </script>
 
-<script src="draft-patch.js?v=conso-volMEI-20260627"></script>
+<script src="draft-patch.js?v=perf-dphoto-20260627"></script>
 </body>
 </html>
