@@ -187,6 +187,9 @@ function roundStatusSnapshot(){
   const entries=APP.roundEntries||[];
   const total=rooms.length;
   const mounted=rooms.filter(rr=>hasTeam(rr.room_id)).length;
+  // escalação só vira PENDÊNCIA quando o jogo já travou sem time montado.
+  // jogos ainda abertos podem ser escalados depois (a trava é por jogo, não global).
+  const escalacoesPerdidas=rooms.filter(rr=>roomLockedInRound(rr.room_id)&&!hasTeam(rr.room_id)).length;
   const confirmed=boostConfirmed();
   const chipsLeft=mode==="boost"?chipsAvailable().length:0;
   const confDone=mode==="confianca"?confRankedCount():0;
@@ -197,21 +200,31 @@ function roundStatusSnapshot(){
     mode==="previsao"?mounted===total&&predDone===total&&confirmed:
     allGamesModes.has(mode)?mounted===total:
     true;
-  return {mode,total,mounted,confirmed,chipsLeft,confDone,predDone,ready};
+  return {mode,total,mounted,confirmed,chipsLeft,confDone,predDone,ready,escalacoesPerdidas};
 }
 function roundTodoHTML(){
   const s=roundStatusSnapshot(), mode=s.mode;
   if(!s.total)return"";
   const items=[];
-  items.push({ok:s.mounted===s.total,label:"Escalações",value:`${s.mounted}/${s.total}`});
+  // Escalações: só é pendência (vermelho) se algum jogo JÁ TRAVOU sem time.
+  // Jogos ainda abertos aparecem como progresso normal, não como erro.
+  const escOk = s.escalacoesPerdidas===0;
+  const escValue = escOk
+    ? `${s.mounted}/${s.total}`
+    : `${s.escalacoesPerdidas} perdida${s.escalacoesPerdidas>1?"s":""}`;
+  items.push({ok:escOk,label:"Escalações",value:escValue});
   if(mode==="boost")items.push({ok:s.chipsLeft===0,label:"Fichas usadas",value:s.chipsLeft===0?"tudo certo":`${s.chipsLeft} faltando`});
   if(mode==="confianca")items.push({ok:s.confDone===s.total,label:"Ordem de confiança",value:`${s.confDone}/${s.total}`});
   if(mode==="previsao")items.push({ok:s.predDone===s.total,label:"Palpites",value:`${s.predDone}/${s.total}`});
   if(mode==="boost"||mode==="confianca"||mode==="previsao")items.push({ok:s.confirmed,label:"Confirmação",value:s.confirmed?"confirmado":"pendente"});
   const missing=items.filter(i=>!i.ok).length;
+  const aindaAbertos=s.total-s.mounted-s.escalacoesPerdidas; // jogos sem time que AINDA dá pra escalar
+  const okMsg = aindaAbertos>0
+    ? `Nada pendente por enquanto. Você ainda pode escalar ${aindaAbertos} jogo${aindaAbertos>1?"s":""} — cada um trava só quando aquela partida começa.`
+    : "Sua mini rodada está redonda. Só acompanhar os jogos.";
   return `<div class="card" style="border-color:${missing?"var(--amber)":"var(--green)"}">
     <div class="h2 disp">${missing?"⚠️ Minhas pendências":"✅ Tudo pronto"}</div>
-    <p class="p">${missing?"Resolva isso antes da trava para não zerar/ficar incompleto.":"Sua mini rodada está redonda. Só acompanhar os jogos."}</p>
+    <p class="p">${missing?"Resolva isso antes da trava para não zerar/ficar incompleto.":okMsg}</p>
     <div class="dashgrid">
       ${items.slice(0,4).map(i=>`<div class="dashitem"><b>${esc(i.value)}</b><span>${esc(i.label)}</span></div>`).join("")}
     </div>
