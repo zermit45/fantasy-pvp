@@ -2,6 +2,12 @@
 // FLAGS — bandeira por emoji a partir do código do país (3 letras).
 // Sem arquivos de imagem: usa emoji nativo (🇧🇷🇳🇱🇯🇵).
 // Uso: flagOf("BIH") -> "🇧🇦"  |  window.flagOf
+//
+// CLUBES (Brasileirão): quando o código é de um clube com escudo cadastrado
+// em window.crestOf(code) (definido em fotos-brasileirao.js), flagOf devolve
+// uma <img> do escudo no lugar do emoji. Como flaggedName e flagsOf chamam
+// flagOf internamente, os escudos aparecem em TODOS os lugares onde antes
+// só havia bandeira de país.
 // ============================================================
 (function(){
 "use strict";
@@ -68,16 +74,35 @@ function iso2toEmoji(cc){
   var A=0x1F1E6, base="A".charCodeAt(0);
   return String.fromCodePoint(A+(cc.charCodeAt(0)-base)) + String.fromCodePoint(A+(cc.charCodeAt(1)-base));
 }
-// API principal: code de 3 letras -> emoji (string vazia se desconhecido)
+
+// escudo de clube como <img>, quando houver crestOf(code). Pequeno, alinhado ao
+// texto, com o mesmo "espírito" visual do emoji de bandeira.
+function clubCrestImg(code){
+  try{
+    if(typeof window.crestOf !== "function") return "";
+    var url = window.crestOf(code);
+    if(!url) return "";
+    return '<img src="'+url+'" alt="'+code+'" class="club-crest" '
+         + 'style="height:1.05em;width:1.05em;object-fit:contain;vertical-align:-0.18em;border-radius:3px" '
+         + 'loading="lazy" decoding="async" '
+         + 'onerror="this.style.display=\'none\'">';
+  }catch(e){ return ""; }
+}
+
+// API principal: code de 3 letras -> emoji OU <img> de escudo (string vazia se desconhecido)
 window.flagOf = function(code){
   if(!code) return "";
   var c = String(code).toUpperCase().trim();
+  // 1) clube com escudo cadastrado? usa o escudo
+  var crest = clubCrestImg(c);
+  if(crest) return crest;
+  // 2) país: emoji de bandeira
   var iso = ISO3to2[c];
   if(!iso) return "";
   if(SUBFLAG[iso]) return SUBFLAG[iso];
   return iso2toEmoji(iso);
 };
-// monta o nome do confronto com bandeiras: "Casa 🇧🇦 × 🇶🇦 Fora".
+// monta o nome do confronto com bandeiras/escudos: "Casa 🇧🇦 × 🇶🇦 Fora".
 // roomId -> usa o prepool do jogo pra achar os codes. Se não achar, usa fallbackName.
 window.flaggedName = function(roomId, fallbackName){
   try{
@@ -91,7 +116,7 @@ window.flaggedName = function(roomId, fallbackName){
   return fallbackName||"";
 };
 
-// retorna partes do confronto pra montar cards: bandeiras, nomes e codes.
+// retorna partes do confronto pra montar cards: bandeiras/escudos, nomes e codes.
 window.flagsOf = function(roomId){
   try{
     var g = window.GAMES && window.GAMES.data ? window.GAMES.data[roomId] : null;
