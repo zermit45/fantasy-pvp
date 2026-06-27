@@ -346,6 +346,23 @@
       !(APP.a2Picks||[]).some(function(x){return x.username===(APP.user&&APP.user.username)&&!x.is_consolation;}); }catch(e){}
     var _a2ums=(_a2pickMode && _budgetOn && me && typeof window.__a2MaxSpend==="function") ? window.__a2MaxSpend(APP.user&&APP.user.username) : null;
 
+    // ─ modo CONSOLAÇÃO: usuário perdeu, ainda não consolou e não está num mini-leilão → mercado filtrado pela faixa ─
+    var _a2consoMode=false, _a2consoLostId=null, _a2consoCap=Infinity;
+    try{
+      var rr=APP.a2Round;
+      if(rr && rr.status==="consolation" && APP.user){
+        var myUser=APP.user.username;
+        var myLost=(APP.a2Picks||[]).find(function(x){return x.state==="lost"&&x.username===myUser;});
+        var jaConsolou=(APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===myUser&&x.state==="consoled";});
+        var emDisputa=(APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===myUser&&x.conflict_key&&x.state!=="lost";});
+        if(myLost && !jaConsolou && !emDisputa){
+          _a2consoMode=true; _a2consoLostId=myLost.id;
+          _a2consoCap=Math.floor(Number(myLost.player_price)*(Number(rr.conso_pct)||70)/100);
+        }
+      }
+    }catch(e){}
+    var _a2consoUms=(_a2consoMode && _budgetOn && me && typeof window.__a2MaxSpend==="function") ? window.__a2MaxSpend(APP.user&&APP.user.username) : null;
+
     var rows=pageItems.map(function(p){
       var own=owner[p.key];
       var face=dphoto(p);
@@ -361,10 +378,12 @@
       var starBtn='<span class="daychip" style="font-size:11px;padding:2px 8px;margin-left:4px;border-color:'+(starOn?"var(--amber)":"var(--line)")+';color:'+(starOn?"var(--amber)":"var(--dim)")+'" onclick="event.stopPropagation();dMktToggleWatch(\''+esc(p.key)+'\')">'+(starOn?"★":"☆")+'</span>';
       // modo leilão: usa o valor já calculado fora do loop
       var a2pickMode=_a2pickMode;
-      var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')") : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):"");
+      var clickAction = a2pickMode ? ("a2Pick('"+esc(p.key)+"')")
+        : (_a2consoMode ? ("a2ConsoPick('"+_a2consoLostId+"','"+esc(p.key)+"')")
+        : (clickable?("buyDraftPlayer('"+esc(p.key)+"')"):""));
       // bloqueio de compra: sem moedas (duro) OU quebra a reserva pra completar o elenco.
       var blockBuy=false, blockTag="";
-      if(!a2pickMode && !own && _budgetOn && me){
+      if(!a2pickMode && !_a2consoMode && !own && _budgetOn && me){
         if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
         else if(_bInfo && _bInfo.canComplete && p.price>_bInfo.maxSpend){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
       }
@@ -372,6 +391,12 @@
       if(a2pickMode && !own && _budgetOn && me && _a2ums!=null){
         if(p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
         else if(p.price>_a2ums){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
+      }
+      // CONSOLAÇÃO: respeita a faixa (cap), saldo e reserva
+      if(_a2consoMode && !own && me){
+        if(p.price>_a2consoCap){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 acima da faixa</span>'; }
+        else if(_budgetOn && p.price>_budget){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 sem moedas</span>'; }
+        else if(_budgetOn && _a2consoUms!=null && p.price>_a2consoUms){ blockBuy=true; blockTag='<span style="font-size:9px;color:var(--red);display:block;margin-top:2px">🔒 precisa reservar p/ completar</span>'; }
       }
       var rowClickable = a2pickMode ? (!own && !blockBuy) : (clickable && !blockBuy);
       var disClass=(own||blockBuy)?"dis":"";
@@ -1463,6 +1488,77 @@
     finally{ APP._a2Lock=false; }
   };
 
+  // cap (faixa) da consolação de um usuário, a partir do jogador que ele perdeu
+  function a2ConsoCap(u){
+    var r=APP.a2Round; if(!r)return Infinity;
+    var lost=(APP.a2Picks||[]).find(function(x){return x.state==="lost"&&x.username===u;});
+    return lost?Math.floor(Number(lost.player_price)*(Number(r.conso_pct)||70)/100):Infinity;
+  }
+  // ---- oferta SECRETA num mini-leilão de consolação (às cegas) ----
+  window.a2ConsoSealBid=async function(pickId, value){
+    var s=APP.draftSeason, r=APP.a2Round;
+    var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(pickId);});
+    if(!pk||!pk.is_consolation)return;
+    var floor=Math.max(Number(pk.player_price), Number(pk.bid||0)); // no desempate, não menos que o empate anterior
+    var cap=a2ConsoCap(pk.username);
+    var v=parseInt(value,10)||0;
+    if(v<floor){ toast&&toast("Sua oferta precisa ser pelo menos "+floor+"."); return; }
+    if(v>cap){ toast&&toast("Acima da faixa de consolação ("+cap+")."); return; }
+    if(v>a2budget(pk.username)){ toast&&toast("Oferta acima do seu saldo."); return; }
+    var ms=a2MaxSpend(pk.username);
+    if(v>ms){ toast&&toast("Essa oferta te impede de completar o elenco. Pode ir até "+ms+"."); return; }
+    if(typeof confirm==="function" && !confirm("Confirmar sua oferta SECRETA de "+v+"?\n\nQuem ofertar mais leva o jogador. Quem perder escolhe outro na mesma faixa.")) return;
+    if(APP._a2Lock)return; APP._a2Lock=true;
+    try{ await sbUpdate("draft_picks",{bid:v,state:"sealed"},"id=eq."+pk.id); await a2Load(); reRenderKeep();
+      toast&&toast("Oferta secreta enviada."); }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
+  };
+  // ---- admin revela e decide um mini-leilão de consolação ----
+  window.a2ConsoResolve=async function(conflictKey){
+    var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
+    if(APP._a2Lock)return; APP._a2Lock=true;
+    try{
+      await a2Load();
+      var grp=(APP.a2Picks||[]).filter(function(x){return x.is_consolation&&x.conflict_key===conflictKey&&(x.state==="picked"||x.state==="sealed");});
+      if(grp.length<2){ APP._a2Lock=false; return; }
+      var maxBid=0; grp.forEach(function(x){ var b=Number(x.bid||x.player_price); if(b>maxBid)maxBid=b; });
+      var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
+      var low=grp.filter(function(x){return Number(x.bid||x.player_price)<maxBid;});
+      var winner=null, paid=maxBid;
+      if(tied.length===1){ winner=tied[0]; }
+      else {
+        // empate no topo: algum empatado consegue subir? (teto = faixa, saldo, reserva e, p/ bot, o quanto valoriza)
+        var podeSubir=tied.some(function(x){
+          var teto=Math.min(a2ConsoCap(x.username), a2budget(x.username), a2MaxSpend(x.username));
+          if(A2_BOTS.indexOf(x.username)>=0) teto=Math.min(teto, a2BotMax(x.username,x));
+          return teto>maxBid;
+        });
+        if(podeSubir){
+          // nova rodada secreta SÓ entre os empatados; os de oferta menor saem e reescolhem (deleta)
+          for(var i=0;i<low.length;i++) await sbDelete("draft_picks","id=eq."+low[i].id);
+          for(var j=0;j<tied.length;j++) await sbUpdate("draft_picks",{state:"picked",bid:maxBid},"id=eq."+tied[j].id);
+          APP.a2Seen={};
+          await a2Load(); reRenderKeep();
+          toast&&toast("Empate em "+maxBid+"! Nova rodada de ofertas secretas entre os empatados.");
+          APP._a2Lock=false; return;
+        }
+        // ninguém sobe → maior saldo decide (sorteio se igual)
+        tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
+        var topB=a2budget(tied[0].username);
+        var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
+        winner=topTied[Math.floor(Math.random()*topTied.length)];
+      }
+      // concede ao vencedor; perdedores voltam a escolher (deleta o pick de consolação deles)
+      await a2GrantPlayer(winner, paid);
+      await sbUpdate("draft_picks",{state:"consoled",conflict_key:null},"id=eq."+winner.id);
+      for(var k=0;k<grp.length;k++){ if(grp[k].id!==winner.id) await sbDelete("draft_picks","id=eq."+grp[k].id); }
+      toast&&toast(winner.username+" levou "+winner.player_name+" por "+paid+". Quem perdeu escolhe outro na mesma faixa.");
+      if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
+      await a2Load(); reRenderKeep();
+    }catch(e){ toast&&toast("Erro: "+e.message); }
+    finally{ APP._a2Lock=false; }
+  };
+
   // ---- admin encerra o round ----
   window.a2CloseRound=async function(){
     var r=APP.a2Round; if(!r||!a2CanManage())return;
@@ -1616,36 +1712,58 @@
   // bots escolhem na consolação (pegam o melhor da faixa)
   window.a2BotsConso=async function(){
     var s=APP.draftSeason, r=APP.a2Round; if(!s||!r||!a2CanManage())return;
-    var feitos=0, erros=[];
     try{
       await a2Load();
-      var losers=(APP.a2Picks||[]).filter(function(x){return x.state==="lost"&&A2_BOTS.indexOf(x.username)>=0;});
-      for(var i=0;i<losers.length;i++){
-        var lost=losers[i], u=lost.username;
-        // já fez a consolação?
-        if((APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===u&&x.state==="consoled";})) continue;
+      var picks=APP.a2Picks||[];
+      // PASSO 1: há mini-leilões de consolação com bots que ainda não selaram? → bots ofertam (secreto)
+      var conf={};
+      picks.forEach(function(x){ if(x.is_consolation&&x.conflict_key&&(x.state==="picked"||x.state==="sealed")) (conf[x.conflict_key]=conf[x.conflict_key]||[]).push(x); });
+      var selou=0;
+      for(var ck in conf){
+        var grp=conf[ck];
+        for(var i=0;i<grp.length;i++){
+          var x=grp[i];
+          if(A2_BOTS.indexOf(x.username)<0 || x.state==="sealed") continue;
+          var teto=Math.min(a2ConsoCap(x.username), a2budget(x.username), a2MaxSpend(x.username), a2BotMax(x.username,x));
+          var floor=Math.max(Number(x.player_price), Number(x.bid||0));
+          var v=Math.max(floor, Math.min(teto, floor+Math.floor(Math.random()*Math.max(1,(teto-floor)+1))));
+          await sbUpdate("draft_picks",{bid:v,state:"sealed"},"id=eq."+x.id);
+          selou++;
+        }
+      }
+      if(selou>0){ await a2Load(); reRenderKeep(); toast&&toast("Bots enviaram "+selou+" oferta(s) secreta(s). Agora revele cada disputa."); return; }
+
+      // PASSO 2: bots que perderam e ainda não escolheram → escolhem (sem conceder ainda)
+      var losers=picks.filter(function(p){return p.state==="lost"&&A2_BOTS.indexOf(p.username)>=0;});
+      var escolheu=0, erros=[];
+      for(var li=0;li<losers.length;li++){
+        var lost=losers[li], u=lost.username;
+        if(picks.some(function(p){return p.is_consolation&&p.username===u&&(p.state==="consoled"||p.state==="picked"||p.state==="sealed");})) continue;
         var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
         var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2MaxSpend(u);}).sort(function(a,b){return b.price-a.price;});
         if(!opts.length){ erros.push(u+": sem jogador na faixa "+cap); continue; }
-        var p=opts[0];
-        try{
-          // insere a escolha de consolação do bot
-          await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
-            player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
-            bid:(r.mode==="priority"?null:p.price),state:"picked",is_consolation:true},
-            true,"round_id,username,is_consolation");
-          // concede direto ao bot (sem passar pelo a2ConsoPick que checa usuário logado)
-          await a2GrantPlayer({username:u,player_key:p.key,player_name:p.name,player_pos:p.pos}, p.price);
-          await a2Load();
-          var mine=(APP.a2Picks||[]).find(function(x){return x.is_consolation&&x.player_key===p.key&&x.username===u;});
-          if(mine) await sbUpdate("draft_picks",{state:"consoled"},"id=eq."+mine.id);
-          feitos++;
-        }catch(e){ erros.push(u+": "+e.message); }
+        var p=opts[Math.floor(Math.random()*Math.min(3,opts.length))]; // varia um pouco p/ gerar disputas
+        await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
+          player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
+          bid:p.price,state:"picked",is_consolation:true},
+          true,"round_id,username,is_consolation");
+        escolheu++;
+      }
+      await a2Load(); picks=APP.a2Picks||[];
+
+      // PASSO 3: detecta disputas (2+ no mesmo jogador, sem conflict_key) → marca; sem disputa → concede
+      var byKey={};
+      picks.forEach(function(p){ if(p.is_consolation&&p.state==="picked"&&!p.conflict_key) (byKey[p.player_key]=byKey[p.player_key]||[]).push(p); });
+      var conflitos=0, concedidos=0;
+      for(var key in byKey){
+        var g=byKey[key];
+        if(g.length>1){ for(var j=0;j<g.length;j++) await sbUpdate("draft_picks",{conflict_key:"conso:"+key},"id=eq."+g[j].id); conflitos++; }
+        else { await a2GrantPlayer(g[0], Number(g[0].player_price)); await sbUpdate("draft_picks",{state:"consoled"},"id=eq."+g[0].id); concedidos++; }
       }
       if(typeof loadDraftSeason==="function") await loadDraftSeason(s.id);
       await a2Load(); reRenderKeep();
-      if(erros.length) toast&&toast("Consolação: "+feitos+" ok · "+erros[0]);
-      else toast&&toast("Bots escolheram a consolação ("+feitos+").");
+      var msg="Bots: "+concedidos+" concedido(s)"+(conflitos?(", "+conflitos+" disputa(s) — clique de novo p/ ofertarem"):"");
+      toast&&toast(erros.length?(msg+" · "+erros[0]):msg);
     }catch(e){ toast&&toast("Erro: "+e.message); }
   };
   // polling do leilão: a cada 4s checa o banco; só redesenha se o estado MUDOU
@@ -1855,23 +1973,62 @@
     return h+'</div>';
   }
   function a2ConsoPhase(s,r,me,admin){
-    var losers=(APP.a2Picks||[]).filter(function(x){return x.state==="lost";});
-    var h='<div class="card"><div class="lbl" style="font-size:11px;color:var(--dim);text-transform:uppercase">③ consolação · faixa até '+r.conso_pct+'%</div>';
-    losers.forEach(function(lost){
-      var alreadyConsoled=(APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===lost.username&&(x.state==="consoled");});
-      var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
-      h+='<div style="border:1px solid var(--line);border-radius:11px;padding:10px;margin:8px 0">';
-      h+='<div style="font-size:12px;color:var(--dim)">'+esc(lost.username)+' perdeu <b style="color:var(--chalk)">'+esc(lost.player_name)+'</b> → pega até <b style="color:var(--gold)">'+cap+'</b></div>';
-      if(alreadyConsoled){ h+='<div style="font-size:11px;color:var(--green);margin-top:4px">✓ já escolheu na consolação</div>'; }
-      else if(lost.username===me){
-        var opts=a2freeAgents().filter(function(p){return p.price<=cap && p.price<=a2budget(me);}).sort(function(a,b){return b.price-a.price;}).slice(0,25);
-        if(!opts.length) h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">Sem jogadores na sua faixa/saldo.</div>';
-        h+='<div style="margin-top:6px">'+opts.map(function(p){return '<div class="prow" style="cursor:pointer" onclick="a2ConsoPick(\''+lost.id+'\',\''+esc(p.key)+'\')">'+(window.__dphoto?window.__dphoto(p):"")+a2chip(p.pos)+' <b style="flex:1;margin:0 8px">'+esc(p.name)+'</b> <span style="color:var(--gold);font-weight:800">'+p.price+'</span></div>';}).join("")+'</div>';
-      } else { h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">aguardando '+esc(lost.username)+' escolher...</div>'; }
+    var picks=APP.a2Picks||[];
+    var losers=picks.filter(function(x){return x.state==="lost";});
+    var h='<div class="card"><div class="lbl" style="font-size:11px;color:var(--dim);text-transform:uppercase">③ consolação · faixa até '+r.conso_pct+'%</div></div>';
+
+    // (A) MINI-LEILÕES DE CONSOLAÇÃO (quando 2+ escolheram o mesmo jogador)
+    var conf={};
+    picks.forEach(function(x){ if(x.is_consolation&&x.conflict_key&&(x.state==="picked"||x.state==="sealed")) (conf[x.conflict_key]=conf[x.conflict_key]||[]).push(x); });
+    Object.keys(conf).forEach(function(ck){
+      var grp=conf[ck]; if(grp.length<2)return;
+      var nSel=grp.filter(function(x){return x.state==="sealed";}).length;
+      h+='<div class="card" style="border-color:var(--red);background:rgba(229,72,77,.06)">';
+      h+='<div style="font-weight:800;color:var(--chalk)">🔨 Disputa na consolação · '+esc(grp[0].player_name)+'</div>';
+      h+='<div style="font-size:11px;color:var(--dim);margin:3px 0 8px">disputado por: '+grp.map(function(x){return esc(x.username);}).join(", ")+'</div>';
+      var meu=grp.find(function(x){return x.username===me;});
+      if(meu){
+        if(meu.state==="sealed"){ h+='<div style="font-size:12px;color:var(--green)">✓ sua oferta secreta foi enviada.</div>'; }
+        else{
+          var pid="cseal_"+meu.id;
+          h+='<div style="display:flex;gap:6px;margin-top:4px">'
+            +'<input id="'+pid+'" type="number" inputmode="numeric" placeholder="oferta secreta (até '+a2ConsoCap(me)+')" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--chalk);padding:8px 10px;font-size:14px">'
+            +'<button class="btn sm" style="width:auto;background:var(--amber);color:#1a1206" onclick="(function(){var v=document.getElementById(\''+pid+'\').value;window.a2ConsoSealBid(\''+meu.id+'\',v);})()">enviar</button></div>';
+        }
+      }
+      if(admin){
+        h+='<div style="font-size:11px;color:var(--dim);margin-top:8px">Ofertas recebidas: <b>'+nSel+'/'+grp.length+'</b></div>';
+        h+='<button class="btn" style="margin-top:6px;background:var(--amber);color:#1a1206" onclick="window.a2ConsoResolve(\''+esc(ck)+'\')">🔓 Revelar ofertas e decidir</button>';
+      }
       h+='</div>';
     });
-    var allConsoled=losers.every(function(l){return (APP.a2Picks||[]).some(function(x){return x.is_consolation&&x.username===l.username&&x.state==="consoled";});});
-    if(admin && allConsoled) h+='<button class="btn" style="margin-top:10px;background:var(--green);color:#06210f" onclick="a2CloseRound()">✓ Encerrar round</button>';
-    return h+'</div>';
+
+    // (B) ESCOLHAS pendentes (perdedores que ainda precisam escolher)
+    losers.forEach(function(lost){
+      var consoled=picks.some(function(x){return x.is_consolation&&x.username===lost.username&&x.state==="consoled";});
+      var emDisputa=picks.some(function(x){return x.is_consolation&&x.username===lost.username&&x.conflict_key&&(x.state==="picked"||x.state==="sealed");});
+      var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
+      if(consoled||emDisputa){
+        h+='<div class="card" style="padding:8px 12px"><div style="font-size:12px;color:var(--dim)">'+esc(lost.username)+' perdeu <b style="color:var(--chalk)">'+esc(lost.player_name)+'</b> · '+(consoled?'<span style="color:var(--green)">✓ já escolheu</span>':'<span style="color:var(--amber)">em disputa…</span>')+'</div></div>';
+        return;
+      }
+      h+='<div class="card"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">'+esc(lost.username)+' perdeu <b style="color:var(--chalk)">'+esc(lost.player_name)+'</b> → pega até <b style="color:var(--gold)">'+cap+'</b></div>';
+      if(lost.username===me){
+        // MERCADO COMPLETO com filtros (nome/posição/time) — o computeResults já está em modo consolação
+        try{
+          var owner={}; (APP.draftRosters||[]).forEach(function(rr){owner[rr.player_key]=rr.username;});
+          var myRoster=(APP.draftRosters||[]).filter(function(rr){return APP.user&&rr.username===APP.user.username;});
+          var meTeam=(a2teams()||[]).find(function(t){return t.username===me;});
+          if(typeof window.__draftMarketHTML==="function") h+=window.__draftMarketHTML(s,meTeam,owner,myRoster);
+          else h+='<div class="p">Carregando mercado…</div>';
+        }catch(e){ h+='<div class="p">Erro no mercado: '+esc(e.message)+'</div>'; }
+      } else { h+='<div style="font-size:11px;color:var(--dim)">aguardando '+esc(lost.username)+' escolher...</div>'; }
+      h+='</div>';
+    });
+
+    var allConsoled=losers.every(function(l){return picks.some(function(x){return x.is_consolation&&x.username===l.username&&x.state==="consoled";});});
+    var semConflito=Object.keys(conf).length===0;
+    if(admin && allConsoled && semConflito) h+='<button class="btn" style="margin-top:10px;background:var(--green);color:#06210f" onclick="a2CloseRound()">✓ Encerrar round</button>';
+    return h;
   }
 })();
