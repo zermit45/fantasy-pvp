@@ -373,7 +373,7 @@
       var own=owner[p.key];
       var face=dphoto(p);
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
-      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
+      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||12));
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
       var clickable = !own;
       var devBtn=(own && typeof isAdmin==="function" && isAdmin())
@@ -452,7 +452,7 @@
       var own=owner[p.key];
       var face=dphoto(p);
       var moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
-      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
+      var rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||12));
       var can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
       var pickBtn = own
         ? '<span style="font-size:9px;color:var(--amber)">dono: '+esc(own)+'</span>'
@@ -547,7 +547,7 @@
     if(me){
       var moedas=Math.max(0, Number(me.budget_left||0));
       var nRoster=myRoster.length;
-      var limite=Number(s.roster_limit||12);
+      var limite=(window.__a2RosterLimit?window.__a2RosterLimit(APP.user&&APP.user.username):Number(s.roster_limit||12));
       var budgetOn=draftSetting(s,"budget_enabled",true);
       var limitOn=draftSetting(s,"roster_limit_enabled",true);
       // meta de elenco: quanto pode gastar por jogador garantindo completar os 12
@@ -1173,6 +1173,30 @@
   }
   // ── RESERVA pra completar o elenco (vale pra QUALQUER manager: bot ou humano) ──
   function a2RosterCount(u){ return (APP.draftRosters||[]).filter(function(r){return r.username===u;}).length; }
+  // "vaga a menos" por punição — guardada em settings.roster_penalties (sem coluna nova no banco)
+  function a2RosterPenalty(u){ try{ var s=APP.draftSeason; var pe=(s&&s.settings&&s.settings.roster_penalties)||{}; return Number(pe[u])||0; }catch(e){ return 0; } }
+  function a2RosterLimit(u){ var s=APP.draftSeason; return Math.max(0, Number((s&&s.roster_limit)||12) - a2RosterPenalty(u)); }
+  window.__a2RosterLimit=a2RosterLimit;
+  // PUNIÇÃO da consolação: perde o jogador + CARO do elenco (sem reembolso) e fica com 1 vaga a menos.
+  // Só é aplicada a quem perdeu a disputa e NÃO tinha como pegar ninguém na faixa (sem saldo/sem opção).
+  async function a2ApplyConsoPenalty(u){
+    var s=APP.draftSeason; if(!s)return null;
+    var mine=(APP.draftRosters||[]).filter(function(r){return r.username===u;});
+    var worst=null, wp=-1;
+    mine.forEach(function(r){ var p=Number(r.acquired_price||r.current_price||r.base_price||0); if(p>wp){wp=p;worst=r;} });
+    if(worst){
+      await sbDelete("draft_rosters","season_id=eq."+s.id+"&player_key=eq."+encodeURIComponent(worst.player_key)+"&username=eq."+encodeURIComponent(u));
+      try{ await sbInsert("draft_transactions",{season_id:s.id,username:u,type:"conso_penalty",player_key:worst.player_key,player_name:worst.player_name,amount:0,meta:{motivo:"sem jogador na faixa — punição",via:"leilao2.0"}}); }catch(e){}
+    }
+    // +1 vaga a menos (não reembolsa — perde jogador E o que gastou nele)
+    var settings=Object.assign({}, s.settings||{});
+    var pens=Object.assign({}, settings.roster_penalties||{});
+    pens[u]=(Number(pens[u])||0)+1;
+    settings.roster_penalties=pens;
+    await sbUpdate("draft_seasons",{settings:settings},"id=eq."+s.id);
+    s.settings=settings;
+    return worst;
+  }
   function a2MinFreePrice(){
     var owned={}; (APP.draftRosters||[]).forEach(function(r){owned[r.player_key]=1;});
     var free=(catFnSafe()||[]).filter(function(p){return !owned[p.key];});
@@ -1187,7 +1211,7 @@
     if(!draftSetting(s,"budget_enabled",true)) return Infinity;
     var budget=a2budget(u);
     if(!draftSetting(s,"roster_limit_enabled",true)) return budget;
-    var limit=Number(s.roster_limit||12);
+    var limit=a2RosterLimit(u);
     var have=a2RosterCount(u);
     var minFree=a2MinFreePrice();
     var slotsAfter=Math.max(0, limit-(have+1));   // slots que faltam DEPOIS de pegar este
@@ -1336,35 +1360,34 @@
       var tied=grp.filter(function(x){return Number(x.bid||x.player_price)===maxBid;});
       if(tied.length===1){ winner=tied[0]; paid=maxBid; }
       else {
-        // ALGUÉM dos empatados consegue (e, se bot, topa) oferecer acima do empate?
-        var podeSubir=tied.some(function(x){
-          var teto=Math.min(a2budget(x.username), a2MaxSpend(x.username));
-          if(A2_BOTS.indexOf(x.username)>=0) teto=Math.min(teto, a2BotMax(x.username,x));
-          return teto>maxBid;
-        });
-        if(!podeSubir){
-          // ninguém pode subir (empate travado no teto/piso) → decide já: maior saldo, sorteio se igual
+        // EMPATE na maior oferta → nova rodada secreta SÓ entre os empatados.
+        // detecção de loop: se reempatarem no MESMO valor (ninguém subiu), aí decide por critério.
+        APP._a2TieSeen=APP._a2TieSeen||{};
+        if(APP._a2TieSeen[conflictKey]===maxBid){
+          // empate reincidente no mesmo valor (ninguém conseguiu subir) → decide por maior saldo (sorteio se igual)
+          delete APP._a2TieSeen[conflictKey];
           tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
           var topB=a2budget(tied[0].username);
           var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
           winner=topTied[Math.floor(Math.random()*topTied.length)];
           paid=maxBid;
-          toast&&toast("Empate em "+maxBid+" e ninguém pôde aumentar — decidido por maior saldo.");
+          toast&&toast("Empate em "+maxBid+" de novo — ninguém subiu. Decidido por maior saldo.");
         } else {
-        // empate no topo → os de oferta MENOR já perdem; os empatados voltam a ofertar (secreto)
-        if(APP._a2Lock)return; APP._a2Lock=true;
-        try{
-          for(var i=0;i<grp.length;i++){
-            var isTop=Number(grp[i].bid||grp[i].player_price)===maxBid;
-            // empatados voltam pra "picked" (nova oferta), guardando o empate como piso (bid)
-            await sbUpdate("draft_picks", isTop?{state:"picked",bid:maxBid}:{state:"lost"}, "id=eq."+grp[i].id);
-          }
-          APP.a2Seen={};               // re-esconde tudo pra nova rodada secreta
-          await a2Load(); reRenderKeep();
-          toast&&toast("Empate em "+maxBid+"! Nova rodada de ofertas secretas entre os empatados.");
-        }catch(e){ toast&&toast("Erro: "+e.message); }
-        finally{ APP._a2Lock=false; }
-        return;
+          // 1º empate (ou alguém subiu): abre nova rodada secreta entre os empatados
+          APP._a2TieSeen[conflictKey]=maxBid;
+          if(APP._a2Lock)return; APP._a2Lock=true;
+          try{
+            for(var i=0;i<grp.length;i++){
+              var isTop=Number(grp[i].bid||grp[i].player_price)===maxBid;
+              // empatados voltam pra "picked" (nova oferta), guardando o empate como piso (bid)
+              await sbUpdate("draft_picks", isTop?{state:"picked",bid:maxBid}:{state:"lost"}, "id=eq."+grp[i].id);
+            }
+            APP.a2Seen={};               // re-esconde tudo pra nova rodada secreta
+            await a2Load(); reRenderKeep();
+            toast&&toast("Empate em "+maxBid+"! Nova rodada de ofertas secretas entre os empatados.");
+          }catch(e){ toast&&toast("Erro: "+e.message); }
+          finally{ APP._a2Lock=false; }
+          return;
         }
       }
     } else {
@@ -1513,11 +1536,22 @@
   window.a2ConsoPass=async function(lostPickId, silent){
     var pk=(APP.a2Picks||[]).find(function(x){return String(x.id)===String(lostPickId);});
     if(!pk||pk.state!=="lost")return;
-    if(!silent && typeof confirm==="function" && !confirm("Passar a consolação?\n\nNão há jogador na sua faixa que você consiga pagar, então você fica SEM jogador neste round."))return;
+    // comprar é OBRIGATÓRIO: se há jogador na faixa que ele pague, não pode passar
+    if(a2ConsoHasOpts(pk.username)){
+      if(!silent) toast&&toast("Você tem jogador na sua faixa — é obrigatório escolher um.");
+      return;
+    }
+    // sem opção (sem saldo / mercado seco) → passa COM punição pesada
+    if(!silent && typeof confirm==="function" && !confirm("⚠️ PUNIÇÃO\n\nVocê não tem jogador na sua faixa que consiga pagar. Ao passar, você PERDE o jogador mais caro do seu elenco (sem reembolso) e fica com 1 vaga a menos no elenco.\n\nConfirmar?"))return;
     if(APP._a2Lock)return; APP._a2Lock=true;
-    try{ await sbUpdate("draft_picks",{state:"passed"},"id=eq."+pk.id); await a2Load(); reRenderKeep();
-      if(!silent) toast&&toast("Você passou a consolação (ficou sem jogador)."); }
-    catch(e){ toast&&toast("Erro: "+e.message); }
+    try{
+      await sbUpdate("draft_picks",{state:"passed"},"id=eq."+pk.id);
+      var lost=await a2ApplyConsoPenalty(pk.username);
+      await a2Load();
+      if(typeof loadDraftSeason==="function" && APP.draftSeason) await loadDraftSeason(APP.draftSeason.id);
+      reRenderKeep();
+      if(!silent) toast&&toast("Punido: perdeu "+(lost?lost.player_name:"o + caro")+" e 1 vaga de elenco.");
+    }catch(e){ toast&&toast("Erro: "+e.message); }
     finally{ APP._a2Lock=false; }
   };
   // ---- oferta SECRETA num mini-leilão de consolação (às cegas) ----
@@ -1553,14 +1587,18 @@
       var winner=null, paid=maxBid;
       if(tied.length===1){ winner=tied[0]; }
       else {
-        // empate no topo: algum empatado consegue subir? (teto = faixa, saldo, reserva e, p/ bot, o quanto valoriza)
-        var podeSubir=tied.some(function(x){
-          var teto=Math.min(a2ConsoCap(x.username), a2budget(x.username), a2MaxSpend(x.username));
-          if(A2_BOTS.indexOf(x.username)>=0) teto=Math.min(teto, a2BotMax(x.username,x));
-          return teto>maxBid;
-        });
-        if(podeSubir){
-          // nova rodada secreta SÓ entre os empatados; os de oferta menor saem e reescolhem (deleta)
+        // EMPATE no topo → nova rodada secreta entre os empatados (sempre); reempate no mesmo valor decide.
+        APP._a2TieSeen=APP._a2TieSeen||{};
+        if(APP._a2TieSeen[conflictKey]===maxBid){
+          // reempate no mesmo valor (ninguém subiu) → maior saldo decide (sorteio se igual)
+          delete APP._a2TieSeen[conflictKey];
+          tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
+          var topB=a2budget(tied[0].username);
+          var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
+          winner=topTied[Math.floor(Math.random()*topTied.length)];
+        } else {
+          // abre nova rodada secreta SÓ entre os empatados; os de oferta menor saem e reescolhem (deleta)
+          APP._a2TieSeen[conflictKey]=maxBid;
           for(var i=0;i<low.length;i++) await sbDelete("draft_picks","id=eq."+low[i].id);
           for(var j=0;j<tied.length;j++) await sbUpdate("draft_picks",{state:"picked",bid:maxBid},"id=eq."+tied[j].id);
           APP.a2Seen={};
@@ -1568,11 +1606,6 @@
           toast&&toast("Empate em "+maxBid+"! Nova rodada de ofertas secretas entre os empatados.");
           APP._a2Lock=false; return;
         }
-        // ninguém sobe → maior saldo decide (sorteio se igual)
-        tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
-        var topB=a2budget(tied[0].username);
-        var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
-        winner=topTied[Math.floor(Math.random()*topTied.length)];
       }
       // concede ao vencedor; perdedores voltam a escolher (deleta o pick de consolação deles)
       await a2GrantPlayer(winner, paid);
@@ -1767,7 +1800,7 @@
         if(picks.some(function(p){return p.is_consolation&&p.username===u&&(p.state==="consoled"||p.state==="picked"||p.state==="sealed");})) continue;
         var cap=Math.floor(Number(lost.player_price)*(r.conso_pct/100));
         var opts=a2freeAgents().filter(function(p){return p.price<=cap&&p.price<=a2MaxSpend(u);}).sort(function(a,b){return b.price-a.price;});
-        if(!opts.length){ await sbUpdate("draft_picks",{state:"passed"},"id=eq."+lost.id); passou++; continue; }
+        if(!opts.length){ await sbUpdate("draft_picks",{state:"passed"},"id=eq."+lost.id); await a2ApplyConsoPenalty(u); passou++; continue; }
         var p=opts[Math.floor(Math.random()*Math.min(3,opts.length))]; // varia um pouco p/ gerar disputas
         await sbInsert("draft_picks",{round_id:r.id,season_id:s.id,username:u,
           player_key:p.key,player_name:p.name,player_pos:p.pos,player_price:p.price,
@@ -2042,9 +2075,9 @@
       if(lost.username===me){
         var temOpts=a2ConsoHasOpts(me);
         if(!temOpts){
-          // SEM saída: nenhum jogador na faixa que ele consiga pagar → fica sem jogador
-          h+='<div style="font-size:12px;color:var(--red);margin-bottom:8px">😕 Nenhum jogador na sua faixa (até '+cap+') que você consiga pagar agora. Você fica sem jogador neste round.</div>';
-          h+='<button class="btn" style="background:var(--amber);color:#1a1206" onclick="window.a2ConsoPass(\''+lost.id+'\')">Passar (ficar sem jogador)</button>';
+          // SEM saída: nenhum jogador na faixa que ele consiga pagar → PUNIÇÃO
+          h+='<div style="font-size:12px;color:var(--red);margin-bottom:8px">⚠️ Nenhum jogador na sua faixa (até '+cap+') que você consiga pagar. <b>Punição:</b> ao passar, você perde o jogador <b>mais caro</b> do elenco (sem reembolso) e fica com <b>1 vaga a menos</b>.</div>';
+          h+='<button class="btn" style="background:var(--red);color:#fff" onclick="window.a2ConsoPass(\''+lost.id+'\')">Aceitar punição e passar</button>';
         } else {
           // MERCADO COMPLETO com filtros (nome/posição/time) — computeResults já em modo consolação
           try{
@@ -2054,7 +2087,7 @@
             if(typeof window.__draftMarketHTML==="function") h+=window.__draftMarketHTML(s,meTeam,owner,myRoster);
             else h+='<div class="p">Carregando mercado…</div>';
           }catch(e){ h+='<div class="p">Erro no mercado: '+esc(e.message)+'</div>'; }
-          h+='<button class="btn ghost" style="margin-top:8px;border-color:var(--line);color:var(--dim)" onclick="window.a2ConsoPass(\''+lost.id+'\')">ou passar (não quero gastar)</button>';
+          h+='<div style="font-size:11px;color:var(--amber);margin-top:6px;text-align:center">Você tem jogador na faixa — é obrigatório escolher um.</div>';
         }
       } else { h+='<div style="font-size:11px;color:var(--dim)">aguardando '+esc(lost.username)+' escolher...</div>'; }
       h+='</div>';
