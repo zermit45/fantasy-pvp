@@ -274,20 +274,26 @@ function dreamTeamHTML(){
         // pontua o jogador no contexto do time ideal (com a tática vencedora)
         const r=ctx.eng.scorePlayer(it.raw,best.tactic,best.sq);
         let pts=r.total; if(isCap)pts=Math.round(pts*1.2*10)/10;
-        const capTag=isCap?` <span class="badgeC">C</span>`:"";
         const pkey="dream_"+sl;
         const pOpen=_dreamPlayer[pkey];
-        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleDreamPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> ${esc(pl?pl.name:"?")}<span class="teamtag" style="--tc:${teamColor(pl?pl.team:"")};margin-left:6px">${pl?pl.team:""}</span>${capTag} <span style="color:var(--dim);font-size:10px">${it.price}💰</span> <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
+        const face=(typeof playerPortraitHTML==="function"&&pl)?playerPortraitHTML({roomId:roomId,id:pl.id,team:pl.team,name:pl.name,pos:pl.pos},"tinyface"):"";
+        let body="";
         if(pOpen&&r){
-          html+=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
-            <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo</div>
-            ${(r.statLines||[]).map(([l,c,u,p2])=>`<div class="line stat" style="padding:2px 0"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${p2>0?"plus":p2<0?"minus":""}">${p2>0?"+":""}${(+p2).toFixed(1)}</span></div>`).join("")}
-            ${(r.lines||[]).length?`<div class="bsub" style="margin:6px 0 2px">⚙️ Modificadores</div>`:""}
-            ${(r.lines||[]).map(([k,val])=>`<div class="line" style="padding:2px 0"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
-            ${isCap?`<div class="line" style="padding:2px 0"><span>👑 Capitão (×1.2)</span><span class="v mono plus">+${(r.total*0.2).toFixed(1)}</span></div>`:""}
-            ${r.meta?`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
-          </div>`;
+          body=`
+            <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 ${r.minutes}' em campo</div>
+            ${(r.statLines||[]).map(([l,c,u,p2])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${p2>0?"plus":p2<0?"minus":""}">${p2>0?"+":""}${(+p2).toFixed(1)}</span></div>`).join("")}
+            ${(r.lines||[]).length?`<div class="bsub">⚙️ Modificadores</div>`:""}
+            ${(r.lines||[]).map(([k,val])=>`<div class="line"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+            ${isCap?`<div class="line"><span>👑 Capitão (×1.2)</span><span class="v mono plus">+${(r.total*0.2).toFixed(1)}</span></div>`:""}
+            ${r.meta?`<div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
+          `;
         }
+        html+=`<div class="receipt"><div class="rhead" style="cursor:pointer" onclick="toggleDreamPlayer('${pkey}')">
+          <div class="sl mono">${SLOT_LABEL[sl]}</div>
+          ${face}
+          <div class="nm">${esc(pl?pl.name:"?")}<small>${pl?pl.team:""} · ${pl?pl.pos:""} · ${it.price}💰</small></div>
+          ${isCap?'<span class="badgeC">C ×1.20</span>':''}
+          <div class="tot mono${pts<0?" neg":""}">${pts>0?"+":""}${pts.toFixed(1)}</div></div><div class="expandable ${pOpen?"open":""}"><div class="rbody">${body}</div></div></div>`;
       }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }
