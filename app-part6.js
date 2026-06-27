@@ -57,7 +57,8 @@ function histGameHTML(h,hi,prefix){
         const subTag=vw.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
         const benchTag=vw.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
         const archTag=r&&r.meta&&r.meta.arch&&r.meta.arch!=="—"?` <span style="font-size:9px;color:var(--amber)">⭑ ${esc(r.meta.arch)}</span>`:"";
-        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleHistPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[vw.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag}${archTag}</span><span class="v mono ${vw.pts>0?"plus":vw.pts<0?"minus":""}">${vw.slot==="BENCH"?"—":(vw.pts>0?"+":"")+vw.pts.toFixed(1)}</span></div>`;
+        const face=pl&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:h.roomId,id:pl.id,team:pl.team,name:pl.name},"microface"):"";
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleHistPlayer('${pkey}')"><span style="display:flex;align-items:center;gap:7px"><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[vw.slot]}</b> ${face}<span>${esc(pl?pl.name:"?")}</span>${capTag}${subTag}${benchTag}${archTag}</span><span class="v mono ${vw.pts>0?"plus":vw.pts<0?"minus":""}">${vw.slot==="BENCH"?"—":(vw.pts>0?"+":"")+vw.pts.toFixed(1)}</span></div>`;
         if(pOpen&&r){
           html+=`<div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;margin:0 0 6px">`;
           html+=`<div style="font-size:10px;color:var(--dim);margin-bottom:4px">📋 ${r.minutes}' em campo</div>`;
@@ -108,7 +109,8 @@ function resultHTML(){
         const pkey="rk_"+i+"_"+v.slot;
         const pOpen=_openRankPlayer[pkey];
         const r=v.r;
-        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleRankPlayer('${pkey}')"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${esc(pl?pl.name:"?")}${capTag}${subTag}${benchTag} <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
+        const face=pl&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:pl.id,team:pl.team,name:pl.name},"microface"):"";
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleRankPlayer('${pkey}')"><span style="display:flex;align-items:center;gap:7px"><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[v.slot]}</b> ${face}<span>${esc(pl?pl.name:"?")}</span>${capTag}${subTag}${benchTag} <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${v.pts>0?"plus":v.pts<0?"minus":""}">${v.slot==="BENCH"?"—":(v.pts>0?"+":"")+v.pts.toFixed(1)}</span></div>`;
         if(pOpen&&r){
           html+=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
             <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo${helpBtn("apuracao")}</div>
@@ -125,8 +127,6 @@ function resultHTML(){
   html+=`</div>`;
   html+=resultBadgesHTML(scored);
   html+=resultDuelHTML(scored,mine);
-  // ESTATÍSTICAS DA PARTIDA (confronto home×away, se o jogo foi apurado pelo apurador)
-  if(typeof matchStatsHTML==="function")html+=matchStatsHTML();
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
   html+=dreamTeamHTML();
   // minha apuração detalhada
@@ -183,9 +183,7 @@ function resultDuelHTML(scored,mine){
     const ap=a?Number(a.pts)||0:0,bp=b?Number(b.pts)||0:0;
     const an=a&&APP._byId&&APP._byId[a.pid]?APP._byId[a.pid].name:"—";
     const bn=b&&APP._byId&&APP._byId[b.pid]?APP._byId[b.pid].name:"—";
-    const apm=a&&APP._byId&&APP._byId[a.pid]?APP._byId[a.pid]:null;
-    const bpm=b&&APP._byId&&APP._byId[b.pid]?APP._byId[b.pid]:null;
-    return `<div class="line" style="gap:8px"><span style="width:42%;color:${ap>=bp?"var(--green)":"var(--dim)"};display:flex;align-items:center;gap:7px">${apm&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:apm.id,team:apm.team,name:apm.name,pos:apm.pos},"microface"):""}<span><b>${SLOT_LABEL[sl]}</b> ${esc(an)} (${ap.toFixed(1)})</span></span><span style="color:var(--dim)">×</span><span style="width:42%;text-align:right;color:${bp>ap?"var(--green)":"var(--dim)"};display:flex;align-items:center;justify-content:flex-end;gap:7px"><span>${esc(bn)} (${bp.toFixed(1)})</span>${bpm&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:bpm.id,team:bpm.team,name:bpm.name,pos:bpm.pos},"microface"):""}</span></div>`;
+    return `<div class="line" style="gap:8px"><span style="width:42%;color:${ap>=bp?"var(--green)":"var(--dim)"}"><b>${SLOT_LABEL[sl]}</b> ${esc(an)} (${ap.toFixed(1)})</span><span style="color:var(--dim)">×</span><span style="width:42%;text-align:right;color:${bp>ap?"var(--green)":"var(--dim)"}">${esc(bn)} (${bp.toFixed(1)})</span></div>`;
   };
   return `<div class="card"><div class="h2 disp">⚔️ Seu duelo contra ${esc(rival.username)}</div><p class="p" style="margin-bottom:8px">Comparação slot por slot contra ${rival.username===scored[0].username?"o líder":"o próximo rival"}.</p>${slots.map(row).join("")}</div>`;
 }
@@ -216,10 +214,10 @@ function baseAllHTML(eng){
         <div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${helpBtn("arquetipo")}${r.meta.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span>${helpBtn("raridade")}</div>
       `;
     }
+    const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:row.meta.id,team:row.team,name:row.name},"pface"):"";
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
-      ${typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:row.meta.id,team:row.team,name:row.name,pos:row.pos},"tinyface"):""}
-      <div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
+      ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
       <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
   }).join("");
 }
@@ -274,26 +272,21 @@ function dreamTeamHTML(){
         // pontua o jogador no contexto do time ideal (com a tática vencedora)
         const r=ctx.eng.scorePlayer(it.raw,best.tactic,best.sq);
         let pts=r.total; if(isCap)pts=Math.round(pts*1.2*10)/10;
+        const capTag=isCap?` <span class="badgeC">C</span>`:"";
         const pkey="dream_"+sl;
         const pOpen=_dreamPlayer[pkey];
-        const face=(typeof playerPortraitHTML==="function"&&pl)?playerPortraitHTML({roomId:roomId,id:pl.id,team:pl.team,name:pl.name,pos:pl.pos},"tinyface"):"";
-        let body="";
+        const face=pl&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:pl.id,team:pl.team,name:pl.name},"pface"):"";
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleDreamPlayer('${pkey}')"><span style="display:flex;align-items:center;gap:8px;min-width:0"><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> ${face}<span>${esc(pl?pl.name:"?")}</span><span class="teamtag" style="--tc:${teamColor(pl?pl.team:"")};margin-left:0">${pl?pl.team:""}</span>${capTag} <span style="color:var(--dim);font-size:10px">${it.price}💰</span> <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
         if(pOpen&&r){
-          body=`
-            <div class="bsub" style="border:none;margin-top:0;padding-top:0">📋 ${r.minutes}' em campo</div>
-            ${(r.statLines||[]).map(([l,c,u,p2])=>`<div class="line stat"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${p2>0?"plus":p2<0?"minus":""}">${p2>0?"+":""}${(+p2).toFixed(1)}</span></div>`).join("")}
-            ${(r.lines||[]).length?`<div class="bsub">⚙️ Modificadores</div>`:""}
-            ${(r.lines||[]).map(([k,val])=>`<div class="line"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
-            ${isCap?`<div class="line"><span>👑 Capitão (×1.2)</span><span class="v mono plus">+${(r.total*0.2).toFixed(1)}</span></div>`:""}
-            ${r.meta?`<div class="chips"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
-          `;
+          html+=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
+            <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo</div>
+            ${(r.statLines||[]).map(([l,c,u,p2])=>`<div class="line stat" style="padding:2px 0"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${p2>0?"plus":p2<0?"minus":""}">${p2>0?"+":""}${(+p2).toFixed(1)}</span></div>`).join("")}
+            ${(r.lines||[]).length?`<div class="bsub" style="margin:6px 0 2px">⚙️ Modificadores</div>`:""}
+            ${(r.lines||[]).map(([k,val])=>`<div class="line" style="padding:2px 0"><span>${k}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+            ${isCap?`<div class="line" style="padding:2px 0"><span>👑 Capitão (×1.2)</span><span class="v mono plus">+${(r.total*0.2).toFixed(1)}</span></div>`:""}
+            ${r.meta?`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
+          </div>`;
         }
-        html+=`<div class="receipt"><div class="rhead" style="cursor:pointer" onclick="toggleDreamPlayer('${pkey}')">
-          <div class="sl mono">${SLOT_LABEL[sl]}</div>
-          ${face}
-          <div class="nm">${esc(pl?pl.name:"?")}<small>${pl?pl.team:""} · ${pl?pl.pos:""} · ${it.price}💰</small></div>
-          ${isCap?'<span class="badgeC">C ×1.20</span>':''}
-          <div class="tot mono${pts<0?" neg":""}">${pts>0?"+":""}${pts.toFixed(1)}</div></div><div class="expandable ${pOpen?"open":""}"><div class="rbody">${body}</div></div></div>`;
       }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }
@@ -325,7 +318,6 @@ function receiptHTML(v,idx){
   }
   return `<div class="receipt"><div class="rhead" onclick="toggleRec(${idx})">
     <div class="sl mono">${SLOT_LABEL[v.slot]}</div>
-    ${typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:p.id,team:p.team,name:p.name,pos:p.pos},"tinyface"):""}
     <div class="nm">${esc(p.name)}<small>${p.team} · ${p.pos}${v.subIn?' · ↑ entrou do banco (×0,8)':''}</small></div>
     ${v.cap?'<span class="badgeC">C ×1.20</span>':''}
     <div class="tot mono${v.pts<0?" neg":""}">${v.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
@@ -366,7 +358,7 @@ function render(){
   else if(APP.view==="league")panel=leagueHTML();
   else if(APP.view==="phase")panel=phaseHTML();
   else if(APP.view==="draft")panel=draftHTML();
-  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML()+(APP.apurar&&typeof apuracaoHTML==="function"?apuracaoHTML():"");
+  root.innerHTML=topbarHTML()+panel+footHTML()+confirmModalHTML();
   // ajuda visual do teto do draft: preenche assim que o modal renderiza
   if(APP.confirm&&APP.confirm.mode==="createDraftSeason"){ try{ requestAnimationFrame(updDraftHint); }catch(e){ try{updDraftHint();}catch(_){} } }
 }
@@ -591,7 +583,6 @@ async function boot(){
   try{
     APP.jogos=window.GAMES.index;
   }catch(e){APP.jogos=[];}
-  try{ if(typeof loadMatchResults==="function") await loadMatchResults(); }catch(e){}
   await loadArchived();
   await tryAutoLogin();
   // restaura preferência do modo DEV (padrão: ligado)
@@ -634,5 +625,3 @@ async function boot(){
  }
 }
 window.__APP_READY=true;
-
-

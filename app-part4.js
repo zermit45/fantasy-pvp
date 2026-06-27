@@ -1,576 +1,3 @@
-function draftHTML(){
-  const s=APP.draftSeason;
-  if(APP.draftSchemaMissing)return draftSeasonsCardHTML();
-  if(!s)return `<div class="card"><p class="p">Temporada não encontrada.</p><button class="btn ghost" onclick="go('home')">← Voltar</button></div>`;
-  const me=myDraftTeam();
-  const myRoster=(APP.draftRosters||[]).filter(r=>r.username===APP.user?.username);
-  const owner=draftOwnerMap();
-  const teams=APP.draftTeams||[];
-  const spent=Math.min(Number(s.budget||300), Number(s.budget||300)-Math.max(0,Number(me?me.budget_left:s.budget||300)));
-  const tabs=[["visao","Visão"],["mercado","Mercado"],["elencos","Elencos"],["movs","Transações"]];
-  const tab=APP.draftTab||"visao";
-  const tabbar=`<div class="postabs" style="margin:12px 0">${tabs.map(([k,l])=>`<div class="ptab${tab===k?" on":""}" onclick="setDraftTab('${k}')">${l}</div>`).join("")}</div>`;
-  const mod=(label,key,fb=true)=>`<span class="chip" style="border-color:${draftSetting(s,key,fb)?"var(--green)":"var(--line)"};color:${draftSetting(s,key,fb)?"var(--green)":"var(--dim)"}">${draftSetting(s,key,fb)?"✓":"×"} ${esc(label)}</span>`;
-  let body="";
-  if(tab==="visao"){
-    body=`<div class="dashgrid">
-      <div class="dashitem"><b>${teams.length}</b><span>Managers</span></div>
-      <div class="dashitem"><b>${APP.draftRosters.length}</b><span>Jogadores com dono</span></div>
-      <div class="dashitem"><b>${me?Math.max(0,Number(me.budget_left||0)):"-"}</b><span>Suas moedas</span></div>
-      <div class="dashitem"><b>${myRoster.length}/${s.roster_limit||12}</b><span>Seu elenco</span></div>
-    </div>
-    ${me?`<div class="prebox" style="border-color:#FF8A4C;color:#FF8A4C;background:color-mix(in srgb,#FF8A4C 10%,transparent)">Você está dentro como <b>${esc(me.team_name)}</b>. Gastou <b>${spent}</b> de <b>${s.budget||300}</b> moedas.</div>`:
-      `<button class="btn" style="background:#FF8A4C;color:#0A0E1C" onclick="joinDraftSeason()">Entrar como manager</button>`}
-    <div class="card" style="margin-top:12px"><div class="h2 disp">Regras desta temporada</div>
-      <p class="p">Elenco exclusivo, ranking e histórico são o núcleo obrigatório. O resto foi escolhido na criação.</p>
-      <div class="chips" style="margin-top:10px">
-        ${mod("jogos/rodadas","games_scope")}${mod("orçamento","budget_enabled")}${mod("draft por ordem","ordered_draft")}${mod("limite de elenco","roster_limit_enabled")}${mod("escalação","lineup_enabled")}${mod("mercado livre","free_market")}
-        ${mod("valorização","dynamic_prices")}${mod("venda atualizada","sell_at_current_price")}${mod("limite compras","purchase_limit_enabled")}${mod("janela automática","auto_windows",false)}${mod("waiver","waiver_enabled")}
-        ${mod("trocas","trades_enabled")}${mod("propostas","pending_offers")}${mod("veto admin","admin_veto")}${mod("empréstimos","loans_enabled",false)}${mod("multa","release_clause_enabled")}${mod("leilão","free_agent_auction",false)}
-      </div>
-    </div>`;
-  }else if(tab==="mercado"){
-    const q=normTxt(APP.draftSearch||"");
-    const cat=draftPlayerCatalog().filter(p=>!q||normTxt(p.name+" "+p.team+" "+p.pos).includes(q)).slice(0,80);
-    body=`<div style="position:relative;margin-bottom:10px">
-      <input id="draftSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar jogador no mercado…" value="${esc(APP.draftSearch||"")}" oninput="setDraftSearch(this.value)" autocorrect="off" />
-    </div>
-    <p class="p" style="font-size:11px;margin-bottom:8px">Preço de temporada: usa o jogador no catálogo da Copa inteira, com base no valor de mercado e aparições no pool, sem variar por partida específica.</p>
-    <div class="poolbox">${cat.map(p=>{
-      const own=owner[p.key];
-      const moneyOk=!draftSetting(s,"budget_enabled",true)||Number(me?me.budget_left:0)>=p.price;
-      const rosterOk=!draftSetting(s,"roster_limit_enabled",true)||myRoster.length<Number(s.roster_limit||12);
-      const can=me&&!own&&moneyOk&&rosterOk&&draftSetting(s,"free_market",true)&&s.market_status==="open";
-      return `<div class="prow ${own?"dis":""}" style="${can?"cursor:pointer":""}" onclick="${can?`buyDraftPlayer('${esc(p.key)}')`:""}">
-        <div class="posbar pb-${p.pos}"></div>
-        <div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div>
-        ${typeof playerPortraitHTML==="function"?playerPortraitHTML({name:p.name,team:p.team,pos:p.pos},"tinyface"):""}
-        <div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${esc(p.team)}</span>${own?` <span style="font-size:9px;color:var(--amber)">dono: ${esc(own)}</span>`:""}</div>
-        <div class="pr mono">${p.price}</div>
-      </div>`;
-    }).join("")}</div>`;
-  }else if(tab==="elencos"){
-    body=teams.length?teams.map(t=>{
-      const rs=(APP.draftRosters||[]).filter(r=>r.username===t.username);
-      return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${t.username===APP.user?.username?"var(--amber)":"#FF8A4C"}">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <div class="h2 disp">${esc(t.team_name||t.username)}</div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em">moedas livres</div>
-            <div class="mono" style="font-size:18px;font-weight:800;color:var(--gold);line-height:1">${Math.max(0,Number(t.budget_left||0))}</div>
-          </div>
-        </div>
-        <p class="p" style="font-size:11px;margin:4px 0">${esc(t.username)} · ${rs.length}/${s.roster_limit||12} jogadores</p>
-        ${rs.length?rs.map(r=>`<div class="line"><span class="face-inline">${typeof playerPortraitHTML==="function"?playerPortraitHTML({name:r.player_name,team:r.player_team,pos:r.pos},"microface"):""}<span class="txt"><b style="color:var(--dim);font-size:10px">${SLOT_LABEL[r.pos]||r.pos}</b> ${esc(r.player_name)} <span class="teamtag" style="--tc:${teamColor(r.player_team)}">${esc(r.player_team)}</span></span></span><span class="mono" style="color:#FF8A4C">${r.current_price}</span></div>`).join(""):`<p class="p">Sem jogadores ainda.</p>`}
-      </div>`;
-    }).join(""):`<p class="p">Nenhum manager entrou ainda.</p>`;
-  }else{
-    body=APP.draftTransactions.length?APP.draftTransactions.map(tr=>`<div class="line"><span class="face-inline">${typeof playerPortraitHTML==="function"?playerPortraitHTML({name:tr.player_name||"",team:tr.meta&&tr.meta.team?tr.meta.team:"",pos:tr.meta&&tr.meta.pos?tr.meta.pos:""},"microface"):""}<span class="txt"><b style="color:#FF8A4C">${esc(tr.username)}</b> ${esc(tr.type)} · ${esc(tr.player_name||"")}${tr.meta&&tr.meta.team?` <span class="teamtag" style="--tc:${teamColor(tr.meta.team)}">${esc(tr.meta.team)}</span>`:""}</span></span><span class="mono">${tr.amount||0}</span></div>`).join(""):`<p class="p">Nenhuma transação ainda.</p>`;
-  }
-  return `<div class="card" style="border-color:#FF8A4C">
-    <button class="btn ghost" style="margin-bottom:10px" onclick="confirmLeaveDraft()">← Voltar</button>
-    <div class="tag">MERCADO DRAFT · TEMPORADA</div>
-    <div class="h2 disp" style="color:#FF8A4C">🏟️ ${esc(s.name)}</div>
-    <p class="p" style="margin:8px 0">Status: <b style="color:var(--chalk)">${esc(s.status)}</b> · Mercado: <b style="color:${s.market_status==="open"?"var(--green)":"var(--red)"}">${esc(s.market_status)}</b></p>
-    ${tabbar}
-    ${body}
-  </div>`;
-}
-// ----- LIGAS: tela de uma liga -----
-function leagueHTML(){
-  const l=APP.league;
-  if(!l)return `<div class="card"><div class="loading">Carregando liga…</div></div>`;
-  const st=APP.leagueStanding;
-  const tab=APP.leagueTab||"table";
-  const phases=APP.leaguePhases||[];
-  const fora=(APP.phases||[]).filter(p=>!p.league_id);
-  let html=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="h1 disp" style="color:var(--amber)">🏆 ${esc(l.name)}</div>
-      <div class="userchip" onclick="leaveLeague()" style="cursor:pointer">← voltar</div>
-    </div>
-    <p class="p" style="margin-top:6px">${phases.length} rodada${phases.length!==1?"s":""} nesta liga.</p>
-  </div>`;
-  html+=standingCardHTML(st,tab,"setLeagueTab","liga");
-  // rodadas (phases) da liga
-  html+=`<div class="card"><div class="h2 disp">Rodadas desta liga</div>`;
-  if(!phases.length)html+=`<p class="p" style="margin-top:6px">Nenhuma rodada vinculada ainda.</p>`;
-  else phases.forEach(p=>{
-    const unlinkBtn=isAdmin()?`<span onclick="event.stopPropagation();unlinkPhaseFromLeague('${p.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.55" title="Desvincular da liga (vira avulsa)">🔗</span>`:"";
-    html+=`<div class="roomrow" onclick="enterPhase('${p.id}')"><div class="info"><div class="nm">${esc(p.name)}</div><div class="meta">toque pra ver as mini rodadas</div></div><div style="display:flex;align-items:center;gap:6px">${unlinkBtn}<span class="statuspill st-finished">VER</span></div></div>`;
-  });
-  html+=`</div>`;
-  if(isAdmin()){
-    html+=`<div class="card"><div class="tag" style="margin-bottom:6px">ADMIN · RODADAS</div>
-      <button class="btn" style="margin-bottom:10px" onclick="askCreatePhase('${l.id}')">+ Criar rodada nesta liga</button>`;
-    if(fora.length){
-      html+=`<p class="p" style="margin-bottom:8px">Rodadas avulsas (sem liga) — toque pra adicionar, ou exclua de vez:</p>`;
-      fora.forEach(p=>{html+=`<div class="roomrow"><div class="info" onclick="addPhaseToLeague('${p.id}')" style="cursor:pointer"><div class="nm">${esc(p.name)}</div><div class="meta">adicionar a esta liga</div></div><div style="display:flex;align-items:center;gap:6px"><span onclick="event.stopPropagation();addPhaseToLeague('${p.id}')" class="statuspill st-closed" style="cursor:pointer">+ ADD</span><span onclick="event.stopPropagation();askDeletePhase('${p.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.5" title="Excluir rodada de vez">🗑</span></div></div>`;});
-    }
-    html+=`</div>`;
-  }
-  return html;
-}
-// tela de uma RODADA (phase): classificação + suas mini rodadas
-function phaseHTML(){
-  const ph=APP.phase;
-  if(!ph)return `<div class="card"><div class="loading">Carregando rodada…</div></div>`;
-  const st=APP.phaseStanding;
-  const tab=APP.phaseTab||"table";
-  const minis=APP.phaseRounds||[];
-  const fora=(APP.rounds||[]).filter(r=>!r.phase_id);
-  let html=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="h1 disp" style="color:var(--amber)">${esc(ph.name)}</div>
-      <div class="userchip" onclick="${ph.league_id?`enterLeague('${ph.league_id}')`:"go('home')"}" style="cursor:pointer">← voltar</div>
-    </div>
-    <p class="p" style="margin-top:6px">${minis.length} mini rodada${minis.length!==1?"s":""} nesta rodada.</p>
-  </div>`;
-  html+=standingCardHTML(st,tab,"setPhaseTab","rodada");
-  // mini rodadas (rounds) desta phase
-  html+=`<div class="card"><div class="h2 disp">Mini rodadas</div>`;
-  if(!minis.length)html+=`<p class="p" style="margin-top:6px">Nenhuma mini rodada ainda.</p>`;
-  else minis.forEach(r=>{
-    const unlinkBtn=isAdmin()?`<span onclick="event.stopPropagation();unlinkRoundFromPhase('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.55" title="Desvincular da rodada (vira avulsa)">🔗</span>`:"";
-    const delBtn=isAdmin()?`<span onclick="event.stopPropagation();askDeleteRound('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.5" title="Excluir mini rodada de vez">🗑</span>`:"";
-    html+=`<div class="roomrow" onclick="enterRound('${r.id}')"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">escolha ${r.pick_limit} jogos</div></div><div style="display:flex;align-items:center;gap:6px">${unlinkBtn}${delBtn}<span class="statuspill ${r.status==="open"?"st-open":"st-closed"}">${r.status==="open"?"ABERTA":"FECHADA"}</span></div></div>`;
-  });
-  html+=`</div>`;
-  if(isAdmin()){
-    html+=`<div class="card"><div class="tag" style="margin-bottom:6px">ADMIN · MINI RODADAS</div>
-      <button class="btn" style="margin-bottom:10px" onclick="askCreateRoundInPhase('${ph.id}')">+ Criar mini rodada aqui</button>`;
-    if(fora.length){
-      html+=`<p class="p" style="margin-bottom:8px">Mini rodadas avulsas — toque pra adicionar, ou exclua de vez:</p>`;
-      fora.forEach(r=>{html+=`<div class="roomrow"><div class="info" onclick="addRoundToPhase('${r.id}')" style="cursor:pointer"><div class="nm">${esc(r.name)}</div><div class="meta">adicionar a esta rodada</div></div><div style="display:flex;align-items:center;gap:6px"><span onclick="event.stopPropagation();addRoundToPhase('${r.id}')" class="statuspill st-closed" style="cursor:pointer">+ ADD</span><span onclick="event.stopPropagation();askDeleteRound('${r.id}')" style="cursor:pointer;font-size:15px;padding:4px;opacity:.5" title="Excluir mini rodada de vez">🗑</span></div></div>`;});
-    }
-    html+=`</div>`;
-  }
-  return html;
-}
-// card de classificação reutilizável (liga ou phase)
-function standingCardHTML(st,tab,tabFn,nivel){
-  let html=`<div class="card"><div class="postabs" style="margin-bottom:12px">
-    <div class="ptab${tab==="table"?" on":""}" onclick="${tabFn}('table')">🏁 Pontos de tabela</div>
-    <div class="ptab${tab==="classic"?" on":""}" onclick="${tabFn}('classic')">📊 Pontuação clássica</div>
-  </div>`;
-  if(!st){html+=`<div class="loading">Calculando…</div></div>`;return html;}
-  if(!st.length){
-    html+=`<p class="p">⏳ Ainda não há resultados. A classificação da ${nivel} aparece conforme as mini rodadas forem apuradas.</p></div>`;
-    return html;
-  }
-  const sorted=[...st].sort((a,b)=>tab==="table"?(b.table-a.table||b.classic-a.classic):(b.classic-a.classic));
-  html+=`<p class="p" style="margin-bottom:10px">${tab==="table"?"Soma dos pontos de tabela (colocação em cada mini rodada).":"Soma da pontuação de fantasy em todas as mini rodadas."}</p>`;
-  sorted.forEach((u,i)=>{
-    const me=u.username===APP.user?.username;
-    const val=tab==="table"?u.table:u.classic.toFixed(1);
-    const sub=tab==="table"?`${u.classic.toFixed(1)} pts clássicos · ${u.roundsPlayed} mini`:`${u.table} pts de tabela · ${u.roundsPlayed} mini`;
-    html+=`<div class="rank${me?" me":""}"><div class="po mono">${i+1}º</div><div class="nm">${esc(u.username)}<small>${sub}</small></div><div class="pt mono">${val}</div></div>`;
-  });
-  html+=`</div>`;
-  return html;
-}
-function setLeagueTab(t){APP.leagueTab=t;render();}
-function setPhaseTab(t){APP.phaseTab=t;render();}
-function askCreatePhase(leagueId){APP.confirm={mode:"createPhase",leagueId,label:"Criar rodada"};render();}
-function askCreateRoundInPhase(phaseId){APP.confirm={mode:"createRound",newMode:"full",phaseId,label:"Criar mini rodada"};render();}
-function roundGameClick(roomId){
-  if(APP.confDrag){
-    if(confRankOf(roomId)!=null)confDropOn(roomId);
-    else{confDragCancel();renderKeepScroll();}
-    return;
-  }
-  askEnterRoundGame(roomId);
-}
-function roundStatusSnapshot(){
-  const r=APP.round, mode=modeOf(r);
-  const rooms=APP.roundRooms||[];
-  const entries=APP.roundEntries||[];
-  const total=rooms.length;
-  const mounted=rooms.filter(rr=>hasTeam(rr.room_id)).length;
-  // escalação só vira PENDÊNCIA quando o jogo já travou sem time montado.
-  // jogos ainda abertos podem ser escalados depois (a trava é por jogo, não global).
-  const escalacoesPerdidas=rooms.filter(rr=>roomLockedInRound(rr.room_id)&&!hasTeam(rr.room_id)).length;
-  const confirmed=boostConfirmed();
-  const chipsLeft=mode==="boost"?chipsAvailable().length:0;
-  const confDone=mode==="confianca"?confRankedCount():0;
-  const predDone=mode==="previsao"?entries.filter(e=>e.pred_home!=null&&e.pred_away!=null).length:0;
-  const allGamesModes=new Set(["full","zebra","sobrevivencia","capitaoduplo"]);
-  const ready=mode==="boost"?mounted===total&&chipsLeft===0&&confirmed:
-    mode==="confianca"?mounted===total&&confDone===total&&confirmed:
-    mode==="previsao"?mounted===total&&predDone===total&&confirmed:
-    allGamesModes.has(mode)?mounted===total:
-    true;
-  return {mode,total,mounted,confirmed,chipsLeft,confDone,predDone,ready,escalacoesPerdidas};
-}
-function roundTodoHTML(){
-  const s=roundStatusSnapshot(), mode=s.mode;
-  if(!s.total)return"";
-  const items=[];
-  // Escalações: só é pendência (vermelho) se algum jogo JÁ TRAVOU sem time.
-  // Jogos ainda abertos aparecem como progresso normal, não como erro.
-  const escOk = s.escalacoesPerdidas===0;
-  const escValue = escOk
-    ? `${s.mounted}/${s.total}`
-    : `${s.escalacoesPerdidas} perdida${s.escalacoesPerdidas>1?"s":""}`;
-  items.push({ok:escOk,label:"Escalações",value:escValue});
-  if(mode==="boost")items.push({ok:s.chipsLeft===0,label:"Fichas usadas",value:s.chipsLeft===0?"tudo certo":`${s.chipsLeft} faltando`});
-  if(mode==="confianca")items.push({ok:s.confDone===s.total,label:"Ordem de confiança",value:`${s.confDone}/${s.total}`});
-  if(mode==="previsao")items.push({ok:s.predDone===s.total,label:"Palpites",value:`${s.predDone}/${s.total}`});
-  if(mode==="boost"||mode==="confianca"||mode==="previsao")items.push({ok:s.confirmed,label:"Confirmação",value:s.confirmed?"confirmado":"pendente"});
-  const missing=items.filter(i=>!i.ok).length;
-  const aindaAbertos=s.total-s.mounted-s.escalacoesPerdidas; // jogos sem time que AINDA dá pra escalar
-  const okMsg = aindaAbertos>0
-    ? `Nada pendente por enquanto. Você ainda pode escalar ${aindaAbertos} jogo${aindaAbertos>1?"s":""} — cada um trava só quando aquela partida começa.`
-    : "Sua mini rodada está redonda. Só acompanhar os jogos.";
-  return `<div class="card" style="border-color:${missing?"var(--amber)":"var(--green)"}">
-    <div class="h2 disp">${missing?"⚠️ Minhas pendências":"✅ Tudo pronto"}</div>
-    <p class="p">${missing?"Resolva isso antes da trava para não zerar/ficar incompleto.":okMsg}</p>
-    <div class="dashgrid">
-      ${items.slice(0,4).map(i=>`<div class="dashitem"><b>${esc(i.value)}</b><span>${esc(i.label)}</span></div>`).join("")}
-    </div>
-    ${items.map(i=>`<div class="todoitem ${i.ok?"ok":"warny"}"><span>${i.ok?"✓":"!"} ${esc(i.label)}</span><b style="color:${i.ok?"var(--green)":"var(--red)"}">${esc(i.value)}</b></div>`).join("")}
-  </div>`;
-}
-function roundFeedHTML(){
-  const all=APP.roundAllEntries||[];
-  const rooms=APP.roundRooms||[];
-  const mode=modeOf(APP.round);
-  const events=[];
-  const byUser={};
-  all.forEach(e=>{
-    if(!e.username)return;
-    byUser[e.username]=byUser[e.username]||{teams:0,conf:0,preds:0,chips:0,confirmed:false};
-    if(e.slots&&Object.values(e.slots).some(Boolean))byUser[e.username].teams++;
-    if(e.conf_rank!=null)byUser[e.username].conf++;
-    if(e.pred_home!=null&&e.pred_away!=null)byUser[e.username].preds++;
-    if(Array.isArray(e.boost_chips)&&e.boost_chips.length)byUser[e.username].chips+=e.boost_chips.length;
-    if(e.confirmed)byUser[e.username].confirmed=true;
-  });
-  Object.entries(byUser).forEach(([u,s])=>{
-    if(s.teams)events.push(`👤 ${u} montou ${s.teams}/${rooms.length} time(s)`);
-    if(mode==="confianca"&&s.conf)events.push(`📊 ${u} ordenou ${s.conf}/${rooms.length} jogo(s)`);
-    if(mode==="boost"&&s.chips)events.push(`⚡ ${u} distribuiu ${s.chips} ficha(s)`);
-    if(mode==="previsao"&&s.preds)events.push(`🔮 ${u} cravou ${s.preds}/${rooms.length} placar(es)`);
-    if(s.confirmed)events.push(`🔒 ${u} confirmou a mini rodada`);
-  });
-  rooms.forEach(rr=>{
-    if(rr.status==="locked")events.push(`🔒 ${matchName(rr.room_id)} foi travado pelo admin`);
-  });
-  const last=events.slice(-6).reverse();
-  if(!last.length)return"";
-  return `<div class="card"><div class="h2 disp">📡 Feed do grupo</div>${last.map(e=>`<div class="feeditem">${esc(e)}</div>`).join("")}</div>`;
-}
-function matchName(roomId){const j=APP.jogos.find(x=>x.room_id===roomId);return j?j.match_name:roomId;}
-async function addPhaseToLeague(phaseId){
-  if(!isAdmin())return;
-  try{await sbUpdate("phases",{league_id:APP.leagueId},`id=eq.${phaseId}`);await loadPhases();await loadLeague(APP.leagueId);toast("Rodada adicionada à liga.");render();}
-  catch(e){toast("Erro: "+e.message);}
-}
-async function addRoundToPhase(roundId){
-  if(!isAdmin())return;
-  try{await sbUpdate("rounds",{phase_id:APP.phaseId},`id=eq.${roundId}`);await loadRounds();await loadPhase(APP.phaseId);toast("Mini rodada adicionada à rodada.");render();}
-  catch(e){toast("Erro: "+e.message);}
-}
-// DESVINCULAR: tira o vínculo (NÃO apaga). O item volta pra lista de avulsos da sua aba.
-async function unlinkPhaseFromLeague(phaseId){
-  if(!isAdmin())return;
-  try{
-    await sbUpdate("phases",{league_id:null},`id=eq.${phaseId}`);
-    await loadPhases();if(APP.leagueId)await loadLeague(APP.leagueId);
-    toast("Rodada desvinculada — voltou a ser avulsa.");render();
-  }catch(e){toast("Erro: "+e.message);}
-}
-async function unlinkRoundFromPhase(roundId){
-  if(!isAdmin())return;
-  try{
-    await sbUpdate("rounds",{phase_id:null},`id=eq.${roundId}`);
-    await loadRounds();if(APP.phaseId)await loadPhase(APP.phaseId);
-    toast("Mini rodada desvinculada — voltou a ser avulsa.");render();
-  }catch(e){toast("Erro: "+e.message);}
-}
-
-// ----- RODADAS: tela de uma rodada -----
-function roundHTML(){
-  const r=APP.round;
-  if(!r)return `<div class="card"><p class="p">Rodada não encontrada.</p><button class="btn ghost" onclick="leaveRound()">← Voltar</button></div>`;
-  const mode=modeOf(r);
-  const mm=modeMeta(r);
-  const isSelect=mode==="select";
-  const isBoost=mode==="boost";
-  const isConf=mode==="confianca";
-  const isPred=mode==="previsao";
-  // confiança e previsão se comportam como o impulso na escalação: escala todos, trava no 1º jogo
-  const isAllGames=isBoost||isConf||isPred||mode==="full"||mode==="zebra"||mode==="sobrevivencia"||mode==="capitaoduplo";
-  const left=picksLeft(), used=picksUsed();
-  const selLocked=picksLocked(); // seleção de jogos fechada pelo dev
-  const bLocked=boostLocked();
-  const roomOrder=(isConf&&(APP.confOrderMode||APP.confOrderDraft))?confRoomOrderIds():(APP.roundRooms||[]).map(rr=>rr.room_id);
-  let jogos=roomOrder.map(rid=>APP.jogos.find(j=>j.room_id===rid)).filter(Boolean);
-  // ordena por horário real do jogo (mais cedo no topo); jogos sem horário vão pro fim.
-  // Exceção: no modo CONFIANÇA, quando o usuário está montando/tem ordem própria, respeita a ordem dele.
-  const manualConfOrder=isConf&&(APP.confOrderMode||APP.confOrderDraft);
-  if(!manualConfOrder){
-    const tsOf=j=>{const ki=(typeof kickoffInfo==="function")?kickoffInfo(j.kickoff):null;return ki?ki.ts:Infinity;};
-    jogos=jogos.slice().sort((a,b)=>tsOf(a)-tsOf(b));
-  }
-  const rows=jogos.map(j=>{
-    const rid=j.room_id;
-    const g=window.GAMES.data[rid];
-    const finished=g&&g.match&&g.match.status==="finished";
-    // agora TODOS os modos deixam montar todos os jogos
-    const picked=true;
-    const team=hasTeam(rid);
-    const locked2=isConfirmed(rid); // travado (vale) no modo select
-    const timeLocked=roomTimeLocked(rid);
-    const adminLocked=roomAdminLocked(rid);
-    const locked=timeLocked||adminLocked;
-    let tag,meta,clickable=true;
-    if(finished){tag='<span class="statuspill st-finished">VER RESULTADO</span>';meta="jogo encerrado · toque p/ ver";}
-    else if(isSelect){
-      if(locked2){tag='<span class="statuspill st-open">🔒 VALE ✓</span>';meta="travado — este jogo conta · toque p/ ajustar o time";}
-      else if(timeLocked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada";}
-      else if(team){tag='<span class="statuspill st-finished">MONTADO</span>';meta="time pronto · trave se quiser que ele conte";}
-      else{tag='<span class="statuspill st-open">DISPONÍVEL</span>';meta="toque p/ montar o time deste jogo";}
-    }
-    else if(timeLocked){tag='<span class="statuspill st-closed">🔒 EM JOGO</span>';meta="o jogo começou · escalação travada · toque p/ ver";}
-    else if(adminLocked){tag='<span class="statuspill st-closed">🔒 TRAVADO</span>';meta="escalação travada pelo admin · toque p/ ver";}
-    else if(team){tag='<span class="statuspill st-open">ESCALADO</span>';meta="vaga garantida · toque p/ ajustar (livre até o jogo começar)";}
-    else{tag='<span class="statuspill st-finished">MONTAR TIME</span>';meta="toque p/ escalar este jogo";}
-    // ação principal modo select: travar/destravar o jogo (define quais valem)
-    let playerBtn="";
-    if(isSelect&&!finished&&!timeLocked&&!selLocked&&team){
-      if(locked2){
-        playerBtn=`<span class="statuspill" style="background:transparent;border:1px solid var(--red);color:var(--red);cursor:pointer" title="Destravar (enquanto a seleção está aberta)" onclick="event.stopPropagation();toggleSelectLock('${rid}')">DESTRAVAR</span>`;
-      }else if(left>0){
-        playerBtn=`<span class="statuspill" style="background:var(--amber);color:#0A0E1C;cursor:pointer" title="Travar — este jogo vai contar" onclick="event.stopPropagation();toggleSelectLock('${rid}')">TRAVAR</span>`;
-      }
-    }
-    // controle de IMPULSO (modo boost): atribuir fichas (com valores), enquanto não travou
-    let boostCtrl="";
-    if(isBoost&&!finished){
-      const myChips=chipsOn(rid);                 // fichas neste jogo (valores)
-      const sumPct=myChips.reduce((s,v)=>s+v,0);
-      const chipPill=v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:3px 8px;height:26px;box-sizing:border-box;background:color-mix(in srgb,${col} 16%,transparent)">⚡${neg?v:"+"+v}%</span>`;};
-      if(bLocked){
-        boostCtrl=myChips.length?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${myChips.map(chipPill).join("")}<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:13px;margin-left:2px">=${sumPct<0?"":"+"}${sumPct}%</span></div>`:"";
-      }else{
-        const avail=chipsAvailable();
-        // fichas já neste jogo: clicáveis pra remover
-        const here=myChips.map(v=>`<span onclick="event.stopPropagation();unassignChip('${rid}',${v})" style="cursor:pointer" title="Remover">${chipPill(v)}</span>`).join("");
-        // valores distintos disponíveis pra adicionar
-        const distinct=[...new Set(avail)].sort((a,b)=>b-a);
-        const addBtns=distinct.map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;const n=avail.filter(x=>x===v).length;
-          const label=neg?`${v}%`:`+${v}%`;
-          return `<button style="display:inline-flex;align-items:center;gap:2px;border-radius:8px;border:1px dashed ${col};background:transparent;color:${col};font-size:10px;font-weight:800;padding:3px 8px;height:26px;cursor:pointer" title="Pôr ficha ${label} (${n} disponível(is))" onclick="event.stopPropagation();assignChip('${rid}',${v})">+ ⚡${label}</button>`;}).join("");
-        const dica=team?"":`<span style="font-size:10px;color:var(--dim);margin-left:2px" title="Você pode gastar fichas antes de escalar; lembre de montar o time depois">escale depois</span>`;
-        boostCtrl=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          ${here}${here&&addBtns?'<span style="opacity:.3">|</span>':""}${addBtns}
-          ${myChips.length?`<span style="font-weight:800;color:${sumPct<0?"#FF6B6B":mm.color};font-size:13px;margin-left:2px">=${sumPct<0?"":"+"}${sumPct}%</span>`:""}
-          ${dica}
-        </div>`;
-      }
-    }
-    // controle de CONFIANÇA: ordenar jogos por confiança (setas ↑/↓), mostra multiplicador
-    // controle de PREVISÃO: cravar placar (inputs home x away)
-    let extraCtrl="";
-    if(isConf&&!finished){
-      const visualOrder=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:null;
-      const draftRank=visualOrder?visualOrder.indexOf(rid):null;
-      const myRank=draftRank!=null&&draftRank>=0?draftRank:confRankOf(rid);                  // posição na ordem (0-based) ou null
-      const total=visualOrder?visualOrder.length:confRankedCount();
-      if(bLocked){
-        extraCtrl=myRank!=null?`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:${mm.color}">📊 ${myRank+1}º confiança · <span>${confMultiplier(myRank,total).toFixed(2)}x</span></span>`:`<span style="font-size:11px;color:var(--dim)">sem ordem</span>`;
-      }else{
-        if(myRank==null){
-          extraCtrl=`<button style="border-radius:8px;border:1px dashed ${mm.color};background:transparent;color:${mm.color};font-size:11px;font-weight:800;padding:5px 10px;cursor:pointer" onclick="event.stopPropagation();confAdd('${rid}')">+ pôr na minha ordem de confiança</button>`;
-        }else{
-          const mult=confMultiplier(myRank,total);
-          const held=APP.confDrag===rid;
-          if(APP.confOrderMode){
-            extraCtrl=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span data-conf-pos="${rid}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
-                ${held?`<span class="confhint">arrastando...</span>`:`<span class="confhint">segure o card e arraste</span>`}
-              </div>
-              <div class="confgrab" style="border-color:${mm.color};color:${mm.color}">↕ Card inteiro arrastável</div>
-            </div>`;
-          }else{
-            extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span data-conf-pos="${rid}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:4px 9px;background:color-mix(in srgb,${mm.color} 14%,transparent)">📊 ${myRank+1}º · ${mult.toFixed(2)}x</span>
-              <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Mais confiança" onclick="event.stopPropagation();confMove('${rid}',-1)">↑</button>
-              <button class="cbtn" style="position:static;width:30px;height:30px;color:${mm.color};border-color:${mm.color}" title="Menos confiança" onclick="event.stopPropagation();confMove('${rid}',1)">↓</button>
-              <button class="cbtn" style="position:static;width:30px;height:30px;color:var(--red);border-color:var(--red)" title="Tirar da ordem" onclick="event.stopPropagation();confRemove('${rid}')">×</button>
-            </div>`;
-          }
-        }
-      }
-    }
-    if(isPred&&!finished){
-      const pr=predOf(rid); // {home,away} ou null
-      const predLocked=locked; // trava por jogo: junto com a escalação daquele jogo
-      if(predLocked){
-        extraCtrl=pr?`<span style="font-size:13px;font-weight:800;color:${mm.color}">🔮 cravou ${pr.home} × ${pr.away}</span>`:`<span style="font-size:11px;color:var(--dim)">sem palpite</span>`;
-      }else if(team){
-        const hc=g.prepool.home.code,ac=g.prepool.away.code;
-        extraCtrl=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:11px;color:var(--dim)">🔮 seu placar:</span>
-          <span style="font-weight:800;font-size:12px;color:var(--chalk)">${esc(hc)}</span>
-          <input type="number" inputmode="numeric" min="0" value="${pr&&pr.home!=null?pr.home:""}" placeholder="-" style="width:42px;text-align:center;padding:5px;border-radius:8px;border:1px solid ${mm.color};background:var(--panel2);color:var(--chalk);font-weight:800" onclick="event.stopPropagation()" onchange="predSet('${rid}',this.value,null)" />
-          <span style="color:var(--dim)">×</span>
-          <input type="number" inputmode="numeric" min="0" value="${pr&&pr.away!=null?pr.away:""}" placeholder="-" style="width:42px;text-align:center;padding:5px;border-radius:8px;border:1px solid ${mm.color};background:var(--panel2);color:var(--chalk);font-weight:800" onclick="event.stopPropagation()" onchange="predSet('${rid}',null,this.value)" />
-          <span style="font-weight:800;font-size:12px;color:var(--chalk)">${esc(ac)}</span>
-        </div>`;
-      }else{
-        extraCtrl=`<span class="statuspill st-finished" style="opacity:.7">escale p/ cravar placar</span>`;
-      }
-    }
-    // bloco de admin (separado, com divisória sutil)
-    let devBlock="";
-    if(isAdmin()){
-      const devLocked=adminLocked;
-      // o cadeado continua clicável mesmo após o jogo começar (admin libera o espiar quando quiser)
-      const lockBtn=`<span onclick="event.stopPropagation();setRoundRoomStatus('${rid}','${devLocked?"open":"locked"}')" style="cursor:pointer;font-size:19px;padding:4px;opacity:${devLocked?"1":".6"}" title="${devLocked?"Destravar escalação (liberar p/ todos)":"Travar escalação (libera o espiar p/ todos)"}">${devLocked?"🔓":"🔒"}</span>`;
-      devBlock=`<div style="display:flex;gap:14px;align-items:center;margin-left:10px;padding-left:10px;border-left:1px solid var(--line);flex-shrink:0">
-        ${lockBtn}
-        <span onclick="event.stopPropagation();delRoomFromRound('${rid}')" style="cursor:pointer;font-size:17px;padding:4px;opacity:.45" title="Remover jogo da mini rodada">🗑</span>
-      </div>`;
-    }
-    const confOrdering=isConf&&!finished&&!bLocked&&APP.confOrderMode;
-    if(confOrdering){
-      clickable=false;
-      tag=`<span class="statuspill st-finished" style="cursor:pointer;color:var(--blue);border:1px solid var(--blue);background:color-mix(in srgb,var(--blue) 16%,transparent)" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();askEnterRoundGame('${rid}')">${team?"EDITAR TIME":"MONTAR TIME"}</span>`;
-      meta=team?"time montado · arraste para mudar a confiança":"toque em montar time · arraste para ordenar";
-    }
-    const lineCtrl=isBoost?boostCtrl:(isConf||isPred?extraCtrl:"");
-    const hasLineCtrl=(isBoost||isConf||isPred)&&!finished&&lineCtrl;
-    const confRanked=isConf&&confRankOf(rid)!=null&&!finished&&!bLocked;
-    const confDragAttrs=confRanked?`data-conf-room="${rid}"`:"";
-    return `<div class="roomrow ${confRanked?"confpick":""} ${confOrdering?"confordercard":""} ${APP.confDrag===rid?"confheld confghost":""}" ${confDragAttrs} ${confOrdering?`onpointerdown="confCardPointerStart('${rid}',event)"`:""} ${clickable||finished?`onclick="roundGameClick('${rid}')"`:""} style="border-left:3px solid ${mm.color};${clickable||finished?"":"cursor:default"};${hasLineCtrl?"flex-direction:column;align-items:stretch":""}">
-      <div style="display:flex;align-items:flex-start;gap:8px;width:100%">
-        <div class="info" style="flex:1;min-width:0"><div class="nm">${esc(j.match_name)}</div><div class="meta">${meta}</div></div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${tag}${playerBtn||""}${(!isBoost&&!isConf&&!isPred)?boostCtrl:""}${devBlock}</div>
-      </div>
-      ${hasLineCtrl?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">${lineCtrl}</div>`:""}
-    </div>`;
-  }).join("");
-  const foraAll=APP.jogos.filter(j=>!APP.roundRooms.some(rr=>rr.room_id===j.room_id)&&!isArchived(j.room_id));
-  const addTab=APP.addGameTab||"open"; // 'open' | 'done'
-  const foraOpen=foraAll.filter(j=>!roomIsFinished(j.room_id));
-  const foraDone=foraAll.filter(j=>roomIsFinished(j.room_id));
-  const fora=addTab==="done"?foraDone:foraOpen;
-  const addTabsHTML=`<div style="display:flex;gap:6px;margin:14px 0 8px">
-    <span onclick="setAddGameTab('open')" style="cursor:pointer;font-size:11px;font-weight:800;padding:5px 12px;border-radius:99px;border:1px solid ${addTab==="open"?mm.color:"var(--line)"};color:${addTab==="open"?mm.color:"var(--dim)"};background:${addTab==="open"?`color-mix(in srgb,${mm.color} 14%,transparent)`:"transparent"}">Em aberto (${foraOpen.length})</span>
-    <span onclick="setAddGameTab('done')" style="cursor:pointer;font-size:11px;font-weight:800;padding:5px 12px;border-radius:99px;border:1px solid ${addTab==="done"?mm.color:"var(--line)"};color:${addTab==="done"?mm.color:"var(--dim)"};background:${addTab==="done"?`color-mix(in srgb,${mm.color} 14%,transparent)`:"transparent"}">Finalizadas (${foraDone.length})</span>
-  </div>`;
-  const foraRows=fora.map(j=>{const fin=roomIsFinished(j.room_id);return `<div class="roomrow" onclick="addRoomToRound('${j.room_id}')">
-    <div class="info"><div class="nm">${esc(j.match_name)}</div><div class="meta">${fin?"jogo finalizado · ":""}toque para adicionar à mini rodada</div></div>
-    <span class="statuspill ${fin?"st-finished":"st-closed"}">+ ADD</span></div>`;}).join("");
-  // banner explicativo por modo
-  let banner;
-  if(isBoost){
-    const pool=poolChips();
-    const cap=pool.length;
-    const bConf=boostConfirmed();
-    const avail=chipsAvailable();
-    const mx=boostMaxPerGame(),mg=boostMinGames();
-    // mostra as fichas que ainda restam, com cor
-    const availPills=avail.sort((a,b)=>b-a).map(v=>{const neg=v<0,col=neg?"#FF6B6B":mm.color;return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:800;color:${col};border:1px solid ${col};border-radius:8px;padding:3px 8px;background:color-mix(in srgb,${col} 16%,transparent)">⚡${neg?v:"+"+v}%</span>`;}).join(" ");
-    const temNeg=pool.some(v=>v<0);
-    let regras=[];
-    if(mx>0)regras.push(`até ${mx} por partida`);
-    if(mg>0)regras.push(`gaste em pelo menos ${mg} partidas diferentes`);
-    if(temNeg)regras.push(`fichas <span style="color:#FF6B6B">vermelhas são negativas</span> e também precisam ser usadas`);
-    if(boostNoMix())regras.push(`<span style="color:#FF6B6B">não misture</span> positivas e negativas no mesmo jogo`);
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Impulso.</b> Escale TODOS os jogos e distribua suas <b>${cap}</b> ficha(s) nas partidas. Cada ficha aplica seu % nos pontos daquela partida.${regras.length?` Regras: ${regras.join(" · ")}.`:""} ${bLocked?"<b>Impulsos travados</b> (a 1ª partida foi fechada).":`Fichas restantes: ${availPills||"<b>nenhuma — tudo distribuído ✓</b>"}`}</div>
-      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:#FFC247;color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Impulsos confirmados — toque p/ reabrir":"🔒 Confirmar distribuição de impulsos"}</button>`:""}
-      ${(!bLocked&&avail.length>0)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ainda tem <b>${avail.length}</b> ficha(s) sem usar. Se a 1ª partida for fechada antes de você gastar TODAS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Distribua tudo!</div>`:""}`;
-  }else if(isConf){
-    const bConf=boostConfirmed();
-    const draftIds=APP.confOrderDraft&&APP.confOrderDraft.length?APP.confOrderDraft:null;
-    const ranked=draftIds?draftIds.length:confRankedCount();
-    const totalGames=APP.roundRooms.length;
-    const ordIds=draftIds?draftIds:confOrdered().map(e=>e.room_id);
-    // multiplicadores reais desta rodada (dependem de quantos jogos foram ordenados)
-    const topMult=ranked>0?confMultiplier(0,ranked):1;
-    const lowMult=ranked>1?confMultiplier(ranked-1,ranked):1;
-    // mini resumo da ordem atual
-    const ordList=ordIds.map((roomId,i)=>{const g=window.GAMES.data[roomId];const nm=g?g.prepool.home.code+"×"+g.prepool.away.code:"?";const mult=confMultiplier(i,ranked);return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:${mm.color};border:1px solid ${mm.color};border-radius:8px;padding:2px 7px;background:color-mix(in srgb,${mm.color} 14%,transparent)">${i+1}º ${esc(nm)} ${mult.toFixed(2)}x</span>`;}).join(" ");
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Confiança.</b> Coloque os jogos em ordem de confiança: do 1º (mais confia) ao último — dá pra ordenar antes de escalar. Os pontos de cada jogo são multiplicados pela posição — quem está no topo rende mais, quem está embaixo rende menos. A escalação de cada jogo é livre até aquela partida começar. ${ranked>1?`Nesta rodada: 1º vale <b>${topMult.toFixed(2)}x</b>, último vale <b>${lowMult.toFixed(2)}x</b>.`:""} ${bLocked?"<b>Ordem travada</b> (a 1ª partida foi fechada).":`Você ordenou <b>${ranked}/${totalGames}</b>.`}
-      ${ordIds.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">${ordList}</div>`:""}</div>
-      ${!bLocked?`<div class="conforderbar">
-        <div style="font-size:12px;line-height:1.35"><b>${APP.confOrderMode?"Modo ordenar ligado":"Quer ordenar mais fácil?"}</b><br><span style="color:var(--dim)">${APP.confOrderMode?"Segure qualquer card e arraste para cima/baixo.":"Toque aqui para transformar a lista em arrastável."}</span></div>
-        <button class="btn sm" style="background:${APP.confOrderMode?"transparent":mm.color};color:${APP.confOrderMode?mm.color:"#0A0E1C"};border:${APP.confOrderMode?`1px solid ${mm.color}`:"none"};white-space:nowrap" onclick="${APP.confOrderMode?"confStopOrdering()":"confStartOrdering()"}">${APP.confOrderMode?"Sair":"Ordenar"}</button>
-      </div>`:""}
-      ${!bLocked?`<button class="btn ${bConf?"ghost":""}" style="margin:0 0 12px;${bConf?"border-color:var(--green);color:var(--green)":"background:"+mm.color+";color:#0A0E1C"}" onclick="toggleBoostConfirm()">${bConf?"✓ Ordem confirmada — toque p/ reabrir":"🔒 Confirmar ordem de confiança"}</button>`:""}
-      ${(!bLocked&&ranked<totalGames)?`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 14%,transparent);color:var(--red);margin:0 0 12px;font-weight:700">⚠️ ATENÇÃO: você ordenou só <b>${ranked}/${totalGames}</b> jogos. Se a 1ª partida for fechada antes de você ordenar TODOS, você será <b>ELIMINADO</b> e zera a mini rodada inteira. Ordene todos os jogos!</div>`:""}`;
-  }else if(isPred){
-    const totalGames=APP.roundRooms.length;
-    const feitos=(APP.roundEntries||[]).filter(e=>e.pred_home!=null&&e.pred_away!=null).length;
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">
-      ${mm.icon} <b>Modo Previsão.</b> Escale TODOS os jogos e crave o placar de cada um. Além dos pontos da escalação: <b>+${PRED_RESULT_PCT}%</b> por acertar o resultado (vitória/empate/derrota) e <b>+${PRED_EXACT_PCT}%</b> por cravar o placar exato. Você cravou <b>${feitos}/${totalGames}</b>. A escalação e o palpite de cada jogo travam quando aquela partida for fechada.</div>`;
-  }else if(mode==="zebra"){
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Zebra.</b> Escale TODOS os jogos. Jogadores do time com menor ELO em cada partida ganham <b>+25%</b> sobre seus pontos positivos na classificação da mini rodada.</div>`;
-  }else if(mode==="sobrevivencia"){
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Sobrevivência.</b> Escale TODOS os jogos. Se algum jogo seu terminar negativo, você zera a mini rodada. Se todos sobreviverem, seu pior jogo é descartado.</div>`;
-  }else if(mode==="capitaoduplo"){
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Capitão Duplo.</b> Escale TODOS os jogos. Seu capitão recebe reforço extra na classificação, funcionando como <b>1.4x</b> no total.</div>`;
-  }else if(mode==="full"){
-    banner=`<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Completo.</b> Escale TODOS os jogos da rodada. Sua pontuação é a soma de todos. Cada escalação trava quando aquela partida começar.</div>`;
-  }else{
-    banner=selLocked
-      ? `<div class="prebox" style="border-color:#3a2e10">🔒 <b>Seleção fechada.</b> Os jogos que você travou estão valendo. A escalação de cada um ainda pode mudar até a partida começar.</div>`
-      : `<div class="prebox" style="border-color:${mm.color};background:color-mix(in srgb,${mm.color} 10%,transparent);color:${mm.color}">${mm.icon} <b>Modo Selecione.</b> Monte o time de quantos jogos quiser, mas só <b>${r.pick_limit}</b> vão contar: <b>trave (🔒)</b> os que você quer que valham. Dá pra destravar e trocar enquanto a seleção estiver aberta. <b>${used}/${r.pick_limit}</b> travados. A escalação dos travados ainda muda até o jogo começar.</div>`;
-  }
-  // alerta vermelho: modo select, seleção aberta, e o usuário travou MENOS que o limite
-  let selWarn="";
-  if(isSelect&&!selLocked&&used<r.pick_limit){
-    const faltam=r.pick_limit-used;
-    selWarn=`<div class="prebox" style="border-color:var(--red);background:color-mix(in srgb,#FF6B6B 12%,transparent);color:var(--red);margin-top:-2px">⚠️ <b>Atenção:</b> você travou <b>${used}</b> de <b>${r.pick_limit}</b> jogos. ${faltam===1?"Falta travar <b>1</b> jogo":`Faltam travar <b>${faltam}</b> jogos`} pra usar todos os seus tokens. Jogos <b>não travados não pontuam</b> — trave (🔒) antes da seleção fechar!</div>`;
-  }
-  return `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <div class="h1 disp" style="color:${mm.color}">${esc(r.name)}</div>
-      <div class="userchip" onclick="leaveRound()" style="cursor:pointer">← voltar</div>
-    </div>
-    <div style="margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:5px;font-family:'Saira Condensed';font-weight:800;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${mm.color};border:1px solid ${mm.color};background:color-mix(in srgb,${mm.color} 14%,transparent);border-radius:99px;padding:3px 10px">${mm.icon} ${mm.label}</span></div>
-    ${banner}
-    ${selWarn}
-    ${rows||'<p class="p">Nenhum jogo nesta rodada ainda.</p>'}
-  </div>
-  ${roundTodoHTML()}
-  ${roundFeedHTML()}
-  ${roundRankingHTML()}
-  ${isAdmin()?`<div class="card">
-    <div class="tag" style="margin-bottom:6px">ADMIN · RODADA</div>
-    <p class="p" style="margin-bottom:8px">${isSelect?"1) Antes da 1ª partida, feche a <b>seleção de jogos</b>. 2) Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha).":"Quando cada partida começar, trave a <b>escalação daquele jogo</b> (🔒 na linha). "+(isBoost?"A distribuição de impulsos trava sozinha quando a 1ª partida é fechada.":isConf?"A ordem de confiança trava sozinha quando a 1ª partida é fechada.":isPred?"No modo Previsão, o palpite de cada jogo trava junto com a escalação daquela partida.":"")}</p>
-    ${isSelect?(selLocked
-      ? `<button class="btn ghost" onclick="setRoundStatus('open')">🔓 Reabrir seleção de jogos</button>`
-      : `<button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setRoundStatus('locked_picks')">🔒 Fechar seleção de jogos</button>`):""}
-    ${(isBoost||isConf)?(()=>{
-      const nome=isConf?"ordem de confiança":"distribuição de impulsos";
-      const travada=boostLocked();
-      const auto=anyGameLockedInRound(); // alguma partida fechou (trava automática)
-      if(travada){
-        // travada (auto ou forçada) → só o dev reabre
-        return `<div style="margin-top:10px">
-          <button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="setDistribLock(false)">${mm.icon} Reabrir ${nome}</button>
-          <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">A ${nome} está <b>travada</b>${auto?" (uma partida já foi fechada)":" (você fechou manualmente)"}. Os jogadores não conseguem editar. ⚠️ Reabrir após uma partida começar permite remanejar vendo como os jogos estão indo — use só se combinado com o grupo.</p>
-        </div>`;
-      }else{
-        // aberta → dev pode forçar o fechamento antes da hora
-        return `<div style="margin-top:10px">
-          <button class="btn ghost" style="color:var(--amber);border-color:var(--amber)" onclick="setDistribLock(true)">🔒 Fechar ${nome} agora</button>
-          <p class="p" style="font-size:11px;color:var(--dim);margin-top:6px">A ${nome} trava sozinha quando a 1ª partida for fechada. Use este botão se quiser travar antes disso.</p>
-        </div>`;
-      }
-    })():""}
-    ${foraAll.length?`<div class="tag" style="margin:14px 0 6px">ADICIONAR JOGOS À MINI RODADA</div>${addTabsHTML}${foraRows||`<p class="p" style="font-size:11px;color:var(--dim)">Nenhum jogo ${addTab==="done"?"finalizado":"em aberto"} pra adicionar.</p>`}`:""}
-  </div>`:""}`;
-}
-
-
 function roomHTML(){
   const pp=APP.prepool, m=APP.match, meta=APP.roomMeta;
   const finished=m&&m.status==="finished";
@@ -602,7 +29,6 @@ function roomHTML(){
         ?`<button class="btn ghost" onclick="setPoolStatus('closed')">🔒 Fechar pool (trava as escalações)</button>`
         :`<button class="btn ghost" onclick="setPoolStatus('open')">🔓 Reabrir pool</button>`}
       <button class="btn ghost" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="resetRoom()">🧹 Limpar times desta sala</button>
-      <button class="btn" style="margin-top:8px;background:var(--green);color:#04140d;font-weight:800" onclick="abrirApuracao('${APP.roomId}')">⚙️ Apurar jogo (colar resultado)</button>
     </div>`:""}
   </div>`;
 }
@@ -680,7 +106,8 @@ function peekTeamsHTML(){
         if(!pl){html+=`<div class="line" style="padding:5px 0"><span><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> <span style="color:#46537a">—</span></span></div>`;return;}
         const isCap=e.captain===sl;
         const posKey=sl==="BENCH"?pl.pos:sl;
-        html+=`<div class="line" style="padding:5px 0"><span><b class="pc-${posKey}" style="font-size:9px">${SLOT_LABEL[sl]}</b> ${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</span></div>`;
+        const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:pl.id,team:pl.team,name:pl.name},"microface"):"";
+        html+=`<div class="line" style="padding:5px 0"><span style="display:flex;align-items:center;gap:7px"><b class="pc-${posKey}" style="font-size:9px">${SLOT_LABEL[sl]}</b> ${face}<span>${esc(pl.name)}</span><span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:0">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</span></div>`;
       });
     }
     html+=`</div></div>`;
@@ -1009,9 +436,8 @@ function confirmModalHTML(){
       <div class="h2 disp" style="color:#FF8A4C">Criar Mercado Draft</div>
       <p class="p" style="margin:10px 0">Modo separado e full customizável. As opções obrigatórias são o núcleo do Draft; o resto você liga/desliga.</p>
       <input id="draftName" class="input" placeholder="Nome (ex: Mercado Copa 2026)" autocorrect="off" />
-      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" oninput="updDraftHint()" />
-      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" oninput="updDraftHint()" />
-      <div id="draftHint" style="margin:2px 0 8px;padding:10px 12px;border:1px solid #2a3550;border-radius:10px;background:#10182C;font-size:12.5px;line-height:1.5;color:#9fb0d0"></div>
+      <input id="draftBudget" class="input" type="number" inputmode="numeric" placeholder="Orçamento inicial (ex: 300)" value="300" />
+      <input id="draftRoster" class="input" type="number" inputmode="numeric" placeholder="Limite de elenco (ex: 12)" value="12" />
       <div class="tag" style="margin:12px 0 6px;color:#FF8A4C">BASE DO MODO</div>
       ${ck("dm_create","Criar campeonato Draft",true,true,"Sem temporada não existe modo.")}
       ${ck("dm_scope","Escolher jogos/rodadas que fazem parte",true,false,"Ativa vínculo da temporada com jogos/rodadas.")}
@@ -1038,41 +464,6 @@ function confirmModalHTML(){
       ${ck("dm_loans","Empréstimos",false,false,"Jogador vai e volta por período definido.")}
       ${ck("dm_clause","Multa rescisória",true,false,"Permite comprar pagando cláusula configurada.")}
       ${ck("dm_auction","Leilão por jogadores livres",false,false,"Ao invés de compra direta, jogador livre vai a leilão.")}
-      <div class="tag" style="margin:12px 0 6px;color:#f0a830">🔨 DRAFT POR LEILÃO 2.0</div>
-      <label style="display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:8px;background:rgba(255,255,255,.025);margin:6px 0">
-        <input id="dm_auction2" type="checkbox" style="margin-top:3px;transform:scale(1.15)" onchange="var b=document.getElementById('auction2cfg');if(b)b.style.display=this.checked?'block':'none';" />
-        <span style="flex:1"><b style="color:var(--chalk)">Ativar Draft por Leilão 2.0</b><small style="display:block;color:var(--dim);font-size:10px;margin-top:2px">Todos escolhem 1 jogador ao mesmo tempo. Se 2+ querem o mesmo, abre leilão; quem perde pega um jogador de faixa menor.</small></span>
-      </label>
-      <div id="auction2cfg" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px;margin:4px 0 8px;background:rgba(240,168,48,.04)">
-        <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Como o leilão decide o vencedor:</div>
-        <div class="seg" style="display:flex;gap:6px;margin-bottom:10px">
-          <button type="button" id="a2_blind" class="a2mode on" onclick="setA2Mode('blind')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber);font-size:11px;font-weight:800;cursor:pointer">🙈 Às cegas</button>
-          <button type="button" id="a2_live" class="a2mode" onclick="setA2Mode('live')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:11px;font-weight:800;cursor:pointer">📣 Ao vivo</button>
-          <button type="button" id="a2_priority" class="a2mode" onclick="setA2Mode('priority')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:11px;font-weight:800;cursor:pointer">🔢 Prioridade</button>
-        </div>
-        <input type="hidden" id="dm_auction2_mode" value="blind" />
-        <div id="a2_live_cfg" style="display:none">
-          <label style="font-size:11px;color:var(--dim)">Passo do lance (ao vivo)</label>
-          <input id="dm_auction2_step" class="input" type="number" inputmode="numeric" value="5" min="1" style="margin:4px 0 8px" />
-        </div>
-        <label style="font-size:11px;color:var(--dim)">Faixa da consolação — quem perde pega jogador até esta % do preço do disputado</label>
-        <input id="dm_auction2_conso" class="input" type="number" inputmode="numeric" value="70" min="10" max="100" style="margin:4px 0 0" />
-        <div style="font-size:10px;color:var(--dim);margin-top:4px">Ex: 70 = perdedor só pode pegar jogadores que custam até 70% do preço do jogador disputado.</div>
-        <div style="border-top:1px solid var(--line);margin:12px 0 8px"></div>
-        <label style="font-size:11px;color:var(--dim)">Lance mínimo — quanto acima do preço o lance precisa ser (%)</label>
-        <input id="dm_auction2_minbid" class="input" type="number" inputmode="numeric" value="0" min="0" max="100" style="margin:4px 0 8px" />
-        <label style="font-size:11px;color:var(--dim)">Tempo limite por round (segundos · 0 = sem limite)</label>
-        <input id="dm_auction2_timer" class="input" type="number" inputmode="numeric" value="0" min="0" style="margin:4px 0 8px" />
-        <label style="font-size:11px;color:var(--dim)">Jogadores por round — quantos cada um escolhe por rodada</label>
-        <input id="dm_auction2_perround" class="input" type="number" inputmode="numeric" value="1" min="1" max="5" style="margin:4px 0 8px" />
-        <label style="font-size:11px;color:var(--dim)">Empate no lance — como resolver</label>
-        <select id="dm_auction2_tiebreak" class="input" style="margin:4px 0 0">
-          <option value="reauction">Re-leilão (novo lance até alguém vencer)</option>
-          <option value="budget">Maior orçamento</option>
-          <option value="priority">Melhor prioridade (ordem do draft)</option>
-          <option value="random">Sorteio</option>
-        </select>
-      </div>
       <button class="btn" style="margin-top:4px;background:#FF8A4C;color:#0A0E1C" onclick="submitCreateDraftSeason()">Criar temporada</button>
       <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
     </div></div>`;
@@ -1114,4 +505,528 @@ function confirmModalHTML(){
     <button class="btn" style="background:var(--red);color:#fff;margin-top:4px" onclick="runConfirm()">Apagar agora</button>
     <button class="btn ghost" style="margin-top:8px" onclick="closeConfirm()">Cancelar</button>
   </div></div>`;
+}
+function submitCreateGroup(){
+  const n=$("grpName"),p=$("grpPass");
+  const name=n?n.value.trim():"",pass=p?p.value.trim():"";
+  if(!name||!pass){toast("Preencha nome e senha.");return;}
+  APP.confirm=null;createGroup(name,pass).catch(e=>toast("Erro: "+e.message));
+}
+function submitHideHistory(){
+  const f=$("hideHistPass");
+  const senha=f?f.value:"";
+  if(!senha){toast("Digite sua senha.");return;}
+  hideMyProfileHistory(senha).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreateRound(){
+  const c=APP.confirm||{};
+  const mk=c.newMode||"select";
+  const n=$("rndName");
+  const name=(n?n.value:(c.draftName||"")).trim();
+  const poolMax=(APP.jogos||[]).length;
+  if(!name){toast("Dê um nome à mini rodada.");return;}
+  let limit=poolMax||999, tokens=0;
+  if(mk==="select"){
+    const l=$("rndLimit");limit=l?parseInt(l.value,10):3;
+    if(!limit||limit<1)limit=1;
+    if(poolMax>0&&limit>poolMax){toast("Só há "+poolMax+" jogo(s) no catálogo. Escolha no máximo "+poolMax+".");return;}
+  }else if(["full","zebra","sobrevivencia","capitaoduplo"].includes(mk)){
+    limit=poolMax||999; // modos de rodada inteira = todos
+  }else if(mk==="boost"){
+    limit=poolMax||999; // impulso = escala todos
+    const chips=(c.chips||[]).map(v=>Number(v)||0).filter(v=>v!==0);
+    if(!chips.length){toast("Adicione pelo menos uma ficha de impulso.");return;}
+    const feas=boostFeasibility(chips,c.boostMaxPerGame||0,!!c.boostNoMix);
+    if(!feas.ok){toast("Configuração impossível: "+feas.msg);return;}
+    const cfg={chips,maxPerGame:c.boostMaxPerGame||0,minGames:c.boostMinGames||0,noMix:!!c.boostNoMix};
+    const phaseId=c.phaseId||null;
+    APP.confirm=null;createRound(name,limit,phaseId,mk,chips.length,cfg).catch(e=>toast("Erro: "+e.message));
+    return;
+  }
+  const phaseId=c.phaseId||null;
+  APP.confirm=null;createRound(name,limit,phaseId,mk,tokens).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreatePhase(){
+  const n=$("phName");
+  const name=n?n.value.trim():"";
+  if(!name){toast("Dê um nome à rodada.");return;}
+  const leagueId=APP.confirm&&APP.confirm.leagueId?APP.confirm.leagueId:null;
+  APP.confirm=null;createPhase(name,leagueId).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreateLeague(){
+  const n=$("lgName");
+  const name=n?n.value.trim():"";
+  if(!name){toast("Dê um nome à liga.");return;}
+  APP.confirm=null;createLeague(name).catch(e=>toast("Erro: "+e.message));
+}
+function submitCreateDraftSeason(){
+  const n=$("draftName"),b=$("draftBudget"),r=$("draftRoster");
+  const name=n?n.value.trim():"";
+  const budget=b?parseInt(b.value,10):300;
+  const roster=r?parseInt(r.value,10):12;
+  const on=id=>{const el=$(id);return !!(el&&el.checked);};
+  const buyLim=$("draftBuyLimit")?parseInt($("draftBuyLimit").value,10):2;
+  if(!name){toast("Dê um nome à temporada.");return;}
+  if(!budget||budget<20){toast("Orçamento precisa ser pelo menos 20.");return;}
+  if(!roster||roster<6){toast("Elenco precisa ter pelo menos 6 jogadores.");return;}
+  const settings={
+    required:{create_competition:true,exclusive_players:true,season_ranking:true,transaction_history:true},
+    games_scope:on("dm_scope"),
+    budget_enabled:on("dm_budget"),
+    ordered_draft:on("dm_ordered"),
+    roster_limit_enabled:on("dm_roster"),
+    lineup_enabled:on("dm_lineup"),
+    free_market:on("dm_market"),
+    dynamic_prices:on("dm_dynamic"),
+    sell_at_current_price:on("dm_sell_current"),
+    purchase_limit_enabled:on("dm_buy_limit"),
+    purchases_per_round:buyLim&&buyLim>0?buyLim:2,
+    auto_windows:on("dm_auto_window"),
+    eliminated_player_rule:on("dm_eliminated")?"discount":"none",
+    waiver_enabled:on("dm_waiver"),
+    trades_enabled:on("dm_trades"),
+    pending_offers:on("dm_pending"),
+    admin_veto:on("dm_veto"),
+    loans_enabled:on("dm_loans"),
+    release_clause_enabled:on("dm_clause"),
+    free_agent_auction:on("dm_auction"),
+    lineup:{GK:1,DEF:1,MID:1,ATT:1,FLEX:1,BENCH:1},
+    sell_tax_pct:10
+  };
+  APP.confirm=null;createDraftSeason(name,budget,roster,settings).catch(e=>toast("Erro: "+e.message));
+}
+async function deleteLeague(id){
+  if(!isAdmin())return;
+  try{
+    await sbUpdate("phases",{league_id:null},`league_id=eq.${id}`);
+    await sbDelete("leagues",`id=eq.${id}`);
+    await loadPhases();await loadLeagues();
+    APP.leagueId=null;APP.league=null;APP.view="home";
+    toast("Liga excluída. As rodadas voltaram a ser avulsas.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+async function deletePhase(id){
+  if(!isAdmin())return;
+  try{
+    // apaga em cascata: as mini rodadas desta rodada, com suas entries e round_rooms
+    const minis=await sb("rounds?phase_id=eq."+id+"&group_id=eq."+APP.groupId+"&select=id");
+    for(const m of (minis||[])){
+      await sbDelete("entries",`round_id=eq.${m.id}`);
+      await sbDelete("round_rooms",`round_id=eq.${m.id}`);
+      await sbDelete("rounds",`id=eq.${m.id}`);
+    }
+    await sbDelete("phases",`id=eq.${id}`);
+    await loadRounds();await loadPhases();
+    APP.phaseId=null;APP.phase=null;APP.view="home";
+    toast("Rodada e suas mini rodadas excluídas.");
+    render();
+  }catch(e){toast("Erro: "+e.message);}
+}
+function submitJoin(){
+  const c=APP.confirm;const f=$("joinPass");
+  const pass=f?f.value:"";
+  const gid=c.gid;APP.confirm=null;
+  joinGroup(gid,pass).catch(e=>toast("Erro: "+e.message));
+}
+const _normWord=s=>String(s||"").trim().toUpperCase();
+async function runConfirm(){
+  const c=APP.confirm;if(!c)return;
+  // lê direto do campo (mais confiável que o estado em mobile)
+  const field=$("confirmField");
+  const typed=field?field.value:c.typed;
+  if(_normWord(typed)!==_normWord(c.word)){toast(`Digite "${c.word}" para confirmar.`);return;}
+  const action=c.action;APP.confirm=null;render();
+  try{await action();}catch(e){toast("Erro: "+e.message);}
+}
+// reset de UMA sala
+function resetRoom(){
+  if(!isAdmin())return;
+  askConfirm("LIMPAR","Limpar times desta sala",async()=>{
+    await sbDelete("entries",`room_id=eq.${APP.roomId}&group_id=eq.${APP.groupId}`);
+    APP.entries=[];
+    toast("Times desta sala apagados.");
+    render();
+  });
+}
+// reset GERAL (todas as salas)
+function resetAll(){
+  if(!isAdmin())return;
+  askConfirm("RESET TUDO","Manutenção: limpar TODOS os times de TODOS os jogos",async()=>{
+    // deleta todas as entries (room_id sempre existe; pega todas)
+    await sbDelete("entries","room_id=not.is.null");
+    APP.entries=[];
+    toast("Manutenção concluída. Todos os times foram apagados.");
+    render();
+  });
+}
+function hasEntry(){return APP.slots&&Object.values(APP.slots).some(Boolean);}
+
+// ============================================================
+// TELA: BUILD (montar time) — reaproveitada do chalkboard
+// ============================================================
+// teto de preço do banco = preço do TITULAR MAIS BARATO que o usuário escalou.
+// O banco é grátis (não conta no orçamento) e só aceita quem custa <= esse teto.
+// Enquanto não houver nenhum titular escalado, não há teto (banco fica bloqueado).
+function benchCap(s,byId){
+  const TIT=["GK","DEF","MID","ATT","FLEX"];
+  let cap=null;
+  for(const sl of TIT){const pid=s[sl];if(!pid)continue;const pr=byId[pid]?byId[pid].price:null;if(pr==null)continue;cap=cap==null?pr:Math.min(cap,pr);}
+  return cap; // null = nenhum titular ainda
+}
+function buildHTML(){
+  const pp=APP.prepool, byId=APP._byId, s=APP.slots;
+  const used=Object.values(s).filter(Boolean);
+  // orçamento NÃO conta o banco (banco é grátis, estilo Cartola)
+  const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:(byId[id]?byId[id].price:0)),0);
+  const left=100-spent;
+  const bcap=benchCap(s,byId); // teto de preço do banco = titular mais barato escalado (null se nenhum)
+  const TAC=window.ENGINE_TACTICS;
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  const poolClosedOutOfRound = !inRound && APP.roomMeta && APP.roomMeta.status!=="open" && !(APP.match&&APP.match.status==="finished");
+  const gameLocked=(inRound&&roomLockedInRound(APP.roomId)) || poolClosedOutOfRound;
+  const filt=pp.players.filter(p=>
+    (APP.tabTeam==="ALL"||p.team===APP.tabTeam) &&
+    (APP.tabPos==="ALL"||p.pos===APP.tabPos)
+  ).sort((a,b)=>b.price-a.price);
+  const ready=Object.values(s).every(Boolean)&&APP.captain&&APP.tactic&&!gameLocked;
+  const hasSomeFilled=Object.values(s).some(Boolean);
+  const canReplicate=hasSomeFilled&&!gameLocked;
+  const filledCount=Object.values(s).filter(Boolean).length;
+  const starterFilled=["GK","DEF","MID","ATT","FLEX"].filter(sl=>s[sl]).length;
+  const budgetPct=Math.max(0,Math.min(100,spent));
+  const capName=APP.captain&&s[APP.captain]&&byId[s[APP.captain]]?byId[s[APP.captain]].name:null;
+  const tacticName=APP.tactic&&TAC[APP.tactic]?TAC[APP.tactic].name:null;
+  const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
+    const pid=s[sl],pl=pid?byId[pid]:null;
+    const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
+    const face=pl&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:pl.id,team:pl.team,name:pl.name},"slotpic"):"";
+    return `<div class="slot${pl?` filled s-${posKey}`:" empty"}${pl&&APP.captain===sl?" cap":""}" onclick="${pl?`clearSlot('${sl}')`:""}">
+      <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}${sl==="BENCH"?(bcap!=null?` ·grátis ≤${bcap}`:" ·grátis"):""}</div>
+      <div class="nm" style="${pl?"display:flex;align-items:center;gap:8px":""}">${pl?`${face}<span>${esc(pl.name)}</span>`:"toque num jogador"}</div>
+      ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
+      ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
+    </div>`;}).join("");
+  // rótulos legíveis pras ações de buff/nerf das táticas
+  const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
+    dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
+    tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
+    accCross:"cruzamentos",fouls:"faltas",prgCarry:"conduções",longBall:"lançamentos"};
+  // cor-tema por tática (casa com as variáveis --tac-* do CSS)
+  const TACT_COLOR={muralha:"var(--tac-muralha)",pressaototal:"var(--tac-pressaototal)",cerebro:"var(--tac-cerebro)",tridente:"var(--tac-tridente)",aereo:"var(--tac-aereo)",contra:"var(--tac-contra)"};
+  function tactEffectHTML(t){
+    const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
+    const uniq=[...new Set(fam)];
+    return `<div class="teff"><div class="up">▲ completa = bônus</div><div class="down">▼ incompleta = ônus menor</div><div class="foco">foco em <b>${uniq.join(", ")}</b></div></div>`;
+  }
+  const tactsHTML=Object.entries(TAC).filter(([k,t])=>!t.legacy).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`;}).join("");
+  // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
+  const teamTabs=["ALL",pp.home.code,pp.away.code];
+  const teamTabsHTML=teamTabs.map(t=>{
+    const on=APP.tabTeam===t;const isTeam=t!=="ALL";
+    let style="";
+    if(on&&isTeam)style=`style="--tc:${teamColor(t)};border-color:${teamColor(t)};color:${teamColor(t)};background:color-mix(in srgb,${teamColor(t)} 14%,transparent)"`;
+    return `<div class="ptab${on?" on":""}" ${style} onclick="setTabTeam('${t}')">${t==="ALL"?"TODOS":t}</div>`;
+  }).join("");
+  const posTabs=["ALL","GK","DEF","MID","ATT"];
+  const posTabsHTML=posTabs.map(t=>{
+    const on=APP.tabPos===t;const isPos=t!=="ALL";
+    let style="";
+    if(on&&isPos)style=`style="border-color:var(--pos-${t});color:var(--pos-${t});background:color-mix(in srgb,var(--pos-${t}) 14%,transparent)"`;
+    return `<div class="ptab${on?" on":""}" ${style} onclick="setTabPos('${t}')">${t==="ALL"?"TODAS":SLOT_LABEL[t]}</div>`;
+  }).join("");
+  const tabsHTML=`<div class="postabs">${teamTabsHTML}</div><div class="postabs">${posTabsHTML}</div>`;
+  // destino que um jogador teria, dado o estado atual dos slots (mesma lógica do place)
+  function destSlot(p){
+    if(p.pos==="GK")return !s.GK?"GK":(!s.BENCH?"BENCH":null);
+    if(!s[p.pos])return p.pos; if(!s.FLEX)return "FLEX"; if(!s.BENCH)return "BENCH"; return null;
+  }
+  const poolHTML=filt.map(p=>{
+    const sel=used.includes(p.id);
+    const dest=destSlot(p);
+    let dis=false,reason="";
+    if(!sel){
+      if(!dest){dis=true;reason="";}
+      else if(dest==="BENCH"){ if(bcap==null||(p.price||0)>bcap){dis=true;reason="banco";} } // banco: precisa ter titular e custar <= o teto
+      else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
+    }
+    const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
+    const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:p.id,team:p.team,name:p.name},"pface"):"";
+    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}" onclick="${dis?"":`place(${p.id})`}"><div class="posbar pb-${p.pos}"></div><div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div>${face}<div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
+  }).join("");
+  // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
+  if(gameLocked){
+    const tac=TAC[APP.tactic];
+    const lineRow=(sl)=>{
+      const pid=s[sl],pl=pid?byId[pid]:null;
+      if(!pl)return"";
+      const isCap=APP.captain===sl;
+      const posKey=sl==="BENCH"&&pl?pl.pos:sl;
+      const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:pl.id,team:pl.team,name:pl.name},"pface"):"";
+      return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div><div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div>${face}<div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div><div class="pr mono" style="color:var(--dim)">${sl==="BENCH"?"grátis":pl.price}</div></div>`;
+    };
+    return `<div class="scorebar"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tag">${esc(pp.comp)} · ⚽ EM ANDAMENTO</div><div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer;flex-shrink:0">← voltar</div></div>
+      <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">×</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>
+    <div class="card">
+      <div class="prebox" style="border-color:#143a2a;background:#0c1f17;color:var(--green)">🔒 Time confirmado e travado. Boa sorte — agora é torcer! Você verá a pontuação quando a partida acabar.</div>
+      <div class="h2 disp" style="margin-top:6px">Seu time escalado</div>
+      <div class="pool" style="max-height:none;margin-top:8px">${["GK","DEF","MID","ATT","FLEX","BENCH"].map(lineRow).join("")}</div>
+      <div class="bsub">⚔️ Sua tática</div>
+      ${tac?`<div class="tact on" style="min-width:0;--tac:${TACT_COLOR[APP.tactic]||"var(--amber)"}"><div class="ttop"></div>${`<div class="tn">${tac.name}</div><div class="td">${tac.desc}</div>${tactEffectHTML(tac)}`}</div>`:`<p class="p">—</p>`}
+      <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)${helpBtn("capitao")}</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
+    </div>`;
+  }
+  return `<div class="card buildhero">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="tag">${esc(pp.comp)}</div>
+        <div class="buildtitle disp">${esc(pp.home.name)} × ${esc(pp.away.name)}</div>
+        <div class="heroSub">Monte 5 titulares, 1 banco, capitão e tática antes do jogo travar.</div>
+      </div>
+      <div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer;flex-shrink:0">← voltar</div>
+    </div>
+    <div class="budget"><div class="h2 disp">Seu time${helpBtn("slots")}</div><div><span class="tag">RESTANTE${helpBtn("orcamento")} </span><span class="val mono">${left}</span><span class="tag"> /100</span></div></div>
+    <div class="budgetbar"><div class="fill" style="width:${budgetPct}%"></div></div>
+    <div class="lineupMeta">
+      <div class="mini"><b>${starterFilled}/5</b><span>titulares</span></div>
+      <div class="mini"><b>${s.BENCH?"ok":"-"}</b><span>banco</span></div>
+      <div class="mini"><b>${capName?esc(capName):"-"}</b><span>capitão</span></div>
+      <div class="mini"><b>${tacticName?esc(tacticName):"-"}</b><span>tática</span></div>
+    </div>
+    <div class="slots">${slotsHTML}</div>
+    <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
+    <div class="sectionhead"><span>Escolha 1 tática${helpBtn("tatica")}</span><span>${APP.tactic?"selecionada":"pendente"}</span></div>
+    <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
+    <div class="tacts">${tactsHTML}</div>
+  </div>
+  <div class="card">
+    <div class="sectionhead"><span>Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</span><span>${filledCount}/6 escolhidos</span></div>
+    ${tabsHTML}
+    <div class="pool">${poolHTML}</div>
+    ${APP.warn?`<div class="warn">${APP.warn}</div>`:""}
+    ${!gameLocked&&inRound&&APP.avulsaLineup?`<button class="btn ghost" style="margin-top:12px;border-color:var(--blue);color:var(--blue)" onclick="copyLineupFromOther()">📋 Copiar escalação da partida solta</button>`:""}
+    ${canReplicate?`<button class="btn ghost" style="margin-top:12px;border-color:var(--green);color:var(--green)" onclick="askReplicate()">📑 Repor esta escalação nos outros modos com este jogo</button>
+       <p class="p" style="margin-top:6px;font-size:11px">Cola este time (jogadores + capitão + tática) em toda aparição de ${esc(pp.home.name)} × ${esc(pp.away.name)} nos outros modos/rodadas. Salve este jogo também.</p>`:""}
+    ${gameLocked
+      ? `<div class="prebox" style="margin-top:12px;border-color:#3a2e10">🔒 O jogo já começou — escalação travada. Não dá mais pra editar.</div>
+         <button class="btn" style="margin-top:8px" disabled>🔒 Time travado</button>`
+      : inRound
+        ? `<button class="btn ${ready?"ready":""}" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar escalação":"Complete 6 slots, capitão e tática"}</button>
+           <p class="p" style="margin-top:8px;font-size:12px;color:var(--dim)">Pode ajustar quantas vezes quiser até o jogo começar. O que está garantido é a <b>vaga neste jogo</b> (ficha gasta) — a escalação trava sozinha no apito inicial.</p>`
+        : `<button class="btn ${ready?"ready":""}" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
+  </div>`;
+}
+function askConfirmTeam(){
+  APP.confirm={mode:"confirmTeam",roomId:APP.roomId,label:"Confirmar equipe"};render();
+}
+// copia a escalação avulsa (partida solta) que o usuário fez neste MESMO jogo
+async function copyLineupFromOther(){
+  const src=APP.avulsaLineup;
+  if(!src){toast("Você não montou este jogo na versão solta.");return;}
+  APP.slots=Object.assign({GK:null,DEF:null,MID:null,ATT:null,FLEX:null,BENCH:null},src.slots);
+  APP.captain=src.captain||null;
+  APP.tactic=src.tactic||null;
+  toast("Escalação copiada da partida solta! Revise e salve.");
+  render();
+}
+// ── REPOR ESCALAÇÃO: copia a escalação ATUAL (deste jogo) pra todas as OUTRAS
+// aparições do MESMO jogo (mesmo room_id) nos outros modos/rodadas + versão avulsa.
+// Como é o mesmo jogo, os IDs dos jogadores são idênticos: copia os slots direto.
+// Pula a entry atual (onde estou) e qualquer entry travada (admin ou jogo começou).
+async function replicateTargets(){
+  // devolve lista de {round_id|null, label, locked} — onde dá pra colar a escalação deste room_id
+  const out=[];
+  const inRoundNow=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  // 1) versão avulsa (round_id null) — alvo se eu NÃO estou nela agora
+  if(inRoundNow) out.push({round_id:null,label:"partida solta",locked:false});
+  // 2) todas as rodadas onde este jogo aparece
+  try{
+    const rrs=await sb("round_rooms?room_id=eq."+APP.roomId+"&select=round_id,status");
+    for(const rr of (rrs||[])){
+      if(inRoundNow&&rr.round_id===APP.roundId) continue; // pula a rodada atual (é onde estou)
+      const locked=(rr.status&&rr.status!=="open");
+      out.push({round_id:rr.round_id,label:"rodada",locked});
+    }
+  }catch(e){}
+  return out.filter(t=>!t.locked);
+}
+async function askReplicate(){
+  const targets=await replicateTargets();
+  if(!targets.length){toast("Este jogo não aparece em outro modo/rodada pra copiar.");return;}
+  APP.confirm={mode:"replicate",count:targets.length,_targets:targets,label:"Repor escalação"};render();
+}
+async function applyLineupEverywhere(){
+  if(!APP.user){toast("Faça login.");return;}
+  const slots=APP.slots;
+  if(!Object.values(slots).some(Boolean)){toast("Monte o time primeiro.");return;}
+  const targets=(APP.confirm&&APP.confirm._targets)||await replicateTargets();
+  if(!targets.length){toast("Nada para aplicar.");APP.confirm=null;render();return;}
+  const cap=(APP.captain&&slots[APP.captain])?APP.captain:null;
+  const payload={slots:JSON.parse(JSON.stringify(slots)),captain:cap,tactic:APP.tactic,updated_at:new Date().toISOString()};
+  let applied=0;
+  for(const t of targets){
+    try{
+      const filtro=t.round_id?("&round_id=eq."+t.round_id):"&round_id=is.null";
+      const ex=await sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+"&username=eq."+encodeURIComponent(APP.user.username)+filtro+"&select=id");
+      if(ex&&ex.length){await sbUpdate("entries",payload,"id=eq."+ex[0].id);applied++;}
+      else{await sbInsert("entries",Object.assign({room_id:APP.roomId,group_id:APP.groupId,round_id:t.round_id,username:APP.user.username},payload));applied++;}
+    }catch(e){}
+  }
+  APP.confirm=null;
+  toast(applied?`Escalação copiada para ${applied} outra(s) aparição(ões) deste jogo!`:"Nada para aplicar.");
+  render();
+}
+function place(pid){
+  const byId=APP._byId,p=byId[pid],s=APP.slots,used=Object.values(s).filter(Boolean);APP.warn="";
+  if(used.includes(pid)){const sl=Object.keys(s).find(k=>s[k]===pid);s[sl]=null;if(APP.captain===sl)APP.captain=null;render();return;}
+  // descobre o slot de destino
+  let t=null;
+  if(p.pos==="GK")t=!s.GK?"GK":!s.BENCH?"BENCH":null;
+  else{if(!s[p.pos])t=p.pos;else if(!s.FLEX)t="FLEX";else if(!s.BENCH)t="BENCH";}
+  if(!t){APP.warn="Sem slot compatível livre.";render();return;}
+  if(t==="BENCH"){
+    // banco: GRÁTIS, mas só aceita quem custa <= o titular mais barato que você escalou
+    const bcap=benchCap(s,byId);
+    if(bcap==null){APP.warn="Escale ao menos um titular antes de escolher o banco (o teto do banco é o seu titular mais barato).";render();return;}
+    if((p.price||0)>bcap){APP.warn=`No banco só entra quem custa até ${bcap} (seu titular mais barato). Esse custa ${p.price}.`;render();return;}
+  }else{
+    // titular: paga e respeita o orçamento (banco não conta)
+    const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:byId[id].price),0);
+    if(100-spent-p.price<0){APP.warn="Orçamento estourado.";render();return;}
+  }
+  s[t]=pid;enforceBenchCap();render();
+}
+// se o reserva do banco ficou acima do novo teto (titular mais barato), remove e avisa
+function enforceBenchCap(){
+  const s=APP.slots,byId=APP._byId;const bp=s.BENCH;if(!bp)return;
+  const cap=benchCap(s,byId);
+  const pr=byId[bp]?byId[bp].price:null;
+  if(cap==null||(pr!=null&&pr>cap)){
+    s.BENCH=null;
+    if(APP.captain==="BENCH")APP.captain=null;
+    APP.warn=cap==null?"Banco liberado: ele depende de ter um titular escalado.":`Banco liberado: o reserva (${pr}) ficou acima do novo teto (${cap}, seu titular mais barato).`;
+  }
+}
+function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;if(sl!=="BENCH")enforceBenchCap();render();}
+function toggleCap(sl){APP.captain=APP.captain===sl?null:sl;render();}
+function setTactic(k){APP.tactic=k;render();}
+function setTabTeam(t){APP.tabTeam=t;render();}
+function setTabPos(t){APP.tabPos=t;render();}
+
+async function saveEntry(){
+  if(!SUPA.ready()){toast("Supabase não configurado.");return;}
+  // está numa rodada? (roundId setado e este jogo pertence à mini rodada)
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  try{
+    if(inRound){
+      // escalação travada? (dev forçou, usuário confirmou, ou jogo começou)
+      if(roomLockedInRound(APP.roomId)){toast("Este jogo já travou — não dá mais pra editar.");go("round",null,APP.roundId);return;}
+      // a entry já existe (criada na seleção): só atualiza os slots/tática
+      await upsertEntry(APP.roundId);
+      toast("Progresso salvo. Confirme a equipe quando estiver pronto.");
+      await loadRound(APP.roundId);
+      go("round",null,APP.roundId);return;
+    }
+    // fluxo avulso
+    const gr=await sb(`group_rooms?group_id=eq.${APP.groupId}&room_id=eq.${APP.roomId}&select=status`);
+    if(gr&&gr[0]&&gr[0].status!=="open"){
+      APP.roomMeta.status=gr[0].status;
+      toast("Pool fechada — não dá mais pra editar o time.");
+      go("room");return;
+    }
+    await upsertEntry(null);
+    toast("Time salvo!");
+    go("room");
+  }catch(e){toast("Erro ao salvar: "+e.message);}
+}
+// salva a entry separando avulso (round_id null) de rodada (round_id setado).
+// busca-então-decide: evita depender de índice parcial no on_conflict.
+async function upsertEntry(roundId){
+  const base={slots:APP.slots,captain:APP.captain,tactic:APP.tactic,updated_at:new Date().toISOString()};
+  const filtroRound = roundId?("&round_id=eq."+roundId):"&round_id=is.null";
+  const existing=await sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId
+    +"&username=eq."+encodeURIComponent(APP.user.username)+filtroRound+"&select=id");
+  if(existing&&existing.length){
+    // já existe nesse contexto → atualiza pelo id (não toca na outra)
+    await sbUpdate("entries",base,"id=eq."+existing[0].id);
+  }else{
+    // não existe → cria nova
+    await sbInsert("entries",Object.assign({room_id:APP.roomId,group_id:APP.groupId,round_id:roundId,username:APP.user.username},base));
+  }
+}
+
+// ============================================================
+// TELA: RESULT (ranking + apuração)
+// ============================================================
+async function loadEntries(){
+  if(!SUPA.ready())return [];
+  // ranking deve refletir o contexto: se vim de uma rodada, só entries daquela rodada;
+  // senão, só as avulsas (round_id null). Evita misturar/duplicar o mesmo usuário.
+  const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
+  const filtroRound=inRound?("&round_id=eq."+APP.roundId):"&round_id=is.null";
+  return sb("entries?room_id=eq."+APP.roomId+"&group_id=eq."+APP.groupId+filtroRound+"&select=*");
+}
+function buildMatchCtx(){
+  const pp=APP.prepool,m=APP.match;
+  m.homeCode=pp.home.code;m.awayCode=pp.away.code;m.homeElo=pp.home.elo;m.awayElo=pp.away.elo;
+  // set piece goals (pra tatica bola parada) — opcional no match.json
+  if(m.team_stats)for(const tc of [pp.home.code,pp.away.code]){if(m.team_stats[tc]&&m.team_stats[tc].setPieceGoals==null)m.team_stats[tc].setPieceGoals=0;}
+  return makeEngine(m);
+}
+function scoreEntry(entry,eng){
+  return scoreEntryFor(entry,eng,{prepool:APP.prepool,match:APP.match,byId:APP._byId});
+}
+// versão pura: calcula um entry contra um jogo passado em ctx (não usa estado global)
+function scoreEntryFor(entry,eng,ctx){
+  const byId=ctx.byId,m=ctx.match;
+  const slots=["GK","DEF","MID","ATT","FLEX","BENCH"];
+  function rawOf(pid){const meta=byId[pid];if(!meta)return{pos:"MID",team:"?",min:0};const raw=m.players?m.players[String(pid)]:null;return Object.assign({pos:meta.pos,team:meta.team},raw||{min:0});}
+  const res={};
+  for(const sl of slots){const pid=entry.slots[sl];if(!pid){res[sl]=null;continue;}res[sl]=eng.scorePlayer(rawOf(pid),null);}
+  let subOut=null;const benchPid=entry.slots.BENCH,benchMeta=benchPid?byId[benchPid]:null;
+  const BENCH_FACTOR=0.8; // reserva que entra rende 80% (pedágio por não ser titular)
+  if(benchMeta&&res.BENCH){
+    if(benchMeta.pos==="GK"){
+      const gkTitularMin=res.GK?res.GK.minutes:0;
+      // GK reserva só entra se o titular não jogou nada; mesmo assim, com desconto
+      if(gkTitularMin===0&&res.BENCH){subOut="GK";[res.GK,res.BENCH]=[res.BENCH,res.GK];const t=entry.slots.GK;entry.slots.GK=entry.slots.BENCH;entry.slots.BENCH=t;}
+    }
+    else{
+      const cand=[benchMeta.pos,"FLEX"].filter(x=>res[x]);
+      let worst=null;for(const x of cand){if(!worst||res[x].total<res[worst].total||(res[x].total===res[worst].total&&x==="FLEX"))worst=x;}
+      // só troca se o reserva, JÁ COM o desconto, ainda superar o pior titular
+      if(worst&&res.BENCH.total*BENCH_FACTOR>res[worst].total){subOut=worst;const t=entry.slots[worst];entry.slots[worst]=entry.slots.BENCH;entry.slots.BENCH=t;[res[worst],res.BENCH]=[res.BENCH,res[worst]];}
+    }
+  }
+  // tática v4: conta TODOS que entraram (titulares + reserva que entrou), mesmo substituídos
+  const entraram=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>entry.slots[sl]).filter(Boolean).map(rawOf).filter(r=>(r.min||0)>0);
+  const sq=eng.squadSum(entraram);
+  let sum=0;const view=[];
+  for(const sl of slots){
+    const pid=entry.slots[sl];
+    if(!pid){view.push(null);continue;}
+    const r=eng.scorePlayer(rawOf(pid),sl==="BENCH"?null:entry.tactic,sl==="BENCH"?null:sq);
+    let pts=r.total,cap=false;
+    // reserva que entrou: aplica o pedágio de 80%
+    if(sl===subOut){pts=Math.round(pts*BENCH_FACTOR*10)/10;}
+    if(sl===entry.captain&&sl!=="BENCH"){pts=Math.round(pts*1.2*10)/10;cap=true;}
+    if(sl!=="BENCH")sum+=pts;
+    view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
+  }
+  // IMPULSO (modo boost): aplicado por ÚLTIMO, sobre o total já fechado (tática, capitão, etc.).
+  // Modelo novo: entry.boost_chips = lista de valores das fichas neste jogo, ex [25,15] ou [-20].
+  //   o % total é a SOMA das fichas (positivas e negativas).
+  // Modelo antigo (retrocompat): entry.boost = nº de fichas × BOOST_PCT.
+  let boostPct=0, boostTokens=0;
+  const chips=entry.boost_chips;
+  if(Array.isArray(chips)&&chips.length){
+    boostPct=chips.reduce((s,v)=>s+(Number(v)||0),0);
+    boostTokens=chips.length;
+  }else{
+    boostTokens=Math.max(0,parseInt(entry.boost,10)||0);
+    boostPct=BOOST_PCT*boostTokens;
+  }
+  const boostMult=1+(boostPct/100);
+  const finalTotal=Math.round(sum*boostMult*10)/10;
+  return {username:entry.username,total:finalTotal,boost:boostTokens,boostPct,boostChips:Array.isArray(chips)?chips:null,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
 }
