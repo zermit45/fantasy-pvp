@@ -1,0 +1,97 @@
+# REGRAS DE PREÇO DA POOL (PvP) — v14 provisória
+
+Doc de referência das regras que definem **quanto cada jogador custa numa pool de confronto PvP**.
+Mexe SÓ no preço (arquivo `gera_pools.js` / `gera_pools_16avos.js`). NÃO mexe na pontuação (engine.js).
+
+> Editável: este arquivo é só registro. Os valores reais ficam no `gera_pools.js`. Ao mudar
+> um parâmetro lá, atualize aqui também pra manter o histórico.
+
+---
+
+## 1. DE ONDE VEM O PREÇO BASE (`_raw`)
+
+Cada jogador parte do **`draftPrice` do master** (`draftMasterPlayers`, v10).
+O draftPrice já combina: Copa 40% + ELO clube 22% + desempenho clube 18% + mercado 12% (corrigido por posição/idade) + ELO seleção 8%.
+
+- Quem está no master → usa o `draftPrice` direto.
+- Quem NÃO está no master → cai no `estimaMaster()` (fallback pelo mv neutralizado, piso GK 34).
+
+### 1a. ALIASES de nome (name-matching)
+Algumas seleções listam o jogador com nome diferente do master (apelido, nome completo vs
+abreviado). Sem alias, ele não casa e cai no fallback ruim. Tabela `ALIAS` no gera_pools:
+
+| nome na seleção   | nome no master | quem é                                    |
+|-------------------|----------------|-------------------------------------------|
+| yassine bounou    | bono           | Bono, GK titular Marrocos/Al-Hilal (dp 57) |
+
+> Adicionar aqui sempre que um titular cair no fallback por nome. Conferir rodando o gera_pools
+> e vendo se aparece "SEM MASTER".
+
+---
+
+## 2. NORMALIZAÇÃO (espalhar os preços na faixa)
+
+O `_raw` é normalizado em `_q` (0..1) e depois vira preço via gamma + teto.
+
+- **Blend global+por-time (0.45):** `_q = blend·qPorTime + (1−blend)·qGlobal`.
+  - Parte global preserva qualidade real (Vini > Nakamura).
+  - Parte por-time destaca o craque local (Gyökeres na frente dos reservas).
+  - ELO ajusta o blend ±0.05 (`blendDe`, div 700).
+
+### 2a. NORMALIZAÇÃO SEPARADA DE GOLEIRO (novo na v14)
+GKs têm `_raw` menor que craques de linha → no `_q` global ficam comprimidos no piso, mesmo
+sendo titulares de elite. Correção:
+- Cada GK é normalizado **entre os goleiros DO PRÓPRIO TIME** (`qK`), não do jogo todo.
+  - Por-time (não por-jogo) evita punir o titular de elite só porque o adversário tem GK de
+    `_raw` mais alto. Ex: Bounou (MAR, 57) não é rebaixado por enfrentar Verbruggen (NLD, 75).
+- Mistura: **`_q = 0.70·qK + 0.30·_q`** (70% escala-GK por time + 30% global).
+  - Os 30% globais mantêm um respiro entre seleção forte e fraca no geral.
+- Efeito: GK titular de cada seleção sobe ao topo da faixa-GK (perto do teto 22); reservas baixos.
+  - Exemplo Holanda×Marrocos: Bounou 9 → **18**; Verbruggen 17 → 20; reservas 6-9.
+
+---
+
+## 3. TETOS, PISO E GAMMA
+
+| parâmetro    | valor | nota                                                             |
+|--------------|-------|------------------------------------------------------------------|
+| TETO_LINHA   | 35    | teto de jogador de linha (DEF/MID/ATT)                           |
+| **TETO_GK**  | **22**| teto do goleiro = NERF do GK no PvP (no fantasy GK pontua menos) |
+| PISO         | 4     | preço mínimo                                                     |
+| GAMMA base   | 0.9   | ponto de partida do gamma adaptativo                             |
+
+### 3a. GAMMA ADAPTATIVO
+Pra cada jogo, busca (loop g=0.6→2.2 passo 0.05) o gamma que deixa a **MÉDIA FINAL** (medida
+DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 17**. Isso iguala a dificuldade entre jogos.
+
+### 3b. cravaDream
+`cravaDream(players, 140, 35, 22, 4)` — re-escala o topo pra que o **dream team (5 mais caros)
+≈ 140**, com teto linha 35, teto GK 22, piso 4. Aplicado em todos os jogos.
+
+---
+
+## 4. RESULTADO ESPERADO (calibração v14)
+- Média geral por jogo: **~16.8–17.1**
+- Variação entre jogos: baixa (~0.3–1.6)
+- Dream team: **137–141** em todos
+- Faixa: 4–35 (GK até 22)
+- GK titular de seleção: tipicamente **15–20**; reservas **5–9**
+
+---
+
+## 5. O QUE NÃO FOI MEXIDO
+- **Pontuação (engine.js):** sistema ELO×0.55 + Forma×0.30 + Mando×0.15, DvG/underdog/zebra.
+  Intacto. Tudo aqui é só PREÇO.
+- **Neutralização pesada de posição/idade:** revertida (só vive no fallback `estimaMaster`,
+  pros raros fora do master). O master já entrega bons preços via Copa 40% + stats.
+
+---
+
+## 6. IDEIAS PENDENTES (não aplicadas)
+- Penalizar quem NÃO jogou a Copa no preço da pool.
+- Se quiser neutralizar posição (gol=zag=mei=ata) / idade inversa DE VERDADE no fantasy todo,
+  é no nível do gerador do master (`gerar-draft-v10.js`, ajustando POS_MV_MULT e CURVA_IDADE) —
+  regenera tudo e afeta jogos apurados + draft.
+
+---
+_Última edição: 2026-06-28 · pareada com gera_pools.js v14 (alias Bounou + GK por-time + teto 22)_
