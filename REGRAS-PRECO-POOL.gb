@@ -63,25 +63,38 @@ sendo titulares de elite. Correção:
 |--------------|-------|------------------------------------------------------------------|
 | TETO_LINHA   | 35    | teto de jogador de linha (DEF/MID/ATT)                           |
 | **TETO_GK**  | **22**| teto do goleiro = NERF do GK no PvP (no fantasy GK pontua menos) |
-| PISO         | 4     | preço mínimo                                                     |
+| PISO         | 6     | preço mínimo (subiu de 4 → 6 pra apertar o jogo)                 |
 | GAMMA base   | 0.9   | ponto de partida do gamma adaptativo                             |
 
 ### 3a. GAMMA ADAPTATIVO
 Pra cada jogo, busca (loop g=0.6→2.2 passo 0.05) o gamma que deixa a **MÉDIA FINAL** (medida
-DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 17**. Isso iguala a dificuldade entre jogos.
+DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 22**. Isso iguala a dificuldade entre jogos.
+
+> **Por que média-pool 22 (não 17):** o objetivo é APERTAR o jogo (não dar pra fechar fácil
+> só com os piores titulares). Média-pool é orçamento total ÷ 52 jogadores. Subir a média
+> sobe o "time mínimo" (5 piores titulares) de 29 → ~49, então a sobra cai de 71 → ~51 e
+> montar 5 titulares decentes força escolhas. Dream fica em 140 (craque acessível) e os
+> reservas continuam espalhados (só ~3% no piso, sem achatamento). Médias menores deixam o
+> jogo fácil; ATENÇÃO: com média-pool travada baixa, titulares-altos e jogo-apertado se
+> anulam (orçamento fixo), por isso a média subiu.
 
 ### 3b. cravaDream
-`cravaDream(players, 140, 35, 22, 4)` — re-escala o topo pra que o **dream team (5 mais caros)
-≈ 140**, com teto linha 35, teto GK 22, piso 4. Aplicado em todos os jogos.
+`cravaDream(players, 140, 35, 22, 6)` — re-escala o topo pra que o **dream team (formação
+real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
+
+> **MÉTRICAS DE REFERÊNCIA (M22/piso6):** média-pool ~20.8 · média dos TITULARES prováveis
+> (XI) ~25.4 · dream real ~140 · time mínimo ~49 (sobra ~51) · variação entre jogos baixa.
+> A "média dos titulares" (XI: 1GK+4DEF+4MID+2ATT por seleção) é o número que importa pro
+> jogador — a média-pool inclui reservas/banco que ninguém escala e fica bem mais baixa.
 
 ---
 
-## 4. RESULTADO ESPERADO (calibração v14)
-- Média geral por jogo: **~16.8–17.1**
-- Variação entre jogos: baixa (~0.3–1.6)
-- Dream team: **137–141** em todos
-- Faixa: 4–35 (GK até 22)
-- GK titular de seleção: tipicamente **15–20**; reservas **5–9**
+## 4. RESULTADO ESPERADO (calibração v15 — apertada)
+- Média-pool por jogo: **~20-22** (todos os 52, inclui reservas)
+- Média dos TITULARES (XI provável): **~25** ← número que importa pro jogador
+- Dream team (formação real): **138-142**
+- Time mínimo (5 piores titulares): **~49** → sobra **~51** de 100 (apertado)
+- Faixa: 6–35 (GK até 22), bem espalhada (só ~3% no piso)
 
 ---
 
