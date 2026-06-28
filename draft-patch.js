@@ -67,7 +67,7 @@
     if(_promise)return _promise;
     _promise=new Promise(function(res){
       var s=document.createElement("script");
-      s.src="draft-master-players.js?v=20260627-pos-volMEI";
+      s.src="draft-master-players.js?v=20260628-v10-copa40";
       s.onload=function(){res();};
       s.onerror=function(){_promise=null;res();}; // falhou → catálogo cai no original
       document.head.appendChild(s);
