@@ -197,6 +197,7 @@
   // ---- estado do modal ----
   var _mode="match";   // "match" (1 jogo) ou "season" (todos)
   var _ctx=null;       // {name, pos, roomId}
+  var _openAttr=null;  // área de atributo expandida (acordeão)
 
   // monta o conteúdo (todos os radares) pro jogador no modo atual
   // toggle partida/temporada (reutilizável)
@@ -226,6 +227,39 @@
   }
 
   // barras de atributos de qualidade (quando não há partidas)
+  // sub-atributos por área (estilo FIFA). média fica perto do valor da área.
+  var SUBATTRS={
+    Ataque:["Finalização","Faro de gol","Chute de fora","Pênaltis","Voleio"],
+    "Criação":["Passe","Visão","Cruzamento","Passe longo","Bola parada"],
+    Defesa:["Desarme","Interceptação","Marcação","Cabeceio defensivo","Antecipação"],
+    "Físico":["Velocidade","Resistência","Força","Aceleração","Impulsão"],
+    "Técnica":["Drible","Controle de bola","Agilidade","Finta","Equilíbrio"]
+  };
+  // gera sub-valores estáveis (determinísticos por nome+sub) em torno do valor da área
+  function subVals(name, area, base){
+    var subs=SUBATTRS[area]||[]; var out=[];
+    for(var i=0;i<subs.length;i++){
+      var s=subs[i]; var seed=0; var str=name+"|"+s;
+      for(var k=0;k<str.length;k++){ seed=(seed*31+str.charCodeAt(k))&0xffffffff; }
+      var delta=((seed>>>0)%13)-6; // -6..+6
+      var v=Math.max(35,Math.min(99,Math.round(base+delta)));
+      out.push([s,v]);
+    }
+    return out;
+  }
+  // toggle de expansão (acordeão)
+  window.radarToggleAttr=function(area){
+    var k=area; _openAttr = (_openAttr===k? null : k);
+    var el=document.getElementById("subattr-"+cssId(area));
+    var allSub=document.querySelectorAll('[id^="subattr-"]');
+    for(var i=0;i<allSub.length;i++){ if(allSub[i]!==el) allSub[i].style.display="none"; }
+    var allCar=document.querySelectorAll('[id^="caret-"]');
+    for(var j=0;j<allCar.length;j++){ allCar[j].textContent="▸"; }
+    if(el){ var show=(el.style.display==="none"||!el.style.display); el.style.display=show?"block":"none";
+      var car=document.getElementById("caret-"+cssId(area)); if(car) car.textContent=show?"▾":"▸"; }
+  };
+  function cssId(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z]/g,""); }
+
   function qualityAttrsHTML(name, pos){
     var Q=window.playerQuality; if(!Q)return "";
     var mp=Q.findMaster(name, pos); if(!mp)return '<p style="color:#9aa4b2;text-align:center;padding:16px">Jogador não encontrado na base.</p>';
@@ -233,12 +267,26 @@
     var rows=[["Ataque",a.ataque,"#34d399"],["Criação",a.criacao,"#60a5fa"],["Defesa",a.defesa,"#f59e0b"],["Físico",a.fisico,"#a78bfa"],["Técnica",a.tecnica,"#22d3ee"]];
     var h='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:12px">'
       +'<div style="font-size:15px;font-weight:800;color:#e8edf2;margin-bottom:2px">📊 Atributos estimados</div>'
-      +'<p style="font-size:10px;color:#6b7280;margin:0 0 10px">sem partidas registradas — estimativa por mercado, liga, clube e posição</p>';
+      +'<p style="font-size:10px;color:#6b7280;margin:0 0 10px">sem partidas registradas — estimativa por mercado, liga, clube e posição · toque para detalhar</p>';
     rows.forEach(function(r){
-      h+='<div style="display:flex;align-items:center;gap:8px;margin:7px 0">'
-        +'<span style="flex:1;font-size:13px;color:#cbd2da">'+r[0]+'</span>'
-        +'<div style="flex:1.6;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:'+r[1]+'%;height:100%;background:'+r[2]+'"></div></div>'
-        +'<span style="font-size:14px;font-weight:800;color:'+r[2]+';min-width:30px;text-align:right">'+r[1]+'</span></div>';
+      var area=r[0], val=r[1], col=r[2], cid=cssId(area);
+      var open=(_openAttr===area);
+      // linha principal (clicável)
+      h+='<div onclick="window.radarToggleAttr(\''+area.replace(/'/g,"\\'")+'\')" style="display:flex;align-items:center;gap:8px;margin:7px 0;cursor:pointer">'
+        +'<span id="caret-'+cid+'" style="font-size:10px;color:#6b7280;width:10px">'+(open?"▾":"▸")+'</span>'
+        +'<span style="flex:1;font-size:13px;color:#cbd2da">'+area+'</span>'
+        +'<div style="flex:1.6;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:'+val+'%;height:100%;background:'+col+'"></div></div>'
+        +'<span style="font-size:14px;font-weight:800;color:'+col+';min-width:30px;text-align:right">'+val+'</span></div>';
+      // sub-atributos (escondidos por padrão)
+      var subs=subVals(name, area, val);
+      var sub='<div id="subattr-'+cid+'" style="display:'+(open?"block":"none")+';margin:0 0 8px 18px;padding:8px 10px;border-left:2px solid '+col+'44;background:rgba(255,255,255,.02);border-radius:0 8px 8px 0">';
+      subs.forEach(function(s){
+        sub+='<div style="display:flex;align-items:center;gap:8px;margin:5px 0">'
+          +'<span style="flex:1;font-size:12px;color:#9aa4b2">'+s[0]+'</span>'
+          +'<div style="flex:1.2;height:5px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden"><div style="width:'+s[1]+'%;height:100%;background:'+col+'aa"></div></div>'
+          +'<span style="font-size:12px;font-weight:700;color:'+col+'cc;min-width:26px;text-align:right">'+s[1]+'</span></div>';
+      });
+      h+=sub+'</div>';
     });
     return h+'</div>';
   }

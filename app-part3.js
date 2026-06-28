@@ -373,44 +373,50 @@ function setHomeSearch(v){
     if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
   });
 }
-// ── BUSCA DE JOGADOR (base global draftMasterPlayers) ──
+// tira acentos e normaliza (ç→c) pra busca tolerante: "sao"/"são", "suica"/"suíça" batem igual
+function normTxt(s){
+  return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/ç/g,"c");
+}
+
+// ── BUSCA DE JOGADOR (base global) — SEM render() pra não travar a digitação ──
+// Atualiza só a lista de resultados; o input nunca é recriado, então o foco fica.
 function setPlayerSearch(v){
   APP.playerSearch=v;
-  render();
-  requestAnimationFrame(()=>{
-    const inp=document.getElementById("playerSearchInput");
-    if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
-  });
+  const box=document.getElementById("playerResults");
+  if(box) box.innerHTML=playerResultsHTML();
+  const clr=document.getElementById("playerSearchClear");
+  if(clr) clr.style.display=(v&&v.length)?"block":"none";
 }
-function playerSearchHTML(){
+function playerResultsHTML(){
   const P=window.draftMasterPlayers;
   const q=normTxt((APP.playerSearch||"").trim());
-  const box=
-    `<div style="position:relative;margin:10px 0 0">
-      <input id="playerSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar jogador pelo nome…" value="${esc(APP.playerSearch||"")}" oninput="setPlayerSearch(this.value)" autocorrect="off" />
-      ${q?`<span onclick="setPlayerSearch('')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim)">✕</span>`:""}
-    </div>`;
-  if(!P||!P.length) return box;
-  if(q.length<2) return box+`<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Digite ao menos 2 letras para buscar entre ${P.length} jogadores.</p>`;
+  if(!P||!P.length) return `<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Carregando base…</p>`;
+  if(q.length<2) return `<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Digite ao menos 2 letras para buscar entre ${P.length} jogadores.</p>`;
   const SLOT={ATT:"ATA",MID:"MEI",DEF:"DEF",GK:"GOL"};
   const hits=P.filter(p=>normTxt(p.name).includes(q)).slice(0,18);
-  if(!hits.length) return box+`<p class="p" style="margin:8px 2px 0">Nenhum jogador com "${esc(APP.playerSearch)}".</p>`;
-  const rows=hits.map(p=>{
+  if(!hits.length) return `<p class="p" style="margin:8px 2px 0">Nenhum jogador com "${esc(APP.playerSearch)}".</p>`;
+  return hits.map(p=>{
     const ovr=(window.playerQuality?window.playerQuality.overall(p):null);
     const nm=esc(p.name).replace(/'/g,"\\'");
     return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
-      <span class="mono pc-${p.pos}" style="font-size:11px;min-width:30px">${SLOT[p.pos]||p.pos}</span>
-      <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+      <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
+      <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
       <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)} · ${esc(p.club||"")}</div></div>
       ${ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${ovr}</div></div>`:""}
       <span style="color:var(--blue);font-size:15px">📊</span>
     </div>`;
   }).join("");
-  return box+`<div style="margin-top:2px">${rows}</div>`;
 }
-// tira acentos e normaliza (ç→c) pra busca tolerante: "sao"/"são", "suica"/"suíça" batem igual
-function normTxt(s){
-  return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/ç/g,"c");
+function playerSearchHTML(){
+  const q=normTxt((APP.playerSearch||"").trim());
+  return `<div class="card" style="margin-bottom:14px">
+    <div style="font-size:12px;color:var(--dim);font-weight:800;letter-spacing:.4px;margin-bottom:8px">📊 PERFIL DE JOGADOR</div>
+    <div style="position:relative">
+      <input id="playerSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar jogador pelo nome…" value="${esc(APP.playerSearch||"")}" oninput="setPlayerSearch(this.value)" autocorrect="off" autocomplete="off" autocapitalize="off" />
+      <span id="playerSearchClear" onclick="document.getElementById('playerSearchInput').value='';setPlayerSearch('')" style="display:${q?"block":"none"};position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim)">✕</span>
+    </div>
+    <div id="playerResults">${playerResultsHTML()}</div>
+  </div>`;
 }
 function scrollSnap(){
   const m=document.querySelector(".modal");
@@ -639,10 +645,6 @@ function homeHTML(){
     </div>
     ${diaChips}
     ${listaHTML}
-    <div style="border-top:1px solid var(--line);margin:14px 0 0;padding-top:10px">
-      <div style="font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.3px;margin-bottom:2px">📊 PERFIL DE JOGADOR</div>
-      ${playerSearchHTML()}
-    </div>
   </div>`;
   let navPanel="";
   if(navTab==="partidas")navPanel=partidasPanel;
@@ -676,6 +678,7 @@ function homeHTML(){
       <span style="font-size:13px">👥</span><span style="font-size:12px;font-weight:700;color:var(--chalk)">Membros do grupo</span><span style="color:var(--dim);font-size:12px">›</span>
     </div>
   </div>
+  ${playerSearchHTML()}
   <div class="navtabs">
     ${navBtn("partidas","⚽","Partidas",0)}
     ${navBtn("mini","🎯","Mini-rodadas",nMini)}
