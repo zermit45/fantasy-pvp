@@ -406,11 +406,17 @@ function playerResultsHTML(){
   const out=[];
 
   // 1) MASTER primeiro (tem OVR e preço)
+  const DBpre=window.PLAYER_STATS;
   P.forEach(p=>{
     if(out.length>=22) return;
     if(normTxt(p.name).includes(q)){
       const k=normTxt(p.name);
       if(seen[k]) return; seen[k]=1;
+      // se este jogador do master aponta (via alias) pra um registro de stats, marca a chave real como vista
+      if(DBpre){
+        const ref=DBpre[k];
+        if(typeof ref==="string" && ref.charAt(0)==="@") seen[ref.slice(1)]=1;
+      }
       out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:(Q?Q.overall(p):null)});
     }
   });

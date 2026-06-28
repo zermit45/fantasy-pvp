@@ -204,7 +204,7 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260628-ovr1")
+    _statsPromise = fetch("player-stats.json?v=20260628-unif1")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
@@ -300,7 +300,8 @@
   };
   function cssId(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z]/g,""); }
 
-  var AREA_COL={Ataque:"#34d399","Criação":"#60a5fa",Defesa:"#f59e0b","Físico":"#a78bfa","Técnica":"#22d3ee"};
+  var AREA_COL={Ataque:"#34d399","Criação":"#60a5fa",Defesa:"#f59e0b","Físico":"#a78bfa","Técnica":"#22d3ee",
+    Goleiro:"#34d399","Distribuição":"#60a5fa"};
 
   // monta UMA área (linha principal clicável + sub-atributos). subs = [[label, pct|null, txtCru|null],...]
   function attrAreaHTML(area, areaVal, subs, col){
@@ -331,11 +332,12 @@
     var st=findStats(name);
     // ── CAMINHO 1: stats REAIS (12 ligas) ──
     if(st && st.areas){
-      var order=["Ataque","Criação","Defesa","Físico","Técnica"];
+      var order = st.gk ? ["Goleiro","Distribuição","Físico"] : ["Ataque","Criação","Defesa","Físico","Técnica"];
       var h='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:12px">'
-        +'<div style="font-size:15px;font-weight:800;color:#e8edf2;margin-bottom:2px">📊 Atributos da temporada</div>'
+        +'<div style="font-size:15px;font-weight:800;color:#e8edf2;margin-bottom:2px">📊 Atributos da temporada'+(st.gk?' · 🧤 Goleiro':'')+'</div>'
         +'<p style="font-size:10px;color:#6b7280;margin:0 0 4px">'+esc(st.team||"")+' · '+(st.min||0)+'′ · percentil vs. mesma posição · toque para detalhar</p>';
       order.forEach(function(area){
+        if(!st.areas[area]) return;
         var rows=st.areas[area]||[];
         var av=(st.areaScore&&st.areaScore[area]!=null)?st.areaScore[area]:50;
         h+=attrAreaHTML(area, av, rows, AREA_COL[area]||"#888");
