@@ -63,12 +63,12 @@ sendo titulares de elite. Correção:
 |--------------|-------|------------------------------------------------------------------|
 | TETO_LINHA   | 35    | teto de jogador de linha (DEF/MID/ATT)                           |
 | **TETO_GK**  | **22**| teto do goleiro = NERF do GK no PvP (no fantasy GK pontua menos) |
-| PISO         | 4     | preço mínimo                 |
+| PISO         | 10    | preço mínimo (controla a dificuldade: maior = jogo mais apertado)                 |
 | GAMMA base   | 0.9   | ponto de partida do gamma adaptativo                             |
 
 ### 3a. GAMMA ADAPTATIVO
 Pra cada jogo, busca (loop g=0.6→2.2 passo 0.05) o gamma que deixa a **MÉDIA FINAL** (medida
-DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 13**. Isso iguala a dificuldade entre jogos.
+DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 19**. Isso iguala a dificuldade entre jogos.
 
 > **Por que média-pool 22 (não 17):** o objetivo é APERTAR o jogo (não dar pra fechar fácil
 > só com os piores titulares). Média-pool é orçamento total ÷ 52 jogadores. Subir a média
@@ -79,7 +79,7 @@ DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 13**. Isso iguala a dificuldade entre j
 > anulam (orçamento fixo), por isso a média subiu.
 
 ### 3b. cravaDream
-`cravaDream(players, 140, 35, 22, 4)` — re-escala o topo pra que o **dream team (formação
+`cravaDream(players, 140, 35, 22, 10)` — re-escala o topo pra que o **dream team (formação
 real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
 
 > **MÉTRICAS DE REFERÊNCIA (M22/piso6):** média-pool ~20.8 · média dos TITULARES prováveis
@@ -89,15 +89,22 @@ real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
 
 ---
 
-## 4. RESULTADO ESPERADO (calibração v17 — titulares baratos)
-- Média-pool por jogo: **~13**
-- Média dos TITULARES (XI provável): **~19.5** ← número que importa pro jogador
+## 4. RESULTADO ESPERADO (calibração v18 — equilibrada)
+- Média-pool por jogo: **~19**
+- Média dos TITULARES (XI provável): **~23.8**
 - Dream team (formação real): **~140** (craque acessível)
-- Faixa: 4–35 (GK até 22), espalhada
-- NOTA: testou-se apertar (M22 deixou titulares ~25 e ficou amontoado/ruim). Voltou-se a
-  titulares baratos (M13). Pra mexer no aperto: subir ALVO_MEDIA encarece os titulares
+- Time mínimo (5 piores titulares): **~54** → sobra **~46** (ok/médio, não é fácil demais)
+- Faixa: 10–35 (GK até 22), espalhada
 
----
+### CONTROLE DE DIFICULDADE (importante)
+O que torna o jogo fácil/difícil é o **time mínimo** (custo dos 5 piores titulares) vs 100.
+- A alavanca principal é o **PISO** (não a média): piso maior sobe o time mínimo.
+- ALVO_MEDIA acompanha pra não grudar tudo no piso (mantém espalhamento).
+- Régua: piso 4 → sobra ~78 (MUITO FÁCIL) · piso 8 → sobra ~55 (fácil) · piso 10 → sobra
+  ~46 (ok/médio, ATUAL) · piso 12 → sobra ~37 (apertado).
+- ERRO a evitar: piso baixo + média muito alta (ex: M22/piso6) AMONTOA os titulares em 25-29,
+  fica ruim. Sempre subir piso E média juntos pra manter a faixa espalhada.
+
 
 ## 5. O QUE NÃO FOI MEXIDO
 - **Pontuação (engine.js):** sistema ELO×0.55 + Forma×0.30 + Mando×0.15, DvG/underdog/zebra.
