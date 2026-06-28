@@ -426,7 +426,7 @@ function playerResultsHTML(){
       if(seen[k]) continue;
       if(k.includes(q)){
         seen[k]=1;
-        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:null, statsOnly:true});
+        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrStats!=null?v.ovrStats:null), statsOnly:true});
       }
     }
   } else if(q.length>=2){
@@ -445,7 +445,7 @@ function playerResultsHTML(){
       <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
       <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div></div>
-      ${p.ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${p.ovr}</div></div>`:`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">stats</div><div style="font-size:13px">📈</div></div>`}
+      ${p.ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR${p.statsOnly?"*":""}</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${p.ovr}</div></div>`:`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">stats</div><div style="font-size:13px">📈</div></div>`}
       <span style="color:var(--blue);font-size:15px">📊</span>
     </div>`;
   }).join("");

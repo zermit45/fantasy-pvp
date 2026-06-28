@@ -204,12 +204,13 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260628-real1")
+    _statsPromise = fetch("player-stats.json?v=20260628-ovr1")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
     return _statsPromise;
   }
+  window.ensureStatsDB = ensureStats;  // exposto pra busca da tela inicial
   // acha o registro de stats reais por nome (segue ponteiros de alias "@chave")
   function findStats(name){
     var DB=window.PLAYER_STATS; if(!DB)return null;
@@ -228,22 +229,41 @@
       +'</div>';
   }
 
-  // cabeçalho OVERALL + PREÇO (qualidade) — vem do master via playerQuality
+  // popup explicativo do asterisco
+  window.radarOvrInfo=function(){
+    alert("OVERALL* — Este jogador não está na base de mercado do app, então o overall foi calculado a partir do DESEMPENHO real da temporada (percentis de gols, passes, desarmes etc.), e não do valor de mercado/liga/clube. Por isso a régua é diferente da dos jogadores com OVERALL normal.");
+  };
+
+  // cabeçalho OVERALL + PREÇO. Master = mercado; fora do master = overall por stats (com *)
   function headerQuality(name, pos){
-    var Q=window.playerQuality; if(!Q)return "";
-    var mp=Q.findMaster(name, pos); if(!mp)return "";
-    var ovr=Q.overall(mp), price=mp.draftPrice;
+    var Q=window.playerQuality;
+    var mp=Q?Q.findMaster(name, pos):null;
     var col=function(v){return v>=85?"#34d399":v>=70?"#60a5fa":v>=55?"#f59e0b":"#9aa4b2";};
-    return '<div style="display:flex;gap:8px;justify-content:center;margin:8px 0 4px">'
-      +'<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
-      +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">OVERALL</div>'
-      +'<div style="font-size:26px;font-weight:800;color:'+col(ovr)+';line-height:1.1">'+ovr+'</div>'
-      +'<div style="font-size:9px;color:#6b7280">mercado·liga·clube</div></div>'
-      +'<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
-      +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">PREÇO DRAFT</div>'
-      +'<div style="font-size:26px;font-weight:800;color:#e8edf2;line-height:1.1">'+price+'</div>'
-      +'<div style="font-size:9px;color:#6b7280">rendimento no jogo</div></div></div>'
-      +'<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>';
+    // CASO 1: está no master → overall de mercado + preço
+    if(mp){
+      var ovr=Q.overall(mp), price=mp.draftPrice;
+      return '<div style="display:flex;gap:8px;justify-content:center;margin:8px 0 4px">'
+        +'<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
+        +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">OVERALL</div>'
+        +'<div style="font-size:26px;font-weight:800;color:'+col(ovr)+';line-height:1.1">'+ovr+'</div>'
+        +'<div style="font-size:9px;color:#6b7280">mercado·liga·clube</div></div>'
+        +'<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
+        +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">PREÇO DRAFT</div>'
+        +'<div style="font-size:26px;font-weight:800;color:#e8edf2;line-height:1.1">'+price+'</div>'
+        +'<div style="font-size:9px;color:#6b7280">rendimento no jogo</div></div></div>'
+        +'<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>';
+    }
+    // CASO 2: só stats → overall por desempenho, com asterisco
+    var st=findStats(name);
+    if(st && st.ovrStats!=null){
+      var o2=st.ovrStats;
+      return '<div style="display:flex;justify-content:center;margin:8px 0 4px">'
+        +'<div onclick="window.radarOvrInfo()" style="max-width:160px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px 18px;cursor:pointer">'
+        +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">OVERALL<span style="color:#60a5fa">*</span></div>'
+        +'<div style="font-size:26px;font-weight:800;color:'+col(o2)+';line-height:1.1">'+o2+'</div>'
+        +'<div style="font-size:9px;color:#60a5fa;text-decoration:underline">por desempenho · toque p/ saber</div></div></div>';
+    }
+    return "";
   }
 
   // barras de atributos de qualidade (quando não há partidas)
