@@ -199,17 +199,73 @@
   var _ctx=null;       // {name, pos, roomId}
 
   // monta o conteúdo (todos os radares) pro jogador no modo atual
+  // toggle partida/temporada (reutilizável)
+  function modeToggle(){
+    return '<div style="display:flex;gap:6px;justify-content:center;margin:10px 0 4px">'
+      +'<button onclick="window.radarSetMode(\'match\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="match"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="match"?"#34d39922":"transparent")+';color:'+(_mode==="match"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Esta partida</button>'
+      +'<button onclick="window.radarSetMode(\'season\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="season"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="season"?"#34d39922":"transparent")+';color:'+(_mode==="season"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Temporada</button>'
+      +'</div>';
+  }
+
+  // cabeçalho OVERALL + PREÇO (qualidade) — vem do master via playerQuality
+  function headerQuality(name, pos){
+    var Q=window.playerQuality; if(!Q)return "";
+    var mp=Q.findMaster(name, pos); if(!mp)return "";
+    var ovr=Q.overall(mp), price=mp.draftPrice;
+    var col=function(v){return v>=85?"#34d399":v>=70?"#60a5fa":v>=55?"#f59e0b":"#9aa4b2";};
+    return '<div style="display:flex;gap:8px;justify-content:center;margin:8px 0 4px">'
+      +'<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
+      +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">OVERALL</div>'
+      +'<div style="font-size:26px;font-weight:800;color:'+col(ovr)+';line-height:1.1">'+ovr+'</div>'
+      +'<div style="font-size:9px;color:#6b7280">mercado·liga·clube</div></div>'
+      +'<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
+      +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">PREÇO DRAFT</div>'
+      +'<div style="font-size:26px;font-weight:800;color:#e8edf2;line-height:1.1">'+price+'</div>'
+      +'<div style="font-size:9px;color:#6b7280">rendimento no jogo</div></div></div>'
+      +'<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>';
+  }
+
+  // barras de atributos de qualidade (quando não há partidas)
+  function qualityAttrsHTML(name, pos){
+    var Q=window.playerQuality; if(!Q)return "";
+    var mp=Q.findMaster(name, pos); if(!mp)return '<p style="color:#9aa4b2;text-align:center;padding:16px">Jogador não encontrado na base.</p>';
+    var a=Q.qualAttrs(mp);
+    var rows=[["Ataque",a.ataque,"#34d399"],["Criação",a.criacao,"#60a5fa"],["Defesa",a.defesa,"#f59e0b"],["Físico",a.fisico,"#a78bfa"],["Técnica",a.tecnica,"#22d3ee"]];
+    var h='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:12px">'
+      +'<div style="font-size:15px;font-weight:800;color:#e8edf2;margin-bottom:2px">📊 Atributos estimados</div>'
+      +'<p style="font-size:10px;color:#6b7280;margin:0 0 10px">sem partidas registradas — estimativa por mercado, liga, clube e posição</p>';
+    rows.forEach(function(r){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin:7px 0">'
+        +'<span style="flex:1;font-size:13px;color:#cbd2da">'+r[0]+'</span>'
+        +'<div style="flex:1.6;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:'+r[1]+'%;height:100%;background:'+r[2]+'"></div></div>'
+        +'<span style="font-size:14px;font-weight:800;color:'+r[2]+';min-width:30px;text-align:right">'+r[1]+'</span></div>';
+    });
+    return h+'</div>';
+  }
+
   function buildContent(){
     if(!_ctx)return "";
     var roomId = _mode==="match" ? _ctx.roomId : null;
     var data = collect(roomId);
-    if(!data){ return '<p style="color:#9aa4b2;padding:16px">Sem dados disponíveis.</p>'; }
     var key = norm(_ctx.name)+"|"+_ctx.pos;
-    var rec = data.byKey[key];
+    var rec = data ? data.byKey[key] : null;
+
+    // sem dados de desempenho neste modo → mostra qualidade (overall + atributos estimados)
     if(!rec){
-      var msg = _mode==="match" ? "Este jogador não atuou nesta partida." : "Sem jogos finalizados para este jogador.";
-      return '<p style="color:#9aa4b2;padding:16px;text-align:center">'+msg+'</p>';
+      var hq='';
+      hq+='<div style="text-align:center;margin-bottom:4px">'
+        +'<div style="font-size:18px;font-weight:800;color:#e8edf2">'+esc(_ctx.name)+'</div>'
+        +'<div style="font-size:12px;color:#9aa4b2">'+esc(_ctx.pos)+'</div></div>';
+      hq+=headerQuality(_ctx.name, _ctx.pos);
+      // toggle (deixa o usuário tentar o outro modo)
+      hq+=modeToggle();
+      if(_mode==="match"){
+        hq+='<p style="color:#9aa4b2;text-align:center;padding:6px 0 12px;font-size:13px">Não atuou nesta partida. Veja os atributos estimados ou troque para Temporada.</p>';
+      }
+      hq+=qualityAttrsHTML(_ctx.name, _ctx.pos);
+      return hq;
     }
+
     var pool = data.byPos[_ctx.pos] || [rec];
     var isGK = _ctx.pos==="GK";
     var defs = isGK ? [RADAR_GK] : RADARS_LINE;
@@ -222,11 +278,11 @@
       +' · '+(_mode==="season"?(rec.games+" jogo"+(rec.games>1?"s":"")+" · "+Math.round(rec.min)+"′"):"esta partida")
       +' · vs. '+pool.length+' '+esc(rec.pos)+'</div></div>';
 
+    // overall + preço (qualidade)
+    h+=headerQuality(_ctx.name, _ctx.pos);
+
     // toggle partida/temporada
-    h+='<div style="display:flex;gap:6px;justify-content:center;margin:10px 0 4px">'
-      +'<button onclick="window.radarSetMode(\'match\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="match"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="match"?"#34d39922":"transparent")+';color:'+(_mode==="match"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Esta partida</button>'
-      +'<button onclick="window.radarSetMode(\'season\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="season"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="season"?"#34d39922":"transparent")+';color:'+(_mode==="season"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Temporada</button>'
-      +'</div>';
+    h+=modeToggle();
     h+='<p style="font-size:10px;color:#6b7280;text-align:center;margin:2px 0 10px">cada eixo = percentil vs. jogadores da mesma posição · valores por 90′</p>';
 
     // cada radar num card
