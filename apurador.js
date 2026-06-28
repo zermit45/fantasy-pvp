@@ -76,11 +76,13 @@ function apurarMatch({lineupsTxt, incidentsTxt, statsTxt, shotmapTxt, homeCode, 
     if(inc.incidentType==="goal"){
       // SofaScore: inc.isHome = lado QUE MARCOU (já considera gol contra).
       // placar acumulado vem em inc.homeScore/awayScore; incidents podem vir em ordem
-      // decrescente, então guardamos o placar do gol de MAIOR tempo.
+      // decrescente. Pegamos o placar do gol de MAIOR soma acumulada (= gol final),
+      // o que evita empate de minuto (2 gols no mesmo minuto) sobrescrever errado.
       const isHome=inc.isHome;
       const team=isHome?homeCode:awayCode;
       if(inc.homeScore!=null && inc.awayScore!=null){
-        if(t>=_lastGoalMin){ _lastGoalMin=t; scoreH=inc.homeScore; scoreA=inc.awayScore; }
+        const soma=inc.homeScore+inc.awayScore;
+        if(soma>=_lastGoalMin){ _lastGoalMin=soma; scoreH=inc.homeScore; scoreA=inc.awayScore; }
       } else if(inc.incidentClass!=="ownGoal"){scoreH+= isHome?1:0; scoreA+= isHome?0:1;}
       else {scoreH+= isHome?1:0; scoreA+= isHome?0:1;}
       goals_tl.push({m:t, t:team});
