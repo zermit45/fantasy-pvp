@@ -125,16 +125,21 @@ function resultHTML(){
     html+=`</div></div>`;
   });
   html+=`</div>`;
+  // estatísticas da partida (logo após o ranking) — função vive no apurador.js
+  if(typeof matchStatsHTML==="function")html+=matchStatsHTML();
   html+=resultBadgesHTML(scored);
   html+=resultDuelHTML(scored,mine);
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
   html+=dreamTeamHTML();
   // minha apuração detalhada
   if(mine){
-    html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
-    mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
-    html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
-    if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
+    html+=`<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleApur()"><div class="nm disp" style="font-size:16px">Sua apuração</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openApur?"▲":"▼"}</div></div>`;
+    if(_openApur){
+      html+=`<p class="p" style="margin:8px 0 10px">Toque em cada jogador para abrir o cálculo.</p>`;
+      mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
+      html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
+      if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
+    }
     html+=`</div>`;
   }
   // botão + tabela de pontuação base de TODOS os jogadores do jogo (histórico, sem cap/tática/banco)
@@ -170,7 +175,7 @@ function resultBadgesHTML(scored){
   if(bestCap)medals.push({icon:"👑",title:"Melhor capitão",text:`${bestCap.user} tirou ${bestCap.pts.toFixed(1)} pts do capitão.`});
   if(bestPlayer)medals.push({icon:"⭐",title:"Melhor carta",text:`${bestPlayer.name} carregou ${bestPlayer.user} com ${bestPlayer.pts.toFixed(1)} pts.`});
   if(biggestBench)medals.push({icon:"🪑",title:"Banco salvou",text:`${biggestBench.user} ganhou ${biggestBench.pts.toFixed(1)} pts vindos do banco.`});
-  return `<div class="card"><div class="h2 disp">🏅 Medalhas da partida</div><div class="medalgrid">${medals.map(m=>`<div class="medalcard"><b>${m.icon} ${esc(m.title)}</b><small>${esc(m.text)}</small></div>`).join("")}</div></div>`;
+  return `<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleBadges()"><div class="nm disp" style="font-size:16px">🏅 Medalhas da partida</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openBadges?"▲":"▼"}</div></div>${_openBadges?`<div class="medalgrid" style="margin-top:8px">${medals.map(m=>`<div class="medalcard"><b>${m.icon} ${esc(m.title)}</b><small>${esc(m.text)}</small></div>`).join("")}</div>`:""}</div>`;
 }
 function resultDuelHTML(scored,mine){
   if(!mine||!scored||scored.length<2)return"";
@@ -185,10 +190,14 @@ function resultDuelHTML(scored,mine){
     const bn=b&&APP._byId&&APP._byId[b.pid]?APP._byId[b.pid].name:"—";
     return `<div class="line" style="gap:8px"><span style="width:42%;color:${ap>=bp?"var(--green)":"var(--dim)"}"><b>${SLOT_LABEL[sl]}</b> ${esc(an)} (${ap.toFixed(1)})</span><span style="color:var(--dim)">×</span><span style="width:42%;text-align:right;color:${bp>ap?"var(--green)":"var(--dim)"}">${esc(bn)} (${bp.toFixed(1)})</span></div>`;
   };
-  return `<div class="card"><div class="h2 disp">⚔️ Seu duelo contra ${esc(rival.username)}</div><p class="p" style="margin-bottom:8px">Comparação slot por slot contra ${rival.username===scored[0].username?"o líder":"o próximo rival"}.</p>${slots.map(row).join("")}</div>`;
+  return `<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleDuel()"><div class="nm disp" style="font-size:16px">⚔️ Seu duelo contra ${esc(rival.username)}</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openDuel?"▲":"▼"}</div></div>${_openDuel?`<p class="p" style="margin:8px 0 8px">Comparação slot por slot contra ${rival.username===scored[0].username?"o líder":"o próximo rival"}.</p>${slots.map(row).join("")}`:""}</div>`;
 }
 let _openBaseAll=false;
 function toggleBaseAll(){_openBaseAll=!_openBaseAll;render();}
+// seções minimizáveis da tela de resultado (Badges, Duelo, Apuração)
+let _openBadges=false; function toggleBadges(){_openBadges=!_openBadges;render();}
+let _openDuel=false;   function toggleDuel(){_openDuel=!_openDuel;render();}
+let _openApur=true;    function toggleApur(){_openApur=!_openApur;render();}
 function baseAllHTML(eng){
   const pp=APP.prepool,m=APP.match;
   const rows=pp.players.map(meta=>{
