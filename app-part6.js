@@ -489,11 +489,11 @@ function rulesModalHTML(){
   return `<div class="modal" onclick="toggleRules()"><div class="box" onclick="event.stopPropagation()" style="max-height:80vh;overflow:auto">
     <div class="h2 disp" style="color:var(--amber)">Como funciona o Fantasy PvP</div>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">O jogo:</b> antes de cada partida real, abre uma "pool". Você monta um time de 6 jogadores escolhidos entre os elencos dos DOIS times que vão se enfrentar. Quando o jogo acontece, seus jogadores pontuam pelo que fizerem em campo de verdade.</p>
-    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Orçamento:</b> 100 moedas. Cada jogador tem um preço (calculado por qualidade técnica: valor de mercado corrigido pela idade). O banco também conta no orçamento.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Orçamento:</b> 100 moedas. Cada jogador tem um preço (qualidade técnica: valor de mercado corrigido pela idade). O BANCO é à parte: NÃO gasta moeda (é grátis).</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Os 6 slots:</b> 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Capitão (×1.20):</b> escolha 1 jogador (qualquer um menos o banco) pra pontuar 20% a mais.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele — mas o reserva rende só <b style="color:var(--chalk)">80%</b> da nota (pedágio por começar fora). Ele só entra se, já com o desconto, ainda superar o titular. <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
-    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Cada tática tem um ESTILO de jogo. Ela fica <b style="color:var(--chalk)">completa (bônus)</b> se, na partida, aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele (ex: Tiki-Taka pede que passes/criação sejam o forte do time e 4+ jogadores criando). Se faltar um dos dois, fica <b style="color:var(--chalk)">incompleta (ônus)</b> — e o ônus é sempre menor que o bônus. Todas as táticas valem o mesmo em pontos (são balanceadas), e o bônus é dividido entre os jogadores conforme quem mais produziu no estilo. Conta todos que entraram, mesmo substituídos.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Cada tática premia um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque...). Ela <b style="color:var(--chalk)">ativa (bônus)</b> se, na partida, seus jogadores produzirem bastante naquele estilo — e é <b style="color:var(--chalk)">só bônus: errar não tira pontos</b>, no pior caso a tática só não ativa. Na hora de montar, um selo mostra a <b style="color:var(--chalk)">tendência</b> do seu time pra cada tática (✅ tende a ativar / ➖ pode / ⬜ pouco provável), olhando as posições que você escalou e o capitão — é um guia, não garantia. Todas as táticas são balanceadas e o bônus (até +4) é dividido entre quem mais produziu no estilo. Conta todos que entraram, mesmo substituídos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Penalidades:</b> o jogador perde pontos por cartão amarelo (-2), vermelho (-10 no 1º tempo / -6 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), <b style="color:#FF6B6B">gol contra (-5)</b>, faltas e ser driblado. Um gol contra conta no placar do jogo e ainda desconta 5 pontos de quem o fez — pesa como um gol ao contrário.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Outras ações que pontuam:</b> além de gols e defesas, o jogo recompensa quem constrói: faltas sofridas, lançamentos longos certos e conduções progressivas (carregar a bola pra frente) dão pontos leves, premiando armadores e quem puxa contra-ataque.</p>
@@ -521,11 +521,11 @@ function superManualHTML(){
       p(`Toque numa aba pra abrir. O ${b("?")} ao lado de cada bloco explica os detalhes daquela parte.`))}
 
     ${sec("3. Montar seu time",
-      p(`${b("Orçamento:")} 100 moedas. Cada jogador tem um preço que reflete a qualidade dele. O banco também conta no orçamento.`)+
+      p(`${b("Orçamento:")} 100 moedas. Cada jogador tem um preço que reflete a qualidade dele. O BANCO é à parte: NÃO gasta moeda (é grátis).`)+
       p(`${b("Os 6 slots:")} 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (pode ser def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.`)+
       p(`${b("Capitão (×1.20):")} escolha 1 jogador (menos o banco) pra render 20% a mais.`)+
       p(`${b("Banco:")} se um titular de linha for mal, o reserva entra no lugar — mas rende 80% da nota (pedágio). Só entra se, já com o desconto, superar o titular. O goleiro reserva só entra se o titular não jogar nenhum minuto.`)+
-      p(`${b("Tática:")} escolha 1. Cada uma tem um estilo. Fica completa (bônus) se aquele estilo for a maior fatia das ações do seu time E um número mínimo dos seus jogadores produzir nele. Senão fica incompleta (ônus menor que o bônus).`))}
+      p(`${b("Tática:")} escolha 1. Cada uma premia um estilo (marcação, posse, jogo aéreo, contra-ataque...) e dá um ${b("bônus")} nas ações dela se seus jogadores produzirem bastante naquilo no jogo — ${b("só bônus, errar não tira pontos")}. Na montagem, um selo mostra a ${b("tendência")} do seu time pra cada tática (✅ tende a ativar / ➖ pode / ⬜ pouco provável), calculada pelas posições escaladas e pelo capitão. É um guia, não garantia: o resultado real vem do que acontece em campo.`))}
 
     ${sec("4. De onde vêm os preços",
       p(`O preço de cada jogador reflete ${b("quantos pontos ele tende a fazer na engine")} — calculado pelo histórico recente dele (gols, assistências, defesas, desarmes...) combinado com o valor de mercado, corrigido por idade e posição.`)+
@@ -533,34 +533,41 @@ function superManualHTML(){
       p(`${b("Idade:")} o mercado costuma inflar jovem (por potencial) e baratear veterano (por idade). A fórmula corrige isso: ${b("jovens ficam um pouco mais baratos")} e ${b("veteranos consagrados ficam mais caros")} (um craque de 35 pode custar bem mais que um valor de mercado sugeriria). Vale lembrar: só sobe o veterano que ainda tinha valor real — não é "idoso = caro".`)+
       p(`${b("Por posição:")} o mesmo critério vale pra goleiro, defensor, meia e atacante, então um zagueiro caro tende a valer tanto quanto um atacante caro.`))}
 
-    ${sec("5. Pontuação",
-      p(`${b("Ações que somam:")} gol (+4,2), assistência (+3,3), finalização no gol (+1,7), defesa do goleiro (+1,6), pênalti defendido (+6), desarme/interceptação, drible, corte, bola recuperada. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch, até +8). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
-      p(`${b("Clean sheet (não sofrer gol):")} goleiro ganha +2,0 por tempo sem levar gol; defensores +1,5 por tempo. Assim o goleiro favorito não pontua alto só por estar protegido — ele ainda precisa de defesas, PSxG ou clutch pra explodir.`)+
+    ${sec("5. Perfil do jogador (radares e overall)",
+      p(`Na tela inicial, a busca ${b("📊 Perfil de jogador")} abre a ficha de qualquer um dos milhares de jogadores da base — não só os do confronto. Digite o nome e toque.`)+
+      p(`${b("OVERALL:")} quem está na base de mercado do app mostra OVERALL (de valor de mercado, liga e clube) + o PREÇO de draft. Quem não está mostra ${b("OVERALL*")} — calculado pelo ${b("desempenho real")} da temporada (gols, passes, desarmes...), não pelo mercado. O asterisco é clicável e explica isso.`)+
+      p(`${b("Atributos e radares:")} a ficha traz os atributos da temporada por área (Ataque, Criação, Defesa, Físico, Técnica) em ${b("percentil vs. jogadores da mesma posição")}, com o número real ao lado. Goleiros têm áreas próprias (Defesas, Gols sofridos, Distribuição). Toque numa área pra abrir os sub-atributos.`)+
+      p(`${b("Última partida × Temporada:")} se o jogador atuou no jogo aberto E tem dados de temporada, aparece um botão pra alternar. Se só tem um dos dois, mostra direto o que existe.`))}
+
+    ${sec("6. Pontuação",
+      p(`${b("Ações que somam:")} gol (+4,6), assistência (+3,6), finalização no gol (+2,2), defesa do goleiro (+1,4), pênalti defendido (+6), desarme/interceptação, drible, corte, bola recuperada. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch, até +8). Time mais fraco (underdog) ganha bônus, calculado por ELO, forma recente e mando de campo.`)+
+      p(`${b("Clean sheet (não sofrer gol):")} goleiro ganha +1,2 por tempo sem levar gol; defensores +0,9 por tempo. Assim o goleiro favorito não pontua alto só por estar protegido — ele ainda precisa de defesas, PSxG ou clutch pra explodir.`)+
       p(`${b("Penalidades")} tiram pontos: amarelo (-2), vermelho (-7 no 1º tempo / -5 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-6), faltas e ser driblado. O gol contra conta no placar e ainda desconta de quem o fez.`)+
       p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`)+
+      p(`${b("Tática:")} se a tática que você escolheu ${b("ativar")} (seus jogadores produziram no estilo dela), o time ganha um bônus de até +4 pontos distribuído entre quem mais produziu. Errar a tática não tira pontos — no pior caso, ela só não ativa.`)+
       p(`${b("Tetos por jogo:")} a nota de um jogador na partida vai de -9 (piso) a +28 (teto), pra ninguém disparar sozinho.`))}
 
-    ${sec("6. Mini rodadas e os modos",
+    ${sec("7. Mini rodadas e os modos",
       p(`Uma ${b("mini rodada")} junta vários jogos. O modo dela define a estratégia. São 4:`)+
       p(`🏆 ${b("Completo:")} escale todos os jogos. Sua pontuação é a soma de todos. A escalação de cada jogo trava quando aquela partida é fechada.`)+
       p(`⚡ ${b("Impulso:")} escale todos e distribua as fichas de impulso nas partidas (cada ficha aplica um % nos pontos daquele jogo). O dev define os valores e as regras das fichas (pode ter fichas negativas obrigatórias). A distribuição trava quando a 1ª partida é fechada. ${b("Atenção:")} se você não gastar TODAS as fichas antes da trava, é eliminado e zera a mini rodada.`)+
       p(`📊 ${b("Confiança:")} escale todos e ordene os jogos do que você mais confia (1º) ao que menos confia. O 1º multiplica os pontos pra cima, o último pra baixo. Quanto mais jogos, maior a diferença. A ordem trava quando a 1ª partida é fechada. ${b("Atenção:")} se você não ordenar TODOS os jogos antes da trava, é eliminado e zera a mini rodada.`)+
       p(`🔮 ${b("Previsão:")} escale todos e crave o placar de cada jogo. Além dos pontos da escalação, ganha bônus por acertar o resultado e um bônus maior por cravar o placar exato. Aqui o palpite trava POR JOGO, junto com a escalação daquela partida (cada jogo é independente).`))}
 
-    ${sec("7. Como as travas funcionam",
+    ${sec("8. Como as travas funcionam",
       p(`Não há horário automático: ${b("tudo é manual")}. Quem trava é o dev, pelo botão "🔒 Fechar pool (trava as escalações)" na partida avulsa.`)+
       p(`${b("Escalação (todos os modos):")} a escalação de cada jogo pode ser editada até o dev fechar a pool daquela partida específica. Fechar uma não trava as outras.`)+
       p(`${b("Impulso e Confiança:")} a parte estratégica (fichas / ordem) trava quando QUALQUER jogo da rodada é fechado — porque é uma decisão sobre a rodada toda. O dev também pode fechar/reabrir essa distribuição manualmente no bloco ADMIN da rodada. Depois de travado, o jogador não reabre sozinho — só o dev.`)+
       p(`${b("Previsão:")} o palpite trava por jogo, junto com a escalação daquela partida (como no Completo).`))}
 
-    ${sec("8. Espiar os adversários",
+    ${sec("9. Espiar os adversários",
       p(`Na aba ${b("\"Quem está disputando\"")}, assim que a pool de uma partida é travada, aquele jogo vira clicável e você pode espiar o que cada um fez NELE:`)+
       p(`No Completo/Avulsa: a escalação. No Previsão: a escalação + o palpite. No Confiança: a escalação + a ordem de confiança completa do adversário. No Impulso: a escalação + onde ele gastou os impulsos. Só revela os jogos já travados.`))}
 
-    ${sec("9. Classificação",
+    ${sec("10. Classificação",
       p(`Quando os jogos terminam e são apurados, a ${b("Classificação da mini rodada")} soma os pontos de cada um (já com multiplicadores de confiança / bônus de previsão / impulsos aplicados) e mostra o ranking.`))}
 
-    ${isAdmin()?sec("10. Para o admin (você)",
+    ${isAdmin()?sec("11. Para o admin (você)",
       p(`${b("Criar:")} use "Criar mini rodada", escolha o modo e adicione os jogos (há abas Em aberto / Finalizadas).`)+
       p(`${b("Durante:")} quando cada partida real começar, vá na partida avulsa e clique "Fechar pool". Isso trava a escalação daquele jogo em todas as rodadas, e — no Impulso/Confiança — trava a estratégia da rodada inteira.`)+
       p(`${b("Apurar:")} suba o resultado do jogo (scraping). A classificação se atualiza sozinha conforme os jogos são apurados.`)+
