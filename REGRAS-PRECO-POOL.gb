@@ -62,7 +62,7 @@ sendo titulares de elite. Correção:
 | parâmetro    | valor | nota                                                             |
 |--------------|-------|------------------------------------------------------------------|
 | TETO_LINHA   | 35    | teto de jogador de linha (DEF/MID/ATT)                           |
-| **TETO_GK**  | **22**| teto do goleiro = NERF do GK no PvP (no fantasy GK pontua menos) |
+| **TETO_GK**  | **16**| teto do goleiro = NERF do GK no PvP (GK pontua menos; nerfado 22→16). GK titular fica ~15 |
 | PISO         | 10    | preço mínimo (controla a dificuldade: maior = jogo mais apertado)                 |
 | GAMMA base   | 0.9   | ponto de partida do gamma adaptativo                             |
 
@@ -79,7 +79,7 @@ DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 19**. Isso iguala a dificuldade entre j
 > anulam (orçamento fixo), por isso a média subiu.
 
 ### 3b. cravaDream
-`cravaDream(players, 140, 35, 22, 10)` — re-escala o topo pra que o **dream team (formação
+`cravaDream(players, 140, 35, 16, 10)` — re-escala o topo pra que o **dream team (formação
 real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
 
 > **MÉTRICAS DE REFERÊNCIA (M22/piso6):** média-pool ~20.8 · média dos TITULARES prováveis
@@ -94,7 +94,8 @@ real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
 - Média dos TITULARES (XI provável): **~23.8**
 - Dream team (formação real): **~140** (craque acessível)
 - Time mínimo (5 piores titulares): **~54** → sobra **~46** (ok/médio, não é fácil demais)
-- Faixa: 10–35 (GK até 22), espalhada
+- Faixa: 10–35 (GK até 16 — nerfado), espalhada
+- GK titular de seleção: ~15 (nerf médio, libera orçamento pra linha sem rebaixá-la)
 
 ### CONTROLE DE DIFICULDADE (importante)
 O que torna o jogo fácil/difícil é o **time mínimo** (custo dos 5 piores titulares) vs 100.
