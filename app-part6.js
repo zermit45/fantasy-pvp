@@ -125,21 +125,16 @@ function resultHTML(){
     html+=`</div></div>`;
   });
   html+=`</div>`;
-  // estatísticas da partida (logo após o ranking) — função vive no apurador.js
-  if(typeof matchStatsHTML==="function")html+=matchStatsHTML();
   html+=resultBadgesHTML(scored);
   html+=resultDuelHTML(scored,mine);
   // TIME IDEAL — escalação que teria dado a maior pontuação possível
   html+=dreamTeamHTML();
   // minha apuração detalhada
   if(mine){
-    html+=`<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleApur()"><div class="nm disp" style="font-size:16px">Sua apuração</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openApur?"▲":"▼"}</div></div>`;
-    if(_openApur){
-      html+=`<p class="p" style="margin:8px 0 10px">Toque em cada jogador para abrir o cálculo.</p>`;
-      mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
-      html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
-      if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
-    }
+    html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
+    mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
+    html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
+    if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
   }
   // botão + tabela de pontuação base de TODOS os jogadores do jogo (histórico, sem cap/tática/banco)
@@ -175,7 +170,7 @@ function resultBadgesHTML(scored){
   if(bestCap)medals.push({icon:"👑",title:"Melhor capitão",text:`${bestCap.user} tirou ${bestCap.pts.toFixed(1)} pts do capitão.`});
   if(bestPlayer)medals.push({icon:"⭐",title:"Melhor carta",text:`${bestPlayer.name} carregou ${bestPlayer.user} com ${bestPlayer.pts.toFixed(1)} pts.`});
   if(biggestBench)medals.push({icon:"🪑",title:"Banco salvou",text:`${biggestBench.user} ganhou ${biggestBench.pts.toFixed(1)} pts vindos do banco.`});
-  return `<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleBadges()"><div class="nm disp" style="font-size:16px">🏅 Medalhas da partida</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openBadges?"▲":"▼"}</div></div>${_openBadges?`<div class="medalgrid" style="margin-top:8px">${medals.map(m=>`<div class="medalcard"><b>${m.icon} ${esc(m.title)}</b><small>${esc(m.text)}</small></div>`).join("")}</div>`:""}</div>`;
+  return `<div class="card"><div class="h2 disp">🏅 Medalhas da partida</div><div class="medalgrid">${medals.map(m=>`<div class="medalcard"><b>${m.icon} ${esc(m.title)}</b><small>${esc(m.text)}</small></div>`).join("")}</div></div>`;
 }
 function resultDuelHTML(scored,mine){
   if(!mine||!scored||scored.length<2)return"";
@@ -190,14 +185,10 @@ function resultDuelHTML(scored,mine){
     const bn=b&&APP._byId&&APP._byId[b.pid]?APP._byId[b.pid].name:"—";
     return `<div class="line" style="gap:8px"><span style="width:42%;color:${ap>=bp?"var(--green)":"var(--dim)"}"><b>${SLOT_LABEL[sl]}</b> ${esc(an)} (${ap.toFixed(1)})</span><span style="color:var(--dim)">×</span><span style="width:42%;text-align:right;color:${bp>ap?"var(--green)":"var(--dim)"}">${esc(bn)} (${bp.toFixed(1)})</span></div>`;
   };
-  return `<div class="card"><div class="rhead" style="padding:0;cursor:pointer" onclick="toggleDuel()"><div class="nm disp" style="font-size:16px">⚔️ Seu duelo contra ${esc(rival.username)}</div><div class="tot mono" style="color:var(--dim);font-size:14px">${_openDuel?"▲":"▼"}</div></div>${_openDuel?`<p class="p" style="margin:8px 0 8px">Comparação slot por slot contra ${rival.username===scored[0].username?"o líder":"o próximo rival"}.</p>${slots.map(row).join("")}`:""}</div>`;
+  return `<div class="card"><div class="h2 disp">⚔️ Seu duelo contra ${esc(rival.username)}</div><p class="p" style="margin-bottom:8px">Comparação slot por slot contra ${rival.username===scored[0].username?"o líder":"o próximo rival"}.</p>${slots.map(row).join("")}</div>`;
 }
 let _openBaseAll=false;
 function toggleBaseAll(){_openBaseAll=!_openBaseAll;render();}
-// seções minimizáveis da tela de resultado (Badges, Duelo, Apuração)
-let _openBadges=false; function toggleBadges(){_openBadges=!_openBadges;render();}
-let _openDuel=false;   function toggleDuel(){_openDuel=!_openDuel;render();}
-let _openApur=true;    function toggleApur(){_openApur=!_openApur;render();}
 function baseAllHTML(eng){
   const pp=APP.prepool,m=APP.match;
   const rows=pp.players.map(meta=>{
@@ -227,7 +218,6 @@ function baseAllHTML(eng){
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
       ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
-      <button onclick="event.stopPropagation();window.openPlayerRadar&&window.openPlayerRadar('${esc(row.name).replace(/'/g,"\\'")}','${row.pos}',APP.roomId)" title="Ver radar do jogador" style="background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--blue);font-size:14px;padding:3px 7px;margin-right:6px;cursor:pointer">📊</button>
       <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
   }).join("");
 }
@@ -394,7 +384,7 @@ const HELP={
   liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
   capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
-  tatica:["Tática","Cada tática tem um ESTILO (ex: marcação, posse, jogo aéreo). Ela fica COMPLETA (bônus) se, na partida, esse estilo for o ponto mais forte do seu time E vários dos seus jogadores produzirem nele. Se faltar um dos dois, fica incompleta (ônus, sempre menor que o bônus). Você escolhe olhando seu time: 'tenho zagueiros que desarmam muito → Muralha', 'meio-campo que toca → Tiki-Taka'. O efeito vem das ações reais deles em campo."],
+  tatica:["Tática","Cada tática premia um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque...). Ela dá um BÔNUS nas ações dela se, no fim da partida, seus jogadores produzirem bastante naquilo — e só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, mostramos uma TENDÊNCIA na hora de montar: pelo perfil das posições que você escalou (e do capitão), o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
   slots:["Os slots do time","Você monta 5 TITULARES — 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante e 1 FLEX (curinga de linha) — que gastam do seu orçamento. Mais o BANCO, que é grátis (regra à parte, toque no '?' do banco). Cada slot só aceita a posição certa; o FLEX é mais livre. Quem você escalar mas não entrar em campo fica com 0."],

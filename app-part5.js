@@ -226,9 +226,57 @@ function buildHTML(){
   function tactEffectHTML(t){
     const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
     const uniq=[...new Set(fam)];
-    return `<div class="teff"><div class="up">▲ completa = bônus</div><div class="down">▼ incompleta = ônus menor</div><div class="foco">foco em <b>${uniq.join(", ")}</b></div></div>`;
+    return `<div class="teff"><div class="up">▲ ativa = bônus nas ações dela</div><div class="foco">depende de: <b>${uniq.join(", ")}</b></div></div>`;
   }
-  const tactsHTML=Object.entries(TAC).filter(([k,t])=>!t.legacy).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}</div>`;}).join("");
+
+  // ── TENDÊNCIA DE ATIVAÇÃO (estimativa pré-jogo) ──
+  // O engine decide pela produção REAL no jogo. Aqui estimamos a TENDÊNCIA pelas
+  // posições escaladas: cada tática é alimentada naturalmente por certas posições.
+  // Não é garantia — é "seu time tem cara de" tal estilo.
+  const TACT_POS = {
+    muralha:      {DEF:1.0, GK:0.6, MID:0.3, ATT:0.0},  // bloqueios/cortes/aéreo
+    pressaototal: {DEF:0.8, MID:1.0, ATT:0.4, GK:0.0},  // recuperações/desarmes
+    cerebro:      {MID:1.0, DEF:0.4, ATT:0.5, GK:0.0},  // criação/passes
+    contra:       {ATT:1.0, MID:0.8, DEF:0.2, GK:0.0},  // conduções/dribles
+    aereo:        {ATT:0.9, DEF:0.9, MID:0.2, GK:0.0},  // duelos aéreos/cruzamentos
+  };
+  // estima a tendência: normaliza o score do time contra o melhor caso possível da tática
+  function tacticTendency(tacKey, s, byId){
+    const w=TACT_POS[tacKey]; if(!w) return null;
+    const TIT=["GK","DEF","MID","ATT","FLEX"];
+    let score=0, filled=0;
+    for(const sl of TIT){
+      const pid=s[sl]; if(!pid) continue;
+      const pl=byId[pid]; if(!pl) continue;
+      filled++;
+      let wt=w[pl.pos]||0;
+      if(APP.captain===sl) wt*=1.5; // capitão puxa o estilo do time
+      score+=wt;
+    }
+    if(filled<5) return {level:"?", txt:"escale os 5 titulares", pct:0};
+    // baseline: GK+DEF+MID+ATT sempre presentes (formação fixa)
+    const base=(w.GK||0)+(w.DEF||0)+(w.MID||0)+(w.ATT||0);
+    const bestFlex=Math.max(w.DEF||0,w.MID||0,w.ATT||0);   // melhor FLEX possível
+    const maxWt=Math.max(w.DEF||0,w.MID||0,w.ATT||0);
+    const max=base+bestFlex+maxWt*0.5;  // teto (melhor FLEX + capitão ideal)
+    const min=base;                      // piso (FLEX inútil, sem capitão)
+    const pct=(max>min)?Math.max(0,Math.min(100,Math.round((score-min)/(max-min)*100))):50;
+    let level, txt;
+    if(pct>=66){ level="alta"; txt="✅ tende a ativar"; }
+    else if(pct>=33){ level="media"; txt="➖ pode ativar"; }
+    else { level="baixa"; txt="⬜ pouco provável"; }
+    return {level, txt, pct};
+  }
+  const TEND_COL={alta:"#34d399",media:"#FFC247",baixa:"#7C879E","?":"#7C879E"};
+  function tendBadgeHTML(tend){
+    if(!tend) return "";
+    const c=TEND_COL[tend.level]||"#7C879E";
+    return `<div style="margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11px">`
+      +`<span style="color:${c};font-weight:700">${tend.txt}</span>`
+      +(tend.pct?`<div style="flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:${tend.pct}%;height:100%;background:${c}"></div></div>`:``)
+      +`</div>`;
+  }
+  const tactsHTML=Object.entries(TAC).filter(([k,t])=>!t.legacy).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";const tend=tacticTendency(k,s,byId);return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}${tendBadgeHTML(tend)}</div>`;}).join("");
   // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
   const teamTabs=["ALL",pp.home.code,pp.away.code];
   const teamTabsHTML=teamTabs.map(t=>{
@@ -303,7 +351,7 @@ function buildHTML(){
     <div class="slots">${slotsHTML}</div>
     <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
     <div class="sectionhead"><span>Escolha 1 tática${helpBtn("tatica")}</span><span>${APP.tactic?"selecionada":"pendente"}</span></div>
-    <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática <b style="color:var(--green)">▲ melhora</b> certas ações e <b style="color:var(--red)">▼ enfraquece</b> outras. Ela só <b>ativa</b> se, no fim do jogo, seu time estiver entre os melhores na ação dela — então monte o time pensando na tática.</p>
+    <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática dá um <b style="color:var(--green)">bônus</b> nas ações dela se, no fim do jogo, seus jogadores produzirem bastante naquilo. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas — não é garantia, mas indica pra qual estilo ele tem cara. Capitão puxa o estilo.</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
   <div class="card">
