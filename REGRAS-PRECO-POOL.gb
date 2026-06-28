@@ -27,6 +27,12 @@ abreviado). Sem alias, ele não casa e cai no fallback ruim. Tabela `ALIAS` no g
 > Adicionar aqui sempre que um titular cair no fallback por nome. Conferir rodando o gera_pools
 > e vendo se aparece "SEM MASTER".
 
+### 1b. HOMÔNIMOS (desempate por seleção)
+Há jogadores com nome IDÊNTICO no master (ex: 2 "Emiliano Martínez" GK — ARG e URU). O
+`lookupMaster` agora indexa por nome em LISTA e desempata por **seleção (team)**; sem time,
+pega o de maior draftPrice. Antes, o dicionário sobrescrevia e o Dibu (ARG, dp 66) pegava o
+preço do homônimo uruguaio (dp 57) → preço quebrado. Corrigido com `pick(cands, team)`.
+
 ---
 
 ## 2. NORMALIZAÇÃO (espalhar os preços na faixa)
@@ -84,6 +90,25 @@ DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 17**. Isso iguala a dificuldade entre j
   Intacto. Tudo aqui é só PREÇO.
 - **Neutralização pesada de posição/idade:** revertida (só vive no fallback `estimaMaster`,
   pros raros fora do master). O master já entrega bons preços via Copa 40% + stats.
+
+## 5b. MASTER — COPA_NEUTRA (penalizar quem não jogou)  ⚠ regenera o master inteiro
+No gerador do master (`/home/claude/draft/gerar-draft-v10.js`), quem NÃO jogou a Copa recebia
+`COPA_NEUTRA = 0.5` (= mediano), passando 50% de quem realmente jogou. Furo: reserva no banco
+ficava mais caro que titular que jogou mal (ex: Rulli 69 > Dibu 68, sendo que Rulli não jogou
+e Dibu jogou os 3 jogos).
+- **Corrigido: COPA_NEUTRA = 0.30** (≈ p20). Quem não jogou cai abaixo da maioria dos titulares.
+- Impacto: 439/1251 jogadores tiveram preço alterado, variação média 2.5 moedas.
+- Resultado: Dibu 66 > Rulli 57 > Musso 55 (titular na frente dos reservas). Na pool da
+  Argentina: Dibu 19, Rulli 7, Musso 5.
+- Para mudar: editar `COPA_NEUTRA` na linha ~43 do gerar-draft-v10.js, rodar
+  `node gerar-draft-v10.js --write`, copiar o master pra apurar/ (tanto `draft-master-players.js`
+  quanto `draft-master-v10.js` — o gera_pools lê o **-v10**), e regerar as pools.
+
+### 5c. BUG do prepool nos games apurados (corrigido)
+O `gera_part25.js` salvava o match apurado SEM o prepool (mapa id→nome). Sem nomes, o gerador
+do master não casava os ids 1-52 e o jogo inteiro virava órfão (zerou a Copa do Dibu no
+jor-arg). Corrigido: o part25 agora embute `prepool:{players: prepoolPlayers}` do match_json.
+Replicar em qualquer gera_part futuro de jogos apurados.
 
 ---
 
