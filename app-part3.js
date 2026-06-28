@@ -386,26 +386,71 @@ function setPlayerSearch(v){
   if(box) box.innerHTML=playerResultsHTML();
   const clr=document.getElementById("playerSearchClear");
   if(clr) clr.style.display=(v&&v.length)?"block":"none";
+  // dispara carregamento da base de stats (6470 jogadores) ao começar a buscar
+  if(v && normTxt(v.trim()).length>=2 && !window.PLAYER_STATS && window.ensureStatsDB){
+    window.ensureStatsDB().then(()=>{
+      // só re-renderiza se o usuário ainda está buscando a mesma coisa
+      const b=document.getElementById("playerResults");
+      if(b && APP.playerSearch===v) b.innerHTML=playerResultsHTML();
+    });
+  }
 }
 function playerResultsHTML(){
   const P=window.draftMasterPlayers;
   const q=normTxt((APP.playerSearch||"").trim());
   if(!P||!P.length) return `<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Carregando base…</p>`;
-  if(q.length<2) return `<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Digite ao menos 2 letras para buscar entre ${P.length} jogadores.</p>`;
+  if(q.length<2) return `<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Digite ao menos 2 letras para buscar.</p>`;
   const SLOT={ATT:"ATA",MID:"MEI",DEF:"DEF",GK:"GOL"};
-  const hits=P.filter(p=>normTxt(p.name).includes(q)).slice(0,18);
-  if(!hits.length) return `<p class="p" style="margin:8px 2px 0">Nenhum jogador com "${esc(APP.playerSearch)}".</p>`;
-  return hits.map(p=>{
-    const ovr=(window.playerQuality?window.playerQuality.overall(p):null);
+  const Q=window.playerQuality;
+  const seen={};      // norm(name) já incluídos (evita duplicar master+stats)
+  const out=[];
+
+  // 1) MASTER primeiro (tem OVR e preço)
+  P.forEach(p=>{
+    if(out.length>=22) return;
+    if(normTxt(p.name).includes(q)){
+      const k=normTxt(p.name);
+      if(seen[k]) return; seen[k]=1;
+      out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:(Q?Q.overall(p):null)});
+    }
+  });
+
+  // 2) BASE DE STATS (6470) — só se já carregou; pega quem não está no master
+  const DB=window.PLAYER_STATS;
+  let loading=false;
+  if(DB){
+    const keys=Object.keys(DB);
+    for(let i=0;i<keys.length && out.length<22;i++){
+      const k=keys[i]; const v=DB[k];
+      if(typeof v!=="object") continue;      // pula ponteiros de alias
+      if(seen[k]) continue;
+      if(k.includes(q)){
+        seen[k]=1;
+        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:null, statsOnly:true});
+      }
+    }
+  } else if(q.length>=2){
+    loading=true; // ainda carregando a base completa
+  }
+
+  if(!out.length){
+    return loading
+      ? `<p class="p" style="margin:8px 2px 0;font-size:12px;color:var(--dim)">Buscando na base completa…</p>`
+      : `<p class="p" style="margin:8px 2px 0">Nenhum jogador com "${esc(APP.playerSearch)}".</p>`;
+  }
+
+  let html=out.map(p=>{
     const nm=esc(p.name).replace(/'/g,"\\'");
     return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
       <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-      <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)} · ${esc(p.club||"")}</div></div>
-      ${ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${ovr}</div></div>`:""}
+      <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div></div>
+      ${p.ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${p.ovr}</div></div>`:`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">stats</div><div style="font-size:13px">📈</div></div>`}
       <span style="color:var(--blue);font-size:15px">📊</span>
     </div>`;
   }).join("");
+  if(loading) html+=`<p class="p" style="margin:8px 2px 0;font-size:11px;color:var(--dim)">Carregando mais jogadores…</p>`;
+  return html;
 }
 function playerSearchHTML(){
   const q=normTxt((APP.playerSearch||"").trim());
