@@ -63,12 +63,12 @@ sendo titulares de elite. Correção:
 |--------------|-------|------------------------------------------------------------------|
 | TETO_LINHA   | 35    | teto de jogador de linha (DEF/MID/ATT)                           |
 | **TETO_GK**  | **22**| teto do goleiro = NERF do GK no PvP (no fantasy GK pontua menos) |
-| PISO         | 6     | preço mínimo (subiu de 4 → 6 pra apertar o jogo)                 |
+| PISO         | 4     | preço mínimo                 |
 | GAMMA base   | 0.9   | ponto de partida do gamma adaptativo                             |
 
 ### 3a. GAMMA ADAPTATIVO
 Pra cada jogo, busca (loop g=0.6→2.2 passo 0.05) o gamma que deixa a **MÉDIA FINAL** (medida
-DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 22**. Isso iguala a dificuldade entre jogos.
+DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 13**. Isso iguala a dificuldade entre jogos.
 
 > **Por que média-pool 22 (não 17):** o objetivo é APERTAR o jogo (não dar pra fechar fácil
 > só com os piores titulares). Média-pool é orçamento total ÷ 52 jogadores. Subir a média
@@ -79,7 +79,7 @@ DEPOIS do cravaDream) ≈ **ALVO_MEDIA = 22**. Isso iguala a dificuldade entre j
 > anulam (orçamento fixo), por isso a média subiu.
 
 ### 3b. cravaDream
-`cravaDream(players, 140, 35, 22, 6)` — re-escala o topo pra que o **dream team (formação
+`cravaDream(players, 140, 35, 22, 4)` — re-escala o topo pra que o **dream team (formação
 real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
 
 > **MÉTRICAS DE REFERÊNCIA (M22/piso6):** média-pool ~20.8 · média dos TITULARES prováveis
@@ -89,12 +89,13 @@ real GK+DEF+MID+ATT+FLEX) ≈ 140**, com teto linha 35, teto GK 22, piso 6.
 
 ---
 
-## 4. RESULTADO ESPERADO (calibração v15 — apertada)
-- Média-pool por jogo: **~20-22** (todos os 52, inclui reservas)
-- Média dos TITULARES (XI provável): **~25** ← número que importa pro jogador
-- Dream team (formação real): **138-142**
-- Time mínimo (5 piores titulares): **~49** → sobra **~51** de 100 (apertado)
-- Faixa: 6–35 (GK até 22), bem espalhada (só ~3% no piso)
+## 4. RESULTADO ESPERADO (calibração v17 — titulares baratos)
+- Média-pool por jogo: **~13**
+- Média dos TITULARES (XI provável): **~19.5** ← número que importa pro jogador
+- Dream team (formação real): **~140** (craque acessível)
+- Faixa: 4–35 (GK até 22), espalhada
+- NOTA: testou-se apertar (M22 deixou titulares ~25 e ficou amontoado/ruim). Voltou-se a
+  titulares baratos (M13). Pra mexer no aperto: subir ALVO_MEDIA encarece os titulares
 
 ---
 
