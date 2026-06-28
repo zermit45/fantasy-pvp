@@ -1,0 +1,285 @@
+/* ============================================================
+   PLAYER RADAR — radares de jogador estilo FifaPhy
+   - 4 radares de linha (Ataque, Criação, Defesa, Posse), 5 eixos cada
+   - 1 radar separado de Goleiro
+   - cada eixo = PERCENTIL vs. jogadores da MESMA posição
+   - alterna entre PARTIDA (1 jogo) e TEMPORADA (todos os jogos finalizados)
+   Feature isolada: não altera nenhum arquivo existente.
+   ============================================================ */
+(function(){
+  "use strict";
+  if(typeof window==="undefined")return;
+
+  // normalizador de nome (mesmo critério do app)
+  function norm(s){return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z ]/g,"").trim();}
+
+  // soma os stats crus de um player-objeto (de m.players) num acumulador
+  // arrays viram contagem (goals/assists/sots); números somam.
+  function addRaw(acc, p){
+    if(!p)return acc;
+    acc.min      += Number(p.min)||0;
+    acc.games    += (p.min>0?1:0);
+    acc.goals    += Array.isArray(p.goals)?p.goals.length:(Number(p.goals)||0);
+    acc.assists  += Array.isArray(p.assists)?p.assists.length:(Number(p.assists)||0);
+    acc.sots     += Array.isArray(p.sots)?p.sots.length:(Number(p.sots)||0);
+    acc.sca      += Number(p.sca)||0;
+    acc.gca      += Number(p.gca)||0;
+    acc.pib      += Number(p.pib)||0;
+    acc.prgp     += Number(p.prgp)||0;
+    acc.tib      += Number(p.tib)||0;
+    acc.prgCarry += Number(p.prgCarry)||0;
+    acc.dribbles += Number(p.dribbles)||0;
+    acc.tklint   += Number(p.tklint)||0;
+    acc.recovery += Number(p.recovery)||0;
+    acc.clearance+= Number(p.clearance)||0;
+    acc.block    += Number(p.block)||0;
+    acc.aerial   += Number(p.aerial)||0;
+    acc.longBall += Number(p.longBall)||0;
+    acc.dispossessed += Number(p.dispossessed)||0;
+    acc.wasFouled+= Number(p.wasFouled)||0;
+    acc.accCross += Number(p.accCross)||0;
+    // goleiro
+    if(p.gk){
+      acc.gk=acc.gk||{saves:0,opa:0,crossStop:0,goalsPrevented:0,penSave:0,conceded:0};
+      acc.gk.saves     += Array.isArray(p.gk.saves)?p.gk.saves.length:(Number(p.gk.saves)||0);
+      acc.gk.opa       += Number(p.gk.opa)||0;
+      acc.gk.crossStop += Number(p.gk.crossStop)||0;
+      acc.gk.penSave   += Number(p.gk.penSave)||0;
+      acc.gk.conceded  += Number(p.gk.conceded)||0;
+      acc.gk.goalsPrevented += Number(p.gk.goalsPrevented)||0;
+    }
+    return acc;
+  }
+  function emptyAcc(){return {min:0,games:0,goals:0,assists:0,sots:0,sca:0,gca:0,pib:0,prgp:0,tib:0,
+    prgCarry:0,dribbles:0,tklint:0,recovery:0,clearance:0,block:0,aerial:0,longBall:0,
+    dispossessed:0,wasFouled:0,accCross:0,gk:null};}
+
+  // converte acumulador em "por 90" (pra comparar jogadores com minutagens diferentes)
+  function per90(acc){
+    const m=Math.max(1,acc.min), f=90/m;
+    const out={}; for(const k in acc){ if(k==="gk"||k==="min"||k==="games")continue; out[k]=acc[k]*f; }
+    out._min=acc.min; out._games=acc.games;
+    if(acc.gk){ out.gk={}; for(const k in acc.gk) out.gk[k]=acc.gk[k]*f; }
+    return out;
+  }
+
+  // ---- coleta TODOS os jogadores (temporada) ou de UM jogo, agregados por nome+pos ----
+  // retorna { byKey: {nn|pos: {name,pos,per90}}, byPos: {pos: [per90...]} }
+  function collect(roomId){
+    const GAMES=window.GAMES; if(!GAMES||!GAMES.data)return null;
+    const rooms = roomId ? [roomId] : Object.keys(GAMES.data).filter(function(rid){
+      const g=GAMES.data[rid]; return g&&g.match&&g.match.status==="finished";
+    });
+    const accs={}; // key = nn|pos
+    rooms.forEach(function(rid){
+      const g=GAMES.data[rid]; if(!g||!g.match||!g.match.players)return;
+      const prepool={}; if(g.prepool&&g.prepool.players)g.prepool.players.forEach(function(pp){prepool[pp.id]={name:pp.name,pos:pp.pos,team:pp.team};});
+      const players=g.match.players;
+      for(const pid in players){
+        const p=players[pid]; if(!(p.min>0))continue;
+        const meta=prepool[pid]||prepool[+pid]||{name:p._name,pos:p.pos,team:p.team};
+        if(!meta||!meta.name)continue;
+        const pos=p.pos||meta.pos||"MID";
+        const key=norm(meta.name)+"|"+pos;
+        if(!accs[key]){accs[key]=emptyAcc();accs[key]._name=meta.name;accs[key]._pos=pos;accs[key]._team=meta.team;}
+        addRaw(accs[key], p);
+      }
+    });
+    const byKey={}, byPos={};
+    for(const key in accs){
+      const a=accs[key]; const p90=per90(a);
+      const rec={name:a._name,pos:a._pos,team:a._team,per90:p90,games:a.games,min:a.min};
+      byKey[key]=rec;
+      (byPos[a._pos]=byPos[a._pos]||[]).push(rec);
+    }
+    return {byKey:byKey, byPos:byPos};
+  }
+
+  // percentil de um valor dentro de um array de valores (0..100)
+  function pct(val, arr){
+    if(!arr.length)return 50;
+    let below=0, eq=0;
+    for(let i=0;i<arr.length;i++){ if(arr[i]<val)below++; else if(arr[i]===val)eq++; }
+    return Math.round((below+eq*0.5)/arr.length*100);
+  }
+
+  // ---- DEFINIÇÃO DOS RADARES ----
+  // cada eixo: {label, key, inverse?} — key é campo do per90; inverse=true (menor é melhor)
+  // radares de LINHA têm 5 eixos; goleiro tem o seu.
+  var RADARS_LINE = [
+    { title:"⚽ Ataque", color:"#34d399", axes:[
+      {label:"Gols",          key:"goals"},
+      {label:"Finalizações",  key:"sots"},
+      {label:"Chances criadas",key:"sca"},
+      {label:"Chances claras", key:"gca"},
+      {label:"Dentro área",    key:"pib"}
+    ]},
+    { title:"🎨 Criação", color:"#60a5fa", axes:[
+      {label:"Passes prog.",   key:"prgp"},
+      {label:"Passes terço f.",key:"tib"},
+      {label:"Conduções prog.",key:"prgCarry"},
+      {label:"Assistências",   key:"assists"},
+      {label:"Dribles",        key:"dribbles"}
+    ]},
+    { title:"🛡️ Defesa", color:"#f59e0b", axes:[
+      {label:"Desarmes+Int.",  key:"tklint"},
+      {label:"Recuperações",   key:"recovery"},
+      {label:"Cortes",         key:"clearance"},
+      {label:"Bloqueios",      key:"block"},
+      {label:"Aéreos",         key:"aerial"}
+    ]},
+    { title:"🎯 Posse", color:"#a78bfa", axes:[
+      {label:"Bolas longas",   key:"longBall"},
+      {label:"Cruzam. certos", key:"accCross"},
+      {label:"Sofreu falta",   key:"wasFouled"},
+      {label:"Não perde bola", key:"dispossessed", inverse:true},
+      {label:"Passes prog.",   key:"prgp"}
+    ]}
+  ];
+  var RADAR_GK = { title:"🧤 Goleiro", color:"#22d3ee", axes:[
+      {label:"Defesas",        key:"saves"},
+      {label:"Saídas",         key:"opa"},
+      {label:"Cortes cruz.",   key:"crossStop"},
+      {label:"Gols evitados",  key:"goalsPrevented"},
+      {label:"Pênaltis def.",  key:"penSave"}
+  ]};
+
+  // calcula os percentis de um eixo: valor do jogador vs. todos da mesma posição
+  function axisPct(rec, axis, pool, isGK){
+    var arr=[], myVal;
+    pool.forEach(function(o){
+      var src = isGK ? (o.per90.gk||{}) : o.per90;
+      var v = Number(src[axis.key])||0;
+      arr.push(v);
+    });
+    var mySrc = isGK ? (rec.per90.gk||{}) : rec.per90;
+    myVal = Number(mySrc[axis.key])||0;
+    var p = pct(myVal, arr);
+    if(axis.inverse) p = 100 - p; // "não perde bola": menos perdas = melhor
+    return { p:p, raw:myVal };
+  }
+
+  // monta o SVG de um radar (polígono + grelha + rótulos)
+  function radarSVG(def, rec, pool, isGK){
+    var n=def.axes.length, cx=150, cy=150, R=95;
+    var ang=function(i){ return (-90 + i*360/n) * Math.PI/180; };
+    var pt=function(i, r){ return [cx+Math.cos(ang(i))*r, cy+Math.sin(ang(i))*r]; };
+    var rings="";
+    [0.25,0.5,0.75,1].forEach(function(f){
+      var pts=[]; for(var i=0;i<n;i++){var q=pt(i,R*f);pts.push(q[0].toFixed(1)+","+q[1].toFixed(1));}
+      rings+='<polygon points="'+pts.join(" ")+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1"/>';
+    });
+    var spokes="";
+    for(var i=0;i<n;i++){var q=pt(i,R);spokes+='<line x1="'+cx+'" y1="'+cy+'" x2="'+q[0].toFixed(1)+'" y2="'+q[1].toFixed(1)+'" stroke="rgba(255,255,255,.08)" stroke-width="1"/>';}
+    // polígono do jogador
+    var poly=[], dots="", labels="", vals=[];
+    for(var j=0;j<n;j++){
+      var ap=axisPct(rec, def.axes[j], pool, isGK);
+      vals.push({label:def.axes[j].label, p:ap.p, raw:ap.raw});
+      var r=R*(ap.p/100); var q=pt(j,r);
+      poly.push(q[0].toFixed(1)+","+q[1].toFixed(1));
+      dots+='<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="3" fill="'+def.color+'"/>';
+      // rótulo no vértice externo
+      var lp=pt(j,R+18);
+      var anchor = Math.abs(Math.cos(ang(j)))<0.3 ? "middle" : (Math.cos(ang(j))>0?"start":"end");
+      labels+='<text x="'+lp[0].toFixed(1)+'" y="'+lp[1].toFixed(1)+'" fill="#9aa4b2" font-size="9" text-anchor="'+anchor+'" dominant-baseline="middle">'+esc(def.axes[j].label)+'</text>';
+      labels+='<text x="'+lp[0].toFixed(1)+'" y="'+(lp[1]+10).toFixed(1)+'" fill="#e8edf2" font-size="9" font-weight="700" text-anchor="'+anchor+'" dominant-baseline="middle">'+ap.p+'%</text>';
+    }
+    var svg='<svg viewBox="0 0 300 300" style="width:100%;max-width:330px;display:block;margin:0 auto">'
+      +rings+spokes
+      +'<polygon points="'+poly.join(" ")+'" fill="'+def.color+'33" stroke="'+def.color+'" stroke-width="2"/>'
+      +dots+labels+'</svg>';
+    return {svg:svg, vals:vals};
+  }
+
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+
+  // ---- estado do modal ----
+  var _mode="match";   // "match" (1 jogo) ou "season" (todos)
+  var _ctx=null;       // {name, pos, roomId}
+
+  // monta o conteúdo (todos os radares) pro jogador no modo atual
+  function buildContent(){
+    if(!_ctx)return "";
+    var roomId = _mode==="match" ? _ctx.roomId : null;
+    var data = collect(roomId);
+    if(!data){ return '<p style="color:#9aa4b2;padding:16px">Sem dados disponíveis.</p>'; }
+    var key = norm(_ctx.name)+"|"+_ctx.pos;
+    var rec = data.byKey[key];
+    if(!rec){
+      var msg = _mode==="match" ? "Este jogador não atuou nesta partida." : "Sem jogos finalizados para este jogador.";
+      return '<p style="color:#9aa4b2;padding:16px;text-align:center">'+msg+'</p>';
+    }
+    var pool = data.byPos[_ctx.pos] || [rec];
+    var isGK = _ctx.pos==="GK";
+    var defs = isGK ? [RADAR_GK] : RADARS_LINE;
+
+    var h='';
+    // cabeçalho com nome, posição, e o resumo (jogos/min)
+    h+='<div style="text-align:center;margin-bottom:6px">'
+      +'<div style="font-size:18px;font-weight:800;color:#e8edf2">'+esc(rec.name)+'</div>'
+      +'<div style="font-size:12px;color:#9aa4b2">'+esc(rec.pos)+(rec.team?" · "+esc(rec.team):"")
+      +' · '+(_mode==="season"?(rec.games+" jogo"+(rec.games>1?"s":"")+" · "+Math.round(rec.min)+"′"):"esta partida")
+      +' · vs. '+pool.length+' '+esc(rec.pos)+'</div></div>';
+
+    // toggle partida/temporada
+    h+='<div style="display:flex;gap:6px;justify-content:center;margin:10px 0 4px">'
+      +'<button onclick="window.radarSetMode(\'match\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="match"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="match"?"#34d39922":"transparent")+';color:'+(_mode==="match"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Esta partida</button>'
+      +'<button onclick="window.radarSetMode(\'season\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="season"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="season"?"#34d39922":"transparent")+';color:'+(_mode==="season"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Temporada</button>'
+      +'</div>';
+    h+='<p style="font-size:10px;color:#6b7280;text-align:center;margin:2px 0 10px">cada eixo = percentil vs. jogadores da mesma posição · valores por 90′</p>';
+
+    // cada radar num card
+    defs.forEach(function(def){
+      var r=radarSVG(def, rec, pool, isGK);
+      h+='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;margin-bottom:12px">'
+        +'<div style="font-size:15px;font-weight:800;color:#e8edf2;margin-bottom:4px">'+def.title+'</div>'
+        +r.svg
+        +'<div style="margin-top:8px">';
+      // barras dos eixos (igual FifaPhy: rótulo + valor + percentil)
+      r.vals.forEach(function(v){
+        h+='<div style="display:flex;align-items:center;gap:8px;margin:5px 0">'
+          +'<span style="flex:1;font-size:12px;color:#cbd2da">'+esc(v.label)+'</span>'
+          +'<div style="flex:1.4;height:6px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:'+v.p+'%;height:100%;background:'+def.color+'"></div></div>'
+          +'<span style="font-size:12px;font-weight:800;color:'+def.color+';min-width:34px;text-align:right">'+v.p+'%</span>'
+          +'</div>';
+      });
+      h+='</div></div>';
+    });
+    return h;
+  }
+
+  function paint(){
+    var host=document.getElementById("radarHost"); if(!host)return;
+    var box=host.querySelector(".radarBody");
+    if(box) box.innerHTML=buildContent();
+  }
+
+  window.radarSetMode=function(m){ _mode=m; paint(); };
+
+  // API pública: abre os radares de um jogador
+  // openPlayerRadar(name, pos, roomId)
+  window.openPlayerRadar=function(name, pos, roomId){
+    _ctx={name:name, pos:pos||"MID", roomId:roomId||null};
+    _mode = roomId ? "match" : "season";
+    var host=document.getElementById("radarHost");
+    if(!host){ host=document.createElement("div"); host.id="radarHost"; document.body.appendChild(host); }
+    host.innerHTML=''
+      +'<div onclick="window.closePlayerRadar(event)" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;font-family:Inter,system-ui,sans-serif">'
+      +'<div onclick="event.stopPropagation()" style="background:#0e1320;border:1px solid rgba(255,255,255,.12);border-radius:18px;max-width:420px;width:100%;padding:16px;margin:auto">'
+      +'<div style="display:flex;justify-content:flex-end"><button onclick="window.closePlayerRadar()" style="background:transparent;border:none;color:#9aa4b2;font-size:22px;cursor:pointer;line-height:1">×</button></div>'
+      +'<div class="radarBody"></div>'
+      +'</div></div>';
+    paint();
+  };
+  window.closePlayerRadar=function(ev){
+    if(ev&&ev.target&&!(ev.target.id==="radarHost"||ev.target.onclick))
+      if(ev.currentTarget&&ev.target!==ev.currentTarget)return;
+    var host=document.getElementById("radarHost"); if(host)host.innerHTML="";
+  };
+
+  // expõe internamente
+  window.__radar = { norm:norm, collect:collect, pct:pct, per90:per90,
+    RADARS_LINE:RADARS_LINE, RADAR_GK:RADAR_GK, axisPct:axisPct, radarSVG:radarSVG, esc:esc,
+    buildContent:buildContent };
+})();

@@ -1440,8 +1440,16 @@
       else {
         // EMPATE na maior oferta → nova rodada secreta SÓ entre os empatados.
         // detecção de loop: se reempatarem no MESMO valor (ninguém subiu), aí decide por critério.
+        // robustez extra: se NINGUÉM entre os empatados consegue subir a oferta (bots determinísticos
+        // ou todos no teto), uma nova rodada seria inútil → decide já, sem depender do estado volátil.
         APP._a2TieSeen=APP._a2TieSeen||{};
-        if(APP._a2TieSeen[conflictKey]===maxBid){
+        function podeSubir2(x){
+          var cap=Math.min(a2budget(x.username), a2MaxSpend(x.username));
+          if(A2_BOTS.indexOf(x.username)>=0){ cap=Math.min(cap, a2BotMax(x.username,x)); }
+          return cap>maxBid;
+        }
+        var algumPodeSubir2=tied.some(podeSubir2);
+        if(APP._a2TieSeen[conflictKey]===maxBid || !algumPodeSubir2){
           // empate reincidente no mesmo valor (ninguém conseguiu subir) → decide por maior saldo (sorteio se igual)
           delete APP._a2TieSeen[conflictKey];
           tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
@@ -1449,7 +1457,7 @@
           var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
           winner=topTied[Math.floor(Math.random()*topTied.length)];
           paid=maxBid;
-          toast&&toast("Empate em "+maxBid+" de novo — ninguém subiu. Decidido por maior saldo.");
+          toast&&toast("Empate em "+maxBid+" — ninguém pôde subir. Decidido por maior saldo.");
         } else {
           // 1º empate (ou alguém subiu): abre nova rodada secreta entre os empatados
           APP._a2TieSeen[conflictKey]=maxBid;
@@ -1665,15 +1673,26 @@
       var winner=null, paid=maxBid;
       if(tied.length===1){ winner=tied[0]; }
       else {
-        // EMPATE no topo → nova rodada secreta entre os empatados (sempre); reempate no mesmo valor decide.
+        // EMPATE no topo → em regra, nova rodada secreta entre os empatados; reempate no mesmo valor decide por saldo.
+        // PORÉM: se ninguém entre os empatados consegue SUBIR a oferta (todos bots determinísticos, ou todos
+        // já no teto de saldo/faixa), uma nova rodada seria inútil e geraria LOOP. Nesse caso, decide já.
         APP._a2TieSeen=APP._a2TieSeen||{};
-        if(APP._a2TieSeen[conflictKey]===maxBid){
-          // reempate no mesmo valor (ninguém subiu) → maior saldo decide (sorteio se igual)
+        function podeSubir(x){
+          // teto real que esse manager ainda topa pagar acima do empate atual
+          var cap=Math.min(a2ConsoCap(x.username), a2budget(x.username), a2MaxSpend(x.username));
+          if(A2_BOTS.indexOf(x.username)>=0){ cap=Math.min(cap, a2BotMax(x.username,x)); } // bot: teto determinístico
+          return cap>maxBid; // só "pode subir" se o teto dele é maior que o lance empatado
+        }
+        var algumPodeSubir=tied.some(podeSubir);
+        if(APP._a2TieSeen[conflictKey]===maxBid || !algumPodeSubir){
+          // reempate no mesmo valor OU ninguém consegue subir → maior saldo decide (sorteio se igual). Sem loop.
           delete APP._a2TieSeen[conflictKey];
           tied.sort(function(a,b){return a2budget(b.username)-a2budget(a.username);});
           var topB=a2budget(tied[0].username);
           var topTied=tied.filter(function(x){return a2budget(x.username)===topB;});
           winner=topTied[Math.floor(Math.random()*topTied.length)];
+          // os de lance menor saem e voltam a escolher
+          for(var di=0;di<low.length;di++) await sbDelete("draft_picks","id=eq."+low[di].id);
         } else {
           // abre nova rodada secreta SÓ entre os empatados; os de oferta menor saem e reescolhem (deleta)
           APP._a2TieSeen[conflictKey]=maxBid;

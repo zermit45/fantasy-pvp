@@ -227,6 +227,7 @@ function baseAllHTML(eng){
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
       ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
+      <button onclick="event.stopPropagation();window.openPlayerRadar&&window.openPlayerRadar('${esc(row.name).replace(/'/g,"\\'")}','${row.pos}',APP.roomId)" title="Ver radar do jogador" style="background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--blue);font-size:14px;padding:3px 7px;margin-right:6px;cursor:pointer">📊</button>
       <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
   }).join("");
 }
