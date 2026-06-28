@@ -222,9 +222,39 @@
 
   // monta o conteúdo (todos os radares) pro jogador no modo atual
   // toggle partida/temporada (reutilizável)
+  // detecta quais abas têm dado real para este jogador
+  // match  = jogou no jogo aberto (_ctx.roomId)
+  // season = tem stats reais (base) OU registros agregados de jogos finalizados
+  function availModes(){
+    var key = norm(_ctx.name)+"|"+_ctx.pos;
+    var hasMatch=false, hasSeason=false;
+    if(_ctx.roomId){
+      var dm=collect(_ctx.roomId);
+      hasMatch = !!(dm && dm.byKey[key]);
+    }
+    // temporada: stats reais da base (sempre conta)
+    if(findStats(_ctx.name)) hasSeason=true;
+    // ou agregado de jogos finalizados — mas só se houver dado ALÉM do jogo aberto
+    if(!hasSeason){
+      var ds=collect(null);
+      var rs=ds && ds.byKey[key];
+      if(rs){
+        // se o único jogo da "temporada" é o próprio jogo aberto, não é temporada extra
+        if(!hasMatch || rs.games>1) hasSeason=true;
+      }
+    }
+    return {match:hasMatch, season:hasSeason};
+  }
+
   function modeToggle(){
+    var av=availModes();
+    // se só um modo tem dado, não mostra toggle (mostra nada — o conteúdo já é daquele modo)
+    if(av.match && !av.season) return "";
+    if(av.season && !av.match) return "";
+    if(!av.match && !av.season) return "";
+    // os dois disponíveis → toggle completo
     return '<div style="display:flex;gap:6px;justify-content:center;margin:10px 0 4px">'
-      +'<button onclick="window.radarSetMode(\'match\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="match"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="match"?"#34d39922":"transparent")+';color:'+(_mode==="match"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Esta partida</button>'
+      +'<button onclick="window.radarSetMode(\'match\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="match"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="match"?"#34d39922":"transparent")+';color:'+(_mode==="match"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Última partida</button>'
       +'<button onclick="window.radarSetMode(\'season\')" style="flex:1;max-width:140px;padding:8px;border-radius:9px;border:1px solid '+(_mode==="season"?"#34d399":"rgba(255,255,255,.15)")+';background:'+(_mode==="season"?"#34d39922":"transparent")+';color:'+(_mode==="season"?"#34d399":"#9aa4b2")+';font-weight:700;font-size:13px">Temporada</button>'
       +'</div>';
   }
@@ -360,8 +390,16 @@
     return he+'</div>';
   }
 
+  // se o modo atual não tem dado, troca pro que tem (evita abrir numa aba vazia)
+  function adjustMode(){
+    var av=availModes();
+    if(_mode==="match" && !av.match && av.season) _mode="season";
+    else if(_mode==="season" && !av.season && av.match) _mode="match";
+  }
+
   function buildContent(){
     if(!_ctx)return "";
+    adjustMode();
     var roomId = _mode==="match" ? _ctx.roomId : null;
     var data = collect(roomId);
     var key = norm(_ctx.name)+"|"+_ctx.pos;
