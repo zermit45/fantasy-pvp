@@ -422,7 +422,7 @@ function quimicaGuideHTML(){
     ${comboHTML}
 
     ${sec("🔁 Reforço (repetir identidade)")}
-    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Escalar vários da mesma personalidade dá bônus de identidade (o Camaleão não conta):</p>
+    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Escalar vários da mesma personalidade dá bônus de identidade (quem está "sem estilo definido" não conta):</p>
     ${reforcoHTML}
 
     ${sec("🎭 Todas as personalidades")}
@@ -440,7 +440,7 @@ const HELP={
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
   capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
   tatica:["Tática","Cada tática premia um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque...). Ela dá um BÔNUS nas ações dela se, no fim da partida, seus jogadores produzirem bastante naquilo — e só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, mostramos uma TENDÊNCIA na hora de montar: pelo perfil das posições que você escalou (e do capitão), o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
-  quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS separado da tática, que vem da MONTAGEM (você vê na hora, não depende do que rola no jogo): some personalidades que se COMPLETAM (ex: 🪄 Maestro que arma + 🎯 Matador que finaliza = bônus) ou REPITA uma identidade (vários do mesmo tipo = time com DNA). O bônus soma no total do seu time, até um teto pequeno (~+4), pra valorizar montar um elenco entrosado sem dominar o jogo. Personalidades aparecem como etiqueta em cada titular."],
+  quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS separado da tática, que vem da MONTAGEM (você vê na hora, não depende do que rola no jogo): some personalidades que se COMPLETAM (ex: 🪄 Maestro que arma + 🎯 Matador que finaliza = bônus) ou REPITA uma identidade (vários do mesmo tipo = time com DNA). O bônus soma no total do seu time, até um teto pequeno, pra valorizar montar um elenco entrosado sem dominar o jogo. Personalidades aparecem como etiqueta em cada titular."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
   slots:["Os slots do time","Você monta 5 TITULARES — 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante e 1 FLEX (curinga de linha) — que gastam do seu orçamento. Mais o BANCO, que é grátis (regra à parte, toque no '?' do banco). Cada slot só aceita a posição certa; o FLEX é mais livre. Quem você escalar mas não entrar em campo fica com 0."],

@@ -25,28 +25,35 @@ var PERSONAS = {
   veloz:          {nome:"Veloz",            ico:"⚡", setor:"ATT", desc:"Driblador de velocidade, puxa contra-ataque."},
   armador_avancado:{nome:"Armador Avançado",ico:"🎪", setor:"ATT", desc:"Cria pros outros, falso 9."},
   // coringa
-  camaleao:       {nome:"Camaleão",         ico:"🎩", setor:"ANY", desc:"Versátil, se adapta a qualquer função."},
+  camaleao:       {nome:"Sem estilo definido", ico:"❔", setor:"ANY", desc:"Faltam dados da temporada pra definir um estilo — não gera bônus de química."},
 };
 
 // COMBOS especiais (química entre personas que se completam). Bônus em PONTOS.
 // chave = par ordenado alfabeticamente "a+b". Cada combo soma uma vez por par presente.
 var COMBOS = [
-  {par:["maestro","matador"],       pts:2.2, nome:"Servido na medida", txt:"Maestro arma, Matador converte."},
-  {par:["maestro","veloz"],         pts:1.8, nome:"Tabela rápida",      txt:"Maestro lança o Veloz na frente."},
-  {par:["motor","maestro"],         pts:1.6, nome:"Meio completo",      txt:"Motor recupera, Maestro cria."},
-  {par:["muro","torre"],            pts:2.0, nome:"Muralha de ferro",   txt:"Muro embaixo, Torre no alto."},
-  {par:["volante","maestro"],       pts:1.6, nome:"Equilíbrio no meio", txt:"Volante protege, Maestro inventa."},
-  {par:["zagueiro_artista","goleiro_linha"], pts:1.8, nome:"Saída de bola", txt:"Time todo sai jogando de trás."},
-  {par:["veloz","matador"],         pts:1.6, nome:"Dupla de área",      txt:"Veloz cria o espaço, Matador finaliza."},
-  {par:["armador_avancado","matador"], pts:2.0, nome:"Referência e garçom", txt:"Armador serve, Matador empilha gol."},
-  {par:["muro","volante"],          pts:1.5, nome:"Bloco defensivo",    txt:"Volante e Muro fecham o caminho."},
-  {par:["torre","matador"],         pts:1.4, nome:"Jogo aéreo",         txt:"Torre ganha em cima, Matador aproveita."},
+  // ataque/criação
+  {par:["maestro","matador"],       pts:1.8, nome:"Servido na medida", txt:"Maestro arma, Matador converte."},
+  {par:["armador_avancado","matador"], pts:1.6, nome:"Referência e garçom", txt:"Armador serve, Matador empilha gol."},
+  {par:["maestro","veloz"],         pts:1.4, nome:"Tabela rápida",      txt:"Maestro lança o Veloz na frente."},
+  {par:["veloz","matador"],         pts:1.3, nome:"Dupla de área",      txt:"Veloz cria o espaço, Matador finaliza."},
+  {par:["torre","matador"],         pts:1.1, nome:"Jogo aéreo",         txt:"Torre ganha em cima, Matador aproveita."},
+  // meio
+  {par:["motor","maestro"],         pts:1.3, nome:"Meio completo",      txt:"Motor recupera, Maestro cria."},
+  {par:["volante","veloz"],         pts:1.2, nome:"Roubada e arranque", txt:"Volante rouba, Veloz dispara no contra."},
+  // defesa
+  {par:["muro","torre"],            pts:1.6, nome:"Muralha de ferro",   txt:"Muro embaixo, Torre no alto."},
+  {par:["muro","volante"],          pts:1.2, nome:"Bloco defensivo",    txt:"Volante e Muro fecham o caminho."},
+  {par:["zagueiro_artista","maestro"], pts:1.3, nome:"Construção",      txt:"Zaga sai jogando, Maestro conduz."},
+  // goleiros (antes órfãos)
+  {par:["paredao","muro"],          pts:1.4, nome:"Defesa blindada",    txt:"Paredão no gol, Muro na frente dele."},
+  {par:["pegador","volante"],       pts:1.1, nome:"Cofre",             txt:"Volante protege, Pegador segura o pênalti."},
+  {par:["goleiro_linha","zagueiro_artista"], pts:1.4, nome:"Saída de bola", txt:"Time todo sai jogando de trás."},
 ];
 
 // REFORÇO de iguais: N+ da mesma persona dá bônus de "identidade".
-var REFORCO = { 2:0.8, 3:1.8, 4:3.0 };  // 2 iguais=+0.8, 3=+1.8, 4+=+3.0 (no time todo)
+var REFORCO = { 2:0.7, 3:1.5, 4:2.5 };  // 2 iguais=+0.7, 3=+1.5, 4+=+2.5 (no time todo)
 
-var QUIM_CAP = 4.0; // teto do bônus total de química por time
+var QUIM_CAP = 4.5; // teto do bônus total de química por time
 
 if(typeof window!=="undefined"){
   window.QUIMICA = {PERSONAS:PERSONAS, COMBOS:COMBOS, REFORCO:REFORCO, CAP:QUIM_CAP};
