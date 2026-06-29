@@ -223,6 +223,48 @@ function buildHTML(){
     accCross:"cruzamentos",fouls:"faltas",prgCarry:"conduções",longBall:"lançamentos"};
   // cor-tema por tática (casa com as variáveis --tac-* do CSS)
   const TACT_COLOR={muralha:"var(--tac-muralha)",pressaototal:"var(--tac-pressaototal)",cerebro:"var(--tac-cerebro)",tridente:"var(--tac-tridente)",aereo:"var(--tac-aereo)",contra:"var(--tac-contra)"};
+  // ── BLOCO DE QUÍMICA (montagem) ──
+  function quimicaBlockHTML(s, byId){
+    if(typeof window==="undefined"||!window.computeQuimica||!window.QUIMICA) return "";
+    const tits=["GK","DEF","MID","ATT","FLEX"].map(sl=>s[sl]).filter(Boolean)
+      .map(pid=>byId[pid]).filter(Boolean);
+    const P=window.QUIMICA.PERSONAS;
+    // etiquetas das personas dos titulares
+    let chips="";
+    ["GK","DEF","MID","ATT","FLEX"].forEach(sl=>{
+      const pid=s[sl]; if(!pid){return;}
+      const pl=byId[pid]; if(!pl)return;
+      const pk=window.personaOf(pl.name,pl.pos)||"camaleao";
+      const per=P[pk]||P.camaleao;
+      chips+=`<div style="display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px 8px;font-size:11px">`
+        +`<span style="font-size:13px">${per.ico}</span><span style="color:var(--chalk);font-weight:600">${esc(per.nome)}</span>`
+        +`<span style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</span></div>`;
+    });
+    let body, headRight;
+    if(tits.length<3){
+      body=`<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0 0">Escale os titulares pra ver a química do time.</p>`;
+      headRight=`<span class="tag">—</span>`;
+    }else{
+      const q=window.computeQuimica(tits.map(m=>({name:m.name,pos:m.pos})));
+      headRight=`<span class="mono" style="color:${q.bonus>0?"#34d399":"var(--dim)"};font-weight:800">+${q.bonus.toFixed(1)}</span>`;
+      let hitsHTML="";
+      if(q.hits.length){
+        hitsHTML=q.hits.map(h=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px">`
+          +`<span style="font-size:14px">${h.ico}</span>`
+          +`<span style="flex:1;color:var(--chalk)">${esc(h.nome)} <span style="color:var(--dim);font-size:10px">${esc(h.txt)}</span></span>`
+          +`<span class="mono" style="color:#34d399;font-weight:700">+${h.pts.toFixed(1)}</span></div>`).join("");
+      }else{
+        hitsHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0 0">Nenhuma combinação ainda. Junte personalidades que se completam (ex: 🪄 Maestro + 🎯 Matador) ou repita uma identidade.</p>`;
+      }
+      body=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">${chips}</div>${hitsHTML}`;
+    }
+    return `<div class="card">
+      <div class="sectionhead"><span>🧬 Química do time${helpBtn("quimica")}</span>${headRight}</div>
+      <p class="p" style="font-size:11px;margin-bottom:2px;line-height:1.5">Cada jogador tem uma <b>personalidade</b>. Personalidades que se completam (ou se repetem) geram <b style="color:var(--green)">bônus de química</b> — somado ao seu time, separado da tática.</p>
+      ${body}
+    </div>`;
+  }
+
   function tactEffectHTML(t){
     const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
     const uniq=[...new Set(fam)];
@@ -354,6 +396,7 @@ function buildHTML(){
     <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática dá um <b style="color:var(--green)">bônus</b> nas ações dela se, no fim do jogo, seus jogadores produzirem bastante naquilo. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas — não é garantia, mas indica pra qual estilo ele tem cara. Capitão puxa o estilo.</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
+  ${quimicaBlockHTML(s,byId)}
   <div class="card">
     <div class="sectionhead"><span>Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</span><span>${filledCount}/6 escolhidos</span></div>
     ${(function(){
@@ -581,6 +624,19 @@ function scoreEntryFor(entry,eng,ctx){
     if(sl!=="BENCH")sum+=pts;
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
   }
+  // QUÍMICA (camada nova, independente da tática): bônus por entrosamento das
+  // personalidades dos 5 TITULARES escalados. É da montagem — vale mesmo sem o jogador
+  // ter atuado, e soma uma vez no total do time (antes do impulso).
+  let quimica=null, quimicaPts=0;
+  if(typeof window!=="undefined" && window.computeQuimica){
+    const tits=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean)
+      .map(pid=>byId[pid]).filter(Boolean).map(mm=>({name:mm.name,pos:mm.pos}));
+    if(tits.length>=3){
+      quimica=window.computeQuimica(tits);
+      quimicaPts=quimica?quimica.bonus:0;
+      sum+=quimicaPts;
+    }
+  }
   // IMPULSO (modo boost): aplicado por ÚLTIMO, sobre o total já fechado (tática, capitão, etc.).
   // Modelo novo: entry.boost_chips = lista de valores das fichas neste jogo, ex [25,15] ou [-20].
   //   o % total é a SOMA das fichas (positivas e negativas).
@@ -596,7 +652,7 @@ function scoreEntryFor(entry,eng,ctx){
   }
   const boostMult=1+(boostPct/100);
   const finalTotal=Math.round(sum*boostMult*10)/10;
-  return {username:entry.username,total:finalTotal,boost:boostTokens,boostPct,boostChips:Array.isArray(chips)?chips:null,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq};
+  return {username:entry.username,total:finalTotal,boost:boostTokens,boostPct,boostChips:Array.isArray(chips)?chips:null,boostMult,view,captain:entry.captain,tactic:entry.tactic,subOut,squadSum:sq,quimica,quimicaPts};
 }
 // ============================================================
 // TIME IDEAL — a escalação que teria dado a MAIOR pontuação possível
