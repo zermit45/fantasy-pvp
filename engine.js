@@ -11,6 +11,7 @@ const BASE = { goal:4.6, assist:3.6, sot:2.2, dribble:.85, prgp:.15, pib:0, tib:
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
   save:1.4, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
   wasFouled:.08, longBall:.12, prgCarry:.10, penaltyWon:2.5,
+  psConv:1.5, psMiss:-4.0, psSave:3.0,
   yellow:-2, redH1:-7, redH2:-5, errGoal:-5, errShot:-2, penCom:-4, dribbledPast:-1, dispossessed:-.25, foul:-.45, concededGk:-2, ownGoal:-6 };
 // pesos ANTIGOS — CONGELADOS (jogos já apurados / tacticRules v1). NÃO herdam da BASE pra não alterar jogos finalizados.
 const BASE_V1 = { goal:2, assist:1.5, sot:0.6, dribble:0.35, prgp:0.12, pib:0.35, tib:0.06, sca:0.45, gca:1.25, tklint:0.9, block:0.9, recovery:0.22, aerial:0.22, clearance:0.1, save:0.7, penSave:4.5, opa:0.85, crossStop:0.45, accCross:0.2, inaccCross:-0.08, wasFouled:0, longBall:0, prgCarry:0, penaltyWon:0, dispossessed:0, yellow:-2, redH1:-10, redH2:-6, errGoal:-5, errShot:0, penCom:-4, dribbledPast:-1, foul:-0.45, concededGk:-2, ownGoal:0 };
@@ -141,6 +142,8 @@ function normP(raw){
     sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
     yellow:0, red:null, errGoal:0, errShot:0, penCom:0, accCross:0, inaccCross:0, gk:null, ownGoal:0,
     wasFouled:0, longBall:0, prgCarry:0, dispossessed:0, penaltyWon:0,
+    // disputa de pênaltis (shootout): psConv=convertidos | psMiss=NÃO convertidos do batedor (fora OU defendido) | psSave=defesas do GK
+    psConv:0, psMiss:0, psSave:0,
     // dados de finalização (capturados do shotmap): bola parada e chute de fora
     setPieceSot:0, setPieceGoals:0, longSot:0, longGoals:0
   }, raw||{});
@@ -444,7 +447,7 @@ function makeEngine(match){
     clutch=Math.min(clutch,CAPS.CLUTCH);
     push("Dificuldade (xG·xAG·PSxG)",r1(dif));
     push(LIVE>=0.99?"Placar — jogo vivo o tempo todo":"Contexto de placar",r1(ctx));
-    if(clutch>0)push(`Clutch 85'+ (cap +${CAPS.CLUTCH})`,r1(clutch));
+    if(clutch>0)push(`Clutch fim de jogo/prorrogação (cap +${CAPS.CLUTCH})`,r1(clutch));
     const posSub=Math.max(0,baseTot-conc-neg)+dif+Math.max(0,ctx)+clutch;
     const dm=dvgMult(p.team);const dvg=posSub*(dm-1);
     if(dvg>0.05){
@@ -484,6 +487,12 @@ function makeEngine(match){
     const cap=Math.max(CAPS.FLOOR,Math.min(CAPS.MATCH,total));
     if(cap!==total)push(`Cap (${CAPS.FLOOR}/+${CAPS.MATCH})`,r1(cap-total));
     total=r1(cap);
+    // disputa de pênaltis (shootout): evento extra decisivo, somado FORA do cap de match
+    let shoot=0;
+    if(p.psConv>0){shoot+=p.psConv*B.psConv;push(`Pênalti convertido (disputa) ${p.psConv>1?p.psConv+"×":""}`.trim(),r1(p.psConv*B.psConv));}
+    if(p.psSave>0){shoot+=p.psSave*B.psSave;push(`Pênalti defendido (disputa) ${p.psSave>1?p.psSave+"×":""}`.trim(),r1(p.psSave*B.psSave));}
+    if(p.psMiss>0){shoot+=p.psMiss*B.psMiss;push(`Pênalti perdido (disputa) ${p.psMiss>1?p.psMiss+"×":""}`.trim(),r1(p.psMiss*B.psMiss));}
+    if(shoot!==0)total=r1(total+shoot);
     const meta=archetype(p,ix,clutch,total);
     const labels=[`Envolvimento: ${lab3(ix.iui,"discreto","participativo","onipresente")}`,`Eficiência: ${lab3(ix.eff,"abaixo","dentro","acima do esperado")}`,`Segurança: ${lab3(ix.sec,"instável","controlada","impecável")}`,`Duas fases: ${lab3(ix.tw,"unidimensional","equilibrado","completo")}`];
     return{total,minutes:p.min,statLines:sl,lines:lines.map(([k,v])=>[k,r1(v)]),evNote:ev,labels,meta};
