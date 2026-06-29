@@ -519,7 +519,7 @@ function playerResultsHTML(){
       const per=pk&&pk!=="camaleao"?window.QUIMICA.PERSONAS[pk]:null;
       if(per) personaTag=`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;color:var(--chalk);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:1px 7px;margin-top:3px;max-width:100%"><span style="font-size:10px">${per.ico}</span>${esc(per.nome)}</span>`;
     }
-    return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
+    return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}',(window.APP&&APP.roomId)||'')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
       <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
       <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div>
