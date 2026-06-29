@@ -463,8 +463,8 @@ function playerResultsHTML(){
       // tenta o overall por DESEMPENHO (stats reais, com fallback de nome + posição); senão usa o de mercado
       let ovrVal=null, statsOnly=false;
       const rs=resolveStats(p.name, p.pos);
-      if(rs && (rs.obj.ovrFinal!=null||rs.obj.ovrStats!=null)){
-        ovrVal=(rs.obj.ovrFinal!=null?rs.obj.ovrFinal:rs.obj.ovrStats); statsOnly=true;
+      if(rs && rs.obj.ovrStats!=null){
+        ovrVal=rs.obj.ovrStats; statsOnly=true;
         // marca todas as grafias como vistas, pra não listar o mesmo jogador de novo via stats
         rs.keys.forEach(c=>{ seen[c]=1; });
         seen[normTxt(rs.obj.nm||"")]=1;
@@ -489,7 +489,7 @@ function playerResultsHTML(){
       if(seen[k]||seen[realKey]) continue;
       if(k.includes(q)){
         seen[k]=1; seen[realKey]=1;
-        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrFinal!=null?v.ovrFinal:(v.ovrStats!=null?v.ovrStats:null)), statsOnly:true});
+        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrStats!=null?v.ovrStats:null), statsOnly:true});
       }
     }
   } else if(q.length>=2 && APP._statsLoading){
@@ -519,7 +519,7 @@ function playerResultsHTML(){
       const per=pk&&pk!=="camaleao"?window.QUIMICA.PERSONAS[pk]:null;
       if(per) personaTag=`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;color:var(--chalk);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:1px 7px;margin-top:3px;max-width:100%"><span style="font-size:10px">${per.ico}</span>${esc(per.nome)}</span>`;
     }
-    return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}',(window.APP&&APP.roomId)||'')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
+    return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
       <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
       <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div>
@@ -580,7 +580,7 @@ function srTrio(roomId, teamCode){
       const direct=(typeof photoOfDirect==="function")?photoOfDirect(roomId,p.team,p.id):url;
       const ini=(p.name||"").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
       if(url){
-        html+=`<span class="sr-pf"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="lazy" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
+        html+=`<span class="sr-pf"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="eager" fetchpriority="high" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
       }else{
         html+=`<span class="sr-pf ph">${ini}</span>`;
       }

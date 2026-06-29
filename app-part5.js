@@ -204,7 +204,7 @@ function buildHTML(){
     const ini=(p.name||"").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
     const attr=v=>String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
     if(!url)return `<span class="${cls||"pface"} ph">${ini}</span>`;
-    return `<span class="${cls||"pface"}"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="lazy" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
+    return `<span class="${cls||"pface"}"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="eager" fetchpriority="high" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
   };
   const slotPersonaHTML=(pl,posKey)=>{
     if(!pl||typeof window==="undefined"||!window.personaOf||!window.QUIMICA) return "";
@@ -222,7 +222,7 @@ function buildHTML(){
       ${pl?playerImg(pl,"slotpic"):""}
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
       ${pl?slotPersonaHTML(pl,posKey):""}
-      ${pl?`<div class="pr mono" style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;max-width:100%">${typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}',(window.APP&&APP.roomId)||'')" title="Ver perfil completo">ℹ️</button>`:""}<span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span><span style="color:var(--amber)">${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</span></div>`:""}
+      ${pl?`<div class="pr mono" style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;max-width:100%">${typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}')" title="Ver perfil completo">ℹ️</button>`:""}<span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span><span style="color:var(--amber)">${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</span></div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
@@ -381,7 +381,7 @@ function buildHTML(){
   const radarBtn=(p)=>{
     if(typeof window==="undefined"||!window.openPlayerRadar) return "";
     const nm=esc(p.name).replace(/'/g,"\\'");
-    return `<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar('${nm}','${p.pos}',(window.APP&&APP.roomId)||'')" title="Ver perfil completo">ℹ️</button>`;
+    return `<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar('${nm}','${p.pos}')" title="Ver perfil completo">ℹ️</button>`;
   };
   const poolHTML=filt.map(p=>{
     const sel=used.includes(p.id);
