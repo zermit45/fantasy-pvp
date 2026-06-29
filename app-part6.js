@@ -216,7 +216,7 @@ function baseAllHTML(eng){
     }
     const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:row.meta.id,team:row.team,name:row.name},"pface"):"";
     const nmJs=esc(row.name).replace(/'/g,"\\'");
-    const infoBtn=`<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar&&window.openPlayerRadar('${nmJs}','${row.pos}')" title="Ver perfil completo">ℹ️</button>`;
+    const infoBtn=`<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar&&window.openPlayerRadar('${nmJs}','${row.pos}','${APP.roomId}')" title="Ver perfil completo">ℹ️</button>`;
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
       ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
@@ -278,7 +278,9 @@ function dreamTeamHTML(){
         const pkey="dream_"+sl;
         const pOpen=_dreamPlayer[pkey];
         const face=pl&&typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:pl.id,team:pl.team,name:pl.name},"pface"):"";
-        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleDreamPlayer('${pkey}')"><span style="display:flex;align-items:center;gap:8px;min-width:0"><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> ${face}<span>${esc(pl?pl.name:"?")}</span><span class="teamtag" style="--tc:${teamColor(pl?pl.team:"")};margin-left:0">${pl?pl.team:""}</span>${capTag} <span style="color:var(--dim);font-size:10px">${it.price}💰</span> <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
+        const dNmJs=esc(pl?pl.name:"").replace(/'/g,"\\'");
+        const dInfoBtn=(pl&&typeof window!=="undefined"&&window.openPlayerRadar)?`<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar('${dNmJs}','${pl.pos}','${APP.roomId}')" title="Ver perfil completo">ℹ️</button>`:"";
+        html+=`<div class="line" style="padding:6px 0;cursor:pointer" onclick="toggleDreamPlayer('${pkey}')"><span style="display:flex;align-items:center;gap:8px;min-width:0"><b style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</b> ${face}<span>${esc(pl?pl.name:"?")}</span><span class="teamtag" style="--tc:${teamColor(pl?pl.team:"")};margin-left:0">${pl?pl.team:""}</span>${capTag}${dInfoBtn} <span style="color:var(--dim);font-size:10px">${it.price}💰</span> <span style="color:var(--blue);font-size:10px">${pOpen?"▲":"▼"}</span></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
         if(pOpen&&r){
           html+=`<div style="padding:4px 0 8px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">
             <div class="bsub" style="border:none;margin:0 0 2px;padding:0">📋 ${r.minutes}' em campo</div>
@@ -609,6 +611,7 @@ function superManualHTML(){
       p(`${b("Penalidades")} tiram pontos: amarelo (-2), vermelho (-7 no 1º tempo / -5 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), gol contra (-6), faltas e ser driblado. O gol contra conta no placar e ainda desconta de quem o fez.`)+
       p(`${b("Construção de jogo")} também pontua (leve): faltas sofridas, lançamentos longos certos e conduções progressivas premiam quem distribui o jogo e puxa contra-ataque, não só quem finaliza.`)+
       p(`${b("Tática:")} se a tática que você escolheu ${b("ativar")} (seus jogadores produziram no estilo dela), o time ganha um bônus de até +4 pontos distribuído entre quem mais produziu. Errar a tática não tira pontos — no pior caso, ela só não ativa.`)+
+      p(`${b("Química:")} um bônus ${b("por time")} (não por jogador) que você já vê na ${b("montagem")}, separado da tática. Cada titular tem uma personalidade (Maestro, Matador, Muro...); o jogo soma de uma vez ${b("todos")} os combos (personalidades que se completam) e reforços (repetir a mesma), sem importar a ordem, e adiciona ao total — até um ${b("teto de +4,5")}. Passou do teto, o excedente é cortado. Detalhes e a lista completa no 🧬 Guia de Química.`)+
       p(`${b("Tetos por jogo:")} a nota de um jogador na partida vai de -9 (piso) a +28 (teto), pra ninguém disparar sozinho.`))}
 
     ${sec("7. Mini rodadas e os modos",
