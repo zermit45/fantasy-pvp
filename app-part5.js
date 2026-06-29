@@ -224,6 +224,7 @@ function buildHTML(){
       ${pl?slotPersonaHTML(pl,posKey):""}
       ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
+      ${pl&&typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}')" title="Ver perfil completo">ℹ️</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
   const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
@@ -377,6 +378,12 @@ function buildHTML(){
     const per=window.QUIMICA.PERSONAS[pk]; if(!per) return "";
     return `<span title="${esc(per.nome)}" style="margin-left:5px;font-size:12px;opacity:.95">${per.ico}</span>`;
   };
+  // botão ℹ️ que abre o perfil completo (overall + stats + radar). stopPropagation pra não disparar o clique da linha.
+  const radarBtn=(p)=>{
+    if(typeof window==="undefined"||!window.openPlayerRadar) return "";
+    const nm=esc(p.name).replace(/'/g,"\\'");
+    return `<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar('${nm}','${p.pos}')" title="Ver perfil completo" style="flex:none;width:24px;height:24px;border-radius:50%;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:11px;cursor:pointer;line-height:1;margin:0 4px">ℹ️</button>`;
+  };
   const poolHTML=filt.map(p=>{
     const sel=used.includes(p.id);
     const dest=destSlot(p);
@@ -387,7 +394,7 @@ function buildHTML(){
       else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
     }
     const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
-    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}"${dis?"":` data-pid="${p.id}"`}><div class="posbar pb-${p.pos}"></div>${playerImg(p,"pface")}<div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}${poolPersonaIco(p)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
+    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}"${dis?"":` data-pid="${p.id}"`}><div class="posbar pb-${p.pos}"></div>${playerImg(p,"pface")}<div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}${poolPersonaIco(p)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div>${radarBtn(p)}<div class="pr mono">${p.price}</div></div>`;
   }).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){
@@ -397,7 +404,7 @@ function buildHTML(){
       if(!pl)return"";
       const isCap=APP.captain===sl;
       const posKey=sl==="BENCH"&&pl?pl.pos:sl;
-      return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div>${playerImg(pl,"pface")}<div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div><div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div><div class="pr mono" style="color:var(--dim)">${sl==="BENCH"?"grátis":pl.price}</div></div>`;
+      return `<div class="prow" style="cursor:default"><div class="posbar pb-${posKey}"></div>${playerImg(pl,"pface")}<div class="pos mono pc-${posKey}">${SLOT_LABEL[sl]}</div><div class="nm">${esc(pl.name)}<span class="teamtag" style="--tc:${teamColor(pl.team)};margin-left:6px">${pl.team}</span>${isCap?` <span class="badgeC">C</span>`:""}${sl==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:""}</div>${radarBtn(pl)}<div class="pr mono" style="color:var(--dim)">${sl==="BENCH"?"grátis":pl.price}</div></div>`;
     };
     return `<div class="scorebar"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tag">${esc(pp.comp)} · ⚽ EM ANDAMENTO</div><div class="userchip" onclick="${inRound?`go('round',null,'${APP.roundId}')`:"go('room')"}" style="cursor:pointer;flex-shrink:0">← voltar</div></div>
       <div class="score disp"><div><div class="team">${esc(pp.home.name)}</div></div><div class="vs mono">×</div><div style="text-align:right"><div class="team">${esc(pp.away.name)}</div></div></div></div>

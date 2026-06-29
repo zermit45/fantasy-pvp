@@ -273,6 +273,7 @@
             '<div class="line total"><span>Preço no Draft</span><span class="v" style="color:var(--amber)">'+cat.price+'</span></div>'+
           '</div>'+
           '<button class="btn" onclick="dMktCloseInfo();buyDraftPlayer(\''+esc(key)+'\')">Adicionar ao meu time</button>'+
+          (typeof window!=="undefined"&&window.openPlayerRadar?'<button class="btn ghost" style="margin-top:8px" onclick="dMktCloseInfo();window.openPlayerRadar(\''+esc(cat.name).replace(/'/g,"\\'")+'\',\''+cat.pos+'\')">📊 Ver perfil completo</button>':"")+
           '<button class="btn ghost" style="margin-top:8px" onclick="dMktCloseInfo()">Fechar</button>'+
         '</div>'+
       '</div>';

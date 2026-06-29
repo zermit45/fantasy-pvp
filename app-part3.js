@@ -386,13 +386,16 @@ function setPlayerSearch(v){
   if(box) box.innerHTML=playerResultsHTML();
   const clr=document.getElementById("playerSearchClear");
   if(clr) clr.style.display=(v&&v.length)?"block":"none";
-  // dispara carregamento da base de stats (6470 jogadores) ao começar a buscar
-  if(v && normTxt(v.trim()).length>=2 && !window.PLAYER_STATS && window.ensureStatsDB){
+  // dispara carregamento da base de stats completa em segundo plano (é grande, ~5MB).
+  // Os resultados do master (com OVR) já aparecem na hora; o stats só ENRIQUECE depois.
+  // Re-renderiza SEMPRE que a base chegar (não amarra ao texto exato), e nunca trava a UI.
+  if(v && normTxt(v.trim()).length>=2 && !window.PLAYER_STATS && window.ensureStatsDB && !APP._statsLoading){
+    APP._statsLoading=true;
     window.ensureStatsDB().then(()=>{
-      // só re-renderiza se o usuário ainda está buscando a mesma coisa
+      APP._statsLoading=false;
       const b=document.getElementById("playerResults");
-      if(b && APP.playerSearch===v) b.innerHTML=playerResultsHTML();
-    });
+      if(b && APP.playerSearch && normTxt(APP.playerSearch.trim()).length>=2) b.innerHTML=playerResultsHTML();
+    }).catch(()=>{ APP._statsLoading=false; });
   }
 }
 function playerResultsHTML(){
@@ -435,8 +438,8 @@ function playerResultsHTML(){
         out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrStats!=null?v.ovrStats:null), statsOnly:true});
       }
     }
-  } else if(q.length>=2){
-    loading=true; // ainda carregando a base completa
+  } else if(q.length>=2 && APP._statsLoading){
+    loading=true; // ainda carregando a base completa em segundo plano
   }
 
   if(!out.length){
@@ -455,7 +458,7 @@ function playerResultsHTML(){
       <span style="color:var(--blue);font-size:15px">📊</span>
     </div>`;
   }).join("");
-  if(loading) html+=`<p class="p" style="margin:8px 2px 0;font-size:11px;color:var(--dim)">Carregando mais jogadores…</p>`;
+  if(loading && out.length<8) html+=`<p class="p" style="margin:8px 2px 0;font-size:11px;color:var(--dim)">Buscando mais na base completa… (os de cima já abrem)</p>`;
   return html;
 }
 function playerSearchHTML(){

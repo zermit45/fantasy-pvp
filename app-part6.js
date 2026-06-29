@@ -215,10 +215,12 @@ function baseAllHTML(eng){
       `;
     }
     const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:row.meta.id,team:row.team,name:row.name},"pface"):"";
+    const nmJs=esc(row.name).replace(/'/g,"\\'");
+    const infoBtn=`<button onclick="event.stopPropagation();window.openPlayerRadar&&window.openPlayerRadar('${nmJs}','${row.pos}')" title="Ver perfil completo" style="flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:13px;font-weight:800;cursor:pointer;line-height:1;margin-left:8px">ℹ️</button>`;
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
       ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
-      <div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
+      ${infoBtn}<div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
   }).join("");
 }
 let _openBase={};
