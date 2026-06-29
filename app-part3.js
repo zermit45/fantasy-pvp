@@ -367,17 +367,29 @@ function pickCalDay(dayKey){APP.homeDay=decodeURIComponent(dayKey);APP.calOpen=f
 let _homeSearchTimer=null;
 function setHomeSearch(v){
   APP.homeSearch=v;
-  // debounce: não re-renderiza a tela inteira a cada tecla (é o que travava o teclado).
-  // Espera o usuário parar de digitar ~160ms, então atualiza a lista uma vez só.
+  // atualiza SÓ a lista de jogos (não a página inteira) — é o que deixa o teclado liso.
+  // debounce curto: agrupa teclas rápidas numa atualização só.
   if(_homeSearchTimer)clearTimeout(_homeSearchTimer);
   _homeSearchTimer=setTimeout(()=>{
-    render();
-    // restaura foco e cursor no campo de busca (senão o iPhone perde o foco)
-    requestAnimationFrame(()=>{
-      const inp=document.getElementById("homeSearchInput");
-      if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
-    });
-  },160);
+    try{
+      // regenera o homeHTML (só string) e extrai apenas o #homeGameList novo
+      const tmp=document.createElement("div");
+      tmp.innerHTML=homeHTML();
+      const fresh=tmp.querySelector("#homeGameList");
+      const cur=document.getElementById("homeGameList");
+      if(fresh&&cur){ cur.innerHTML=fresh.innerHTML; }
+      else { render(); }
+    }catch(e){ render(); }
+    // mantém o foco no campo (o input não foi recriado, então o foco já está nele;
+    // este reforço cobre o caso de algum navegador soltar o foco)
+    const inp=document.getElementById("homeSearchInput");
+    if(inp&&document.activeElement!==inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
+    // mostra/esconde o ✕ sem re-renderizar o input
+    const clr=document.getElementById("homeSearchClearBtn");
+    if(clr) clr.style.display=(APP.homeSearch&&APP.homeSearch.length)?"block":"none";
+    // se limpou pelo ✕, o input em tela ainda tem texto: sincroniza
+    if(inp&&inp.value!==(APP.homeSearch||"")) inp.value=APP.homeSearch||"";
+  },90);
 }
 // tira acentos e normaliza (ç→c) pra busca tolerante: "sao"/"são", "suica"/"suíça" batem igual
 function normTxt(s){
@@ -720,15 +732,16 @@ function homeHTML(){
   const partidasPanel=`<div class="card">
     <div style="position:relative;margin-bottom:10px">
       <input id="homeSearchInput" class="input" style="margin:0;padding-left:38px" placeholder="🔍 Buscar partida pelo nome do time…" value="${esc(APP.homeSearch||"")}" oninput="setHomeSearch(this.value)" autocorrect="off" />
-      ${q?`<span onclick="setHomeSearch('')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim)">✕</span>`:""}
+      <span id="homeSearchClearBtn" onclick="setHomeSearch('')" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim);display:${q?"block":"none"}">✕</span>
     </div>
     ${statusLegend}
     <div class="postabs" style="margin-bottom:8px">
       <div class="ptab${tab==="toplay"?" on":""}" onclick="setHomeTab('toplay')">⚽ A jogar</div>
       <div class="ptab${tab==="finished"?" on":""}" onclick="setHomeTab('finished')">✓ Finalizados</div>
     </div>
-    ${diaChips}
+    <div id="homeGameList">${diaChips}
     ${listaHTML}
+    </div>
   </div>`;
   let navPanel="";
   if(navTab==="partidas")navPanel=partidasPanel;
