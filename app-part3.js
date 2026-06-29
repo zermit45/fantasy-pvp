@@ -440,12 +440,15 @@ function playerResultsHTML(){
     if(normTxt(p.name).includes(q)){
       const k=normTxt(p.name);
       if(seen[k]) return; seen[k]=1;
-      // se este jogador do master aponta (via alias) pra um registro de stats, marca a chave real como vista
+      // tenta o overall por DESEMPENHO (stats reais); se não houver, usa o de mercado
+      let ovrVal=null, statsOnly=false;
       if(DBpre){
-        const ref=DBpre[k];
-        if(typeof ref==="string" && ref.charAt(0)==="@") seen[ref.slice(1)]=1;
+        let ref=DBpre[k];
+        if(typeof ref==="string" && ref.charAt(0)==="@"){ seen[ref.slice(1)]=1; ref=DBpre[ref.slice(1)]; }
+        if(ref && typeof ref==="object" && ref.ovrStats!=null){ ovrVal=ref.ovrStats; statsOnly=true; }
       }
-      out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:(Q?Q.overall(p):null), age:(p.age!=null?p.age:null), mv:(p.marketValue!=null?p.marketValue:null)});
+      if(ovrVal==null) ovrVal=(Q?Q.overall(p):null);
+      out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:ovrVal, statsOnly:statsOnly, age:(p.age!=null?p.age:null), mv:(p.marketValue!=null?p.marketValue:null)});
     }
   });
 
@@ -455,11 +458,15 @@ function playerResultsHTML(){
   if(DB){
     const keys=Object.keys(DB);
     for(let i=0;i<keys.length && out.length<22;i++){
-      const k=keys[i]; const v=DB[k];
-      if(typeof v!=="object") continue;      // pula ponteiros de alias
-      if(seen[k]) continue;
+      const k=keys[i]; let v=DB[k];
+      // resolve ponteiro de alias (@chave) para o objeto real
+      if(typeof v==="string" && v.charAt(0)==="@") v=DB[v.slice(1)];
+      if(!v || typeof v!=="object") continue;
+      // evita duplicar o mesmo jogador (várias grafias apontam pro mesmo objeto)
+      const realKey=normTxt(v.nm||k);
+      if(seen[k]||seen[realKey]) continue;
       if(k.includes(q)){
-        seen[k]=1;
+        seen[k]=1; seen[realKey]=1;
         out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrStats!=null?v.ovrStats:null), statsOnly:true});
       }
     }

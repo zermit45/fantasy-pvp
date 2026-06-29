@@ -204,7 +204,7 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260628-unif1")
+    _statsPromise = fetch("player-stats.json?v=20260629-realstats1")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
@@ -261,7 +261,7 @@
 
   // popup explicativo do asterisco
   window.radarOvrInfo=function(){
-    alert("OVERALL* — Este jogador não está na base de mercado do app, então o overall foi calculado a partir do DESEMPENHO real da temporada (percentis de gols, passes, desarmes etc.), e não do valor de mercado/liga/clube. Por isso a régua é diferente da dos jogadores com OVERALL normal.");
+    alert("OVERALL por desempenho — calculado a partir das estatísticas REAIS da temporada (gols, assistências, passes, desarmes, dribles, nota média etc.), comparado com jogadores da mesma posição nas 12 ligas. Reflete o RENDIMENTO recente, não a fama ou o valor de mercado — então um craque em má fase pode ter overall menor que o histórico dele, e um jogador em grande temporada pode aparecer acima do esperado.");
   };
 
   // cabeçalho OVERALL + PREÇO. Master = mercado; fora do master = overall por stats (com *)
@@ -298,7 +298,23 @@
     var Q=window.playerQuality;
     var mp=Q?Q.findMaster(name, pos):null;
     var col=function(v){return v>=85?"#34d399":v>=70?"#60a5fa":v>=55?"#f59e0b":"#9aa4b2";};
-    // CASO 1: está no master → overall de mercado + preço
+    var st=findStats(name);
+    // CASO 1: tem stats reais de desempenho (12 ligas) → overall por DESEMPENHO + preço (se no master)
+    if(st && st.ovrStats!=null){
+      var od=st.ovrStats;
+      var priceCard = mp ? ('<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
+        +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">PREÇO DRAFT</div>'
+        +'<div style="font-size:26px;font-weight:800;color:#e8edf2;line-height:1.1">'+mp.draftPrice+'</div>'
+        +'<div style="font-size:9px;color:#6b7280">rendimento no jogo</div></div>') : '';
+      return '<div style="display:flex;gap:8px;justify-content:center;margin:8px 0 4px">'
+        +'<div onclick="window.radarOvrInfo()" style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;cursor:pointer">'
+        +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">OVERALL</div>'
+        +'<div style="font-size:26px;font-weight:800;color:'+col(od)+';line-height:1.1">'+od+'</div>'
+        +'<div style="font-size:9px;color:#60a5fa">por desempenho · toque</div></div>'
+        +priceCard+'</div>'
+        +(mp?('<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>'+ageMvLine(mp)):'');
+    }
+    // CASO 2: está no master mas SEM stats → overall de mercado + preço
     if(mp){
       var ovr=Q.overall(mp), price=mp.draftPrice;
       return '<div style="display:flex;gap:8px;justify-content:center;margin:8px 0 4px">'
@@ -312,16 +328,6 @@
         +'<div style="font-size:9px;color:#6b7280">rendimento no jogo</div></div></div>'
         +'<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>'
         +ageMvLine(mp);
-    }
-    // CASO 2: só stats → overall por desempenho, com asterisco
-    var st=findStats(name);
-    if(st && st.ovrStats!=null){
-      var o2=st.ovrStats;
-      return '<div style="display:flex;justify-content:center;margin:8px 0 4px">'
-        +'<div onclick="window.radarOvrInfo()" style="max-width:160px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px 18px;cursor:pointer">'
-        +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">OVERALL<span style="color:#60a5fa">*</span></div>'
-        +'<div style="font-size:26px;font-weight:800;color:'+col(o2)+';line-height:1.1">'+o2+'</div>'
-        +'<div style="font-size:9px;color:#60a5fa;text-decoration:underline">por desempenho · toque p/ saber</div></div></div>';
     }
     return "";
   }
