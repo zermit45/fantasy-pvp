@@ -265,6 +265,35 @@
   };
 
   // cabeçalho OVERALL + PREÇO. Master = mercado; fora do master = overall por stats (com *)
+  // formata valor de mercado: 65000000 -> "€65M", 2500000 -> "€2.5M", 800000 -> "€800K"
+  function fmtMv(v){
+    if(v==null||!isFinite(v)||v<=0) return null;
+    if(v>=1e6){ var m=v/1e6; return "€"+(m>=10?Math.round(m):m.toFixed(1).replace(/\.0$/,""))+"M"; }
+    if(v>=1e3){ return "€"+Math.round(v/1e3)+"K"; }
+    return "€"+v;
+  }
+  // idade: se a base tiver data de nascimento (dob "YYYY-MM-DD"), calcula HOJE (atualiza no aniversário);
+  // senão usa a idade fixa gravada na base.
+  function ageNow(mp){
+    try{
+      if(mp.dob){
+        var d=new Date(mp.dob); if(!isNaN(d)){
+          var t=new Date(), a=t.getFullYear()-d.getFullYear();
+          var m=t.getMonth()-d.getMonth();
+          if(m<0||(m===0&&t.getDate()<d.getDate())) a--;
+          if(a>0&&a<120) return a;
+        }
+      }
+    }catch(e){}
+    return (mp.age!=null?mp.age:null);
+  }
+  function ageMvLine(mp){
+    var parts=[];
+    var a=ageNow(mp); if(a!=null) parts.push(a+" anos");
+    var mv=fmtMv(mp.marketValue!=null?mp.marketValue:mp.mv); if(mv) parts.push("💰 "+mv);
+    if(!parts.length) return "";
+    return '<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:6px">'+parts.join("  ·  ")+'</div>';
+  }
   function headerQuality(name, pos){
     var Q=window.playerQuality;
     var mp=Q?Q.findMaster(name, pos):null;
@@ -281,7 +310,8 @@
         +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">PREÇO DRAFT</div>'
         +'<div style="font-size:26px;font-weight:800;color:#e8edf2;line-height:1.1">'+price+'</div>'
         +'<div style="font-size:9px;color:#6b7280">rendimento no jogo</div></div></div>'
-        +'<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>';
+        +'<div style="text-align:center;font-size:11px;color:#9aa4b2;margin-bottom:4px">'+esc(mp.club||"")+(mp.league?" · "+esc(mp.league):"")+'</div>'
+        +ageMvLine(mp);
     }
     // CASO 2: só stats → overall por desempenho, com asterisco
     var st=findStats(name);

@@ -217,7 +217,7 @@ function buildHTML(){
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
-    return `<div class="slot${pl?` filled s-${posKey}`:" empty"}${pl&&APP.captain===sl?" cap":""}" onclick="${pl?`clearSlot('${sl}')`:""}">
+    return `<div class="slot${pl?` filled s-${posKey}`:" empty"}${pl&&APP.captain===sl?" cap":""}" onclick="${pl?`slotClick(event,'${sl}')`:""}">
       <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}${sl==="BENCH"?(bcap!=null?` ·grátis ≤${bcap}`:" ·grátis"):""}</div>
       ${pl?playerImg(pl,"slotpic"):""}
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
@@ -382,7 +382,7 @@ function buildHTML(){
   const radarBtn=(p)=>{
     if(typeof window==="undefined"||!window.openPlayerRadar) return "";
     const nm=esc(p.name).replace(/'/g,"\\'");
-    return `<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar('${nm}','${p.pos}')" title="Ver perfil completo" style="flex:none;width:24px;height:24px;border-radius:50%;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:11px;cursor:pointer;line-height:1;margin:0 4px">ℹ️</button>`;
+    return `<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar('${nm}','${p.pos}')" title="Ver perfil completo">ℹ️</button>`;
   };
   const poolHTML=filt.map(p=>{
     const sel=used.includes(p.id);
@@ -561,6 +561,11 @@ function enforceBenchCap(){
     if(APP.captain==="BENCH")APP.captain=null;
     APP.warn=cap==null?"Banco liberado: ele depende de ter um titular escalado.":`Banco liberado: o reserva (${pr}) ficou acima do novo teto (${cap}, seu titular mais barato).`;
   }
+}
+function slotClick(ev,sl){
+  // se o toque veio de um botão dentro do slot (ℹ️ perfil, C capitão), não limpa o slot
+  try{ if(ev&&ev.target&&ev.target.closest&&ev.target.closest("button")) return; }catch(e){}
+  clearSlot(sl);
 }
 function clearSlot(sl){APP.slots[sl]=null;if(APP.captain===sl)APP.captain=null;if(sl!=="BENCH")enforceBenchCap();renderKeepScroll&&typeof renderKeepScroll==="function"?renderKeepScroll():render();}
 function toggleCap(sl){APP.captain=APP.captain===sl?null:sl;render();}
