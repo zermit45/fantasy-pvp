@@ -397,6 +397,13 @@ function setPlayerSearch(v){
       if(b && APP.playerSearch && normTxt(APP.playerSearch.trim()).length>=2) b.innerHTML=playerResultsHTML();
     }).catch(()=>{ APP._statsLoading=false; });
   }
+  // garante o mapa de personas (estilos) carregado; re-renderiza quando chegar
+  if(v && normTxt(v.trim()).length>=2 && !window.PERSONA_MAP && window.ensurePersonaMap){
+    window.ensurePersonaMap().then(()=>{
+      const b=document.getElementById("playerResults");
+      if(b && APP.playerSearch && normTxt(APP.playerSearch.trim()).length>=2) b.innerHTML=playerResultsHTML();
+    }).catch(()=>{});
+  }
 }
 function playerResultsHTML(){
   const P=window.draftMasterPlayers;
@@ -458,11 +465,19 @@ function playerResultsHTML(){
     const nm=esc(p.name).replace(/'/g,"\\'");
     const mvTxt=fmtMvShort(p.mv);
     const extra=[p.age!=null?(p.age+" anos"):null, mvTxt?("💰 "+mvTxt):null].filter(Boolean).join(" · ");
+    // persona (estilo de química) do jogador, se houver
+    let personaTag="";
+    if(typeof window!=="undefined"&&window.personaOf&&window.QUIMICA){
+      const pk=window.personaOf(p.name,p.pos);
+      const per=pk&&pk!=="camaleao"?window.QUIMICA.PERSONAS[pk]:null;
+      if(per) personaTag=`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;color:var(--chalk);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:1px 7px;margin-top:3px;max-width:100%"><span style="font-size:10px">${per.ico}</span>${esc(per.nome)}</span>`;
+    }
     return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
       <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
       <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div>
-      ${extra?`<div style="font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${extra}</div>`:""}</div>
+      ${extra?`<div style="font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${extra}</div>`:""}
+      ${personaTag}</div>
       ${p.ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR${p.statsOnly?"*":""}</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${p.ovr}</div></div>`:`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">stats</div><div style="font-size:13px">📈</div></div>`}
       <span style="color:var(--blue);font-size:15px">📊</span>
     </div>`;

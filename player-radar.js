@@ -458,8 +458,16 @@
     var h='';
     // cabeçalho com nome, posição, e o resumo (jogos/min)
     var posFull={GK:"goleiros",DEF:"defensores",MID:"meias",ATT:"atacantes"}[rec.pos]||(esc(rec.pos)+"s");
+    // persona (estilo de química) do jogador
+    var personaTag="";
+    if(window.personaOf && window.QUIMICA){
+      var ppk=window.personaOf(rec.name, rec.pos);
+      var pper=(ppk&&ppk!=="camaleao")?window.QUIMICA.PERSONAS[ppk]:null;
+      if(pper) personaTag='<div style="margin:4px 0 2px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#e8edf2;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:3px 10px"><span style="font-size:13px">'+pper.ico+'</span>'+esc(pper.nome)+'</span></div>';
+    }
     h+='<div style="text-align:center;margin-bottom:6px">'
       +'<div style="font-size:18px;font-weight:800;color:#e8edf2">'+esc(rec.name)+'</div>'
+      +personaTag
       +'<div style="font-size:12px;color:#9aa4b2">'+esc(rec.pos)+(rec.team?" · "+esc(rec.team):"")
       +' · '+(_mode==="season"?(rec.games+" jogo"+(rec.games>1?"s":"")+" · "+Math.round(rec.min)+"′"):"esta partida")+'</div>'
       +'<div style="font-size:10px;color:#6b7280;margin-top:2px">percentis comparados a '+pool.length+' '+posFull+'</div></div>';
@@ -518,6 +526,12 @@
       ensureStats().then(function(){
         if(_ctx && _ctx.name===name && document.getElementById("radarHost")) paint();
       });
+    }
+    // garante o mapa de personas (estilo de química); repinta quando chegar
+    if(!window.PERSONA_MAP && window.ensurePersonaMap){
+      window.ensurePersonaMap().then(function(){
+        if(_ctx && _ctx.name===name && document.getElementById("radarHost")) paint();
+      }).catch(function(){});
     }
   };
   window.closePlayerRadar=function(ev){

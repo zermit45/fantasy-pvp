@@ -217,9 +217,16 @@ function baseAllHTML(eng){
     const face=typeof playerPortraitHTML==="function"?playerPortraitHTML({roomId:APP.roomId,id:row.meta.id,team:row.team,name:row.name},"pface"):"";
     const nmJs=esc(row.name).replace(/'/g,"\\'");
     const infoBtn=`<button class="radarbtn" onclick="event.stopPropagation();window.openPlayerRadar&&window.openPlayerRadar('${nmJs}','${row.pos}','${APP.roomId}')" title="Ver perfil completo">ℹ️</button>`;
+    // persona (estilo de química) do jogador
+    let personaTag="";
+    if(typeof window!=="undefined"&&window.personaOf&&window.QUIMICA){
+      const pk=window.personaOf(row.name,row.pos);
+      const per=pk&&pk!=="camaleao"?window.QUIMICA.PERSONAS[pk]:null;
+      if(per) personaTag=`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:var(--chalk);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:1px 6px;margin-left:6px"><span style="font-size:10px">${per.ico}</span>${esc(per.nome)}</span>`;
+    }
     return `<div class="receipt"><div class="rhead" onclick="toggleBase(${i})">
       <div class="sl mono pc-${row.pos}">${SLOT_LABEL[row.pos]}</div>
-      ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span> <small>${row.min}' · toque p/ detalhe</small></div>
+      ${face}<div class="nm">${esc(row.name)}<span class="teamtag" style="--tc:${teamColor(row.team)};margin-left:6px">${row.team}</span>${personaTag} <small>${row.min}' · toque p/ detalhe</small></div>
       ${infoBtn}<div class="tot mono${row.pts<0?" neg":""}">${row.pts>0?"+":""}${row.pts.toFixed(1)}</div></div><div class="expandable ${open?"open":""}"><div class="rbody">${body}</div></div></div>`;
   }).join("");
 }
