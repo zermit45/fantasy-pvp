@@ -1066,6 +1066,8 @@ if(!window._poolPickDelegate){
   window._poolPickDelegate=true;
   window._poolLastPick={pid:null,t:0};
   document.addEventListener("click",function(ev){
+    // se clicou num botão dentro da linha (ℹ️ perfil), deixa o botão agir e NÃO seleciona o jogador
+    if(ev.target&&ev.target.closest&&ev.target.closest("button,.radarbtn")) return;
     const row=ev.target&&ev.target.closest?ev.target.closest(".playerpick[data-pid]"):null;
     if(!row)return;
     if(row.classList.contains("dis"))return;
