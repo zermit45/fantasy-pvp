@@ -76,12 +76,47 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     }
     return out;
   }
-  // acha a persona de um jogador (por nome|pos, com variantes)
+  // acha a persona de um jogador (por nome|pos, com variantes e fallback de prefixo)
+  var _prefixIdx=null;
+  function buildPrefixIdx(MAP){
+    // indexa: "primeiranome|POS" -> [lista de personas] (pra casar nome curto tipo "Alisson")
+    var idx={};
+    for(var k in MAP){
+      var sep=k.lastIndexOf("|"); if(sep<0) continue;
+      var nm=k.slice(0,sep), pos=k.slice(sep+1);
+      var first=nm.split(" ")[0];
+      if(first===nm) continue; // já é nome simples, não precisa
+      var pk=first+"|"+pos;
+      if(!idx[pk]) idx[pk]=[];
+      if(idx[pk].indexOf(MAP[k])<0) idx[pk].push(MAP[k]);
+    }
+    return idx;
+  }
   window.personaOf = function(name, pos){
     var MAP=window.PERSONA_MAP; if(!MAP) return null;
     var vs=variants(name);
     for(var i=0;i<vs.length;i++){ if(MAP[vs[i]+"|"+pos]) return MAP[vs[i]+"|"+pos]; }
-    return "camaleao"; // sem dado → coringa
+    // fallback: nome curto (uma palavra) que é o primeiro nome de alguém único na posição
+    // ex: pool manda "Alisson"/GK, base tem "alisson becker|GK" → casa se for o único
+    var nn=norm(name);
+    if(nn.indexOf(" ")<0){
+      if(!_prefixIdx) _prefixIdx=buildPrefixIdx(MAP);
+      var cands=_prefixIdx[nn+"|"+pos];
+      if(cands && cands.length===1) return cands[0]; // só casa se não houver ambiguidade
+    }
+    // fallback final: o nome existe em OUTRA posição. Aceita se TODAS as chaves que
+    // batem apontam pra mesma persona (sem ambiguidade entre homônimos).
+    // resolve Neymar (ATT na pool, MID na base), Raphinha (MID/ATT), etc.
+    var POSES=["GK","DEF","MID","ATT"], hits=[];
+    for(var vi=0; vi<vs.length; vi++){
+      for(var pi=0; pi<POSES.length; pi++){
+        var key=vs[vi]+"|"+POSES[pi];
+        if(MAP[key] && hits.indexOf(MAP[key])<0) hits.push(MAP[key]);
+      }
+      if(hits.length>1) break; // ambíguo, desiste
+    }
+    if(hits.length===1) return hits[0];
+    return "camaleao"; // sem dado ou ambíguo → coringa
   };
   // calcula química do time: recebe lista [{name,pos}] dos titulares
   window.computeQuimica = function(players){
