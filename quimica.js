@@ -184,7 +184,7 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
   window.ensurePersonaMap=function(){
     if(window.PERSONA_MAP) return Promise.resolve(window.PERSONA_MAP);
     if(_p) return _p;
-    _p=fetch("persona-map.json?v=20260629-persona33")
+    _p=fetch("persona-map.json?v=20260629-pos")
       .then(function(r){return r.ok?r.json():null;})
       .then(function(j){window.PERSONA_MAP=j||{};return window.PERSONA_MAP;})
       .catch(function(){window.PERSONA_MAP={};return window.PERSONA_MAP;});

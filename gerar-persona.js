@@ -12,6 +12,14 @@ const norm=s=>!s?'':s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCas
 const BU=JSON.parse(fs.readFileSync(P('base-unificada-2.0'),'utf8')).jogadores;
 const POSCAT={Goalkeeper:'GK',Defender:'DEF',Midfielder:'MID',Attacker:'ATT'};
 
+// >>> CORREÇÃO MANUAL DE POSIÇÃO <<<
+// A base-unificada às vezes erra a posição de um jogador (ex: meia-armador catalogado como ATT).
+// Liste aqui norm(nome) -> posição correta ('GK'|'DEF'|'MID'|'ATT'). Edite à mão conforme encontrar.
+const POS_FIX = {
+  "benjamin rollheiser":"MID",
+};
+const fixPos = (nm,pos)=> POS_FIX[norm(nm)] || pos;
+
 const ALVO={
   GK:{paredao:0.34, goleiro_linha:0.33, voador:0.33},
   DEF:{zagueiro_artista:0.34, muro:0.33, torre:0.33},
@@ -25,7 +33,7 @@ function p90(j){const m=j.minutes||0;if(m<1)return null;const k=90/m;return{
   dw:(j.duelsWon||0)*k,sav:(j.saves||0)*k,pen:(j.penSaved||0),sh:(j.shotsTotal||0)*k,m};}
 
 const rows=[];
-for(const j of BU){const pos=POSCAT[j.pos];if(!pos)continue;const s=p90(j);if(!s)continue;rows.push({pos,j,s});}
+for(const j of BU){let pos=POSCAT[j.pos];if(!pos)continue;pos=fixPos(j.fullName||j.name,pos);const s=p90(j);if(!s)continue;rows.push({pos,j,s});}
 
 // z-score por posição
 function mkStats(pos,sel){const arr=rows.filter(r=>r.pos===pos).map(sel);const m=arr.reduce((a,b)=>a+b,0)/(arr.length||1);const sd=Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/(arr.length||1))||1;return{m,sd};}
@@ -72,9 +80,9 @@ function afins(pos,s,B){
   const zg=z('ATT','gol',s.g), zsh=z('ATT','sh',s.sh||0), zdrb=z('ATT','drb',s.drb),
         zkp=z('ATT','kp',s.kp), zas=z('ATT','asi',s.a);
   return {
-    matador: 1.1*zg + 0.4*z('ATT','gol',s.g) - 0.3*zkp + (B.matador||0),
-    veloz: 1.2*zdrb - 0.3*zkp + (B.veloz||0),
-    armador_avancado: 1.0*zkp + 0.9*zas - 0.4*zg + (B.armador_avancado||0),
+    matador: 1.1*zg + 0.4*zsh - 0.3*zkp - 0.2*zdrb + (B.matador||0),
+    veloz: 1.4*zdrb - 0.2*zkp + (B.veloz||0),
+    armador_avancado: 1.2*zkp + 0.6*zas - 0.3*zg - 0.3*zdrb + (B.armador_avancado||0),
   };
 }
 function classify(pos,s,B){const a=afins(pos,s,B);let best=null,bv=-1e9;for(const k in a)if(a[k]>bv){bv=a[k];best=k;}return best;}
