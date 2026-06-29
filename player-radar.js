@@ -457,11 +457,12 @@
 
     var h='';
     // cabeçalho com nome, posição, e o resumo (jogos/min)
+    var posFull={GK:"goleiros",DEF:"defensores",MID:"meias",ATT:"atacantes"}[rec.pos]||(esc(rec.pos)+"s");
     h+='<div style="text-align:center;margin-bottom:6px">'
       +'<div style="font-size:18px;font-weight:800;color:#e8edf2">'+esc(rec.name)+'</div>'
       +'<div style="font-size:12px;color:#9aa4b2">'+esc(rec.pos)+(rec.team?" · "+esc(rec.team):"")
-      +' · '+(_mode==="season"?(rec.games+" jogo"+(rec.games>1?"s":"")+" · "+Math.round(rec.min)+"′"):"esta partida")
-      +' · vs. '+pool.length+' '+esc(rec.pos)+'</div></div>';
+      +' · '+(_mode==="season"?(rec.games+" jogo"+(rec.games>1?"s":"")+" · "+Math.round(rec.min)+"′"):"esta partida")+'</div>'
+      +'<div style="font-size:10px;color:#6b7280;margin-top:2px">percentis comparados a '+pool.length+' '+posFull+'</div></div>';
 
     // overall + preço (qualidade)
     h+=headerQuality(_ctx.name, _ctx.pos);
