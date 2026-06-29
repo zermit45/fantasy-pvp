@@ -204,7 +204,7 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260629-realstats1")
+    _statsPromise = fetch("player-stats.json?v=20260629-base2")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
@@ -212,29 +212,30 @@
   }
   window.ensureStatsDB = ensureStats;  // exposto pra busca da tela inicial
   // acha o registro de stats reais por nome (segue ponteiros de alias "@chave")
-  function findStats(name){
+  function findStats(name, pos){
     var DB=window.PLAYER_STATS; if(!DB)return null;
     var deref=function(h){ if(typeof h==="string" && h.charAt(0)==="@") h=DB[h.slice(1)]; return (h&&typeof h==="object")?h:null; };
+    // só aceita o registro se a posição bater (quando pos foi informada).
+    // isso evita casar homônimos errados (ex.: Alisson goleiro x Alisson meia).
+    var okPos=function(rec){ return rec && (!pos || !rec.pos || rec.pos===pos); };
+    var tryKey=function(key){ var h=deref(DB[key]); return okPos(h)?h:null; };
     var k=norm(name);
-    // 1) match exato
-    var hit=deref(DB[k]);
-    if(hit) return hit;
+    // 1) match exato (nome completo) — mais confiável; aqui aceitamos mesmo sem bater posição
+    var exact=deref(DB[k]);
+    if(exact && okPos(exact)) return exact;
     var parts=k.split(" ").filter(Boolean);
     if(parts.length>=2){
-      var first=parts[0], last=parts[parts.length-1];
-      // 2) "inicial + sobrenome" (Lionel Messi -> "l messi") — a API costuma abreviar o 1º nome
-      hit=deref(DB[first.charAt(0)+" "+last]);
-      if(hit) return hit;
-      // 3) "primeiro + último" sem nomes do meio
-      hit=deref(DB[first+" "+last]);
-      if(hit) return hit;
-      // 4) só o sobrenome (último token)
-      hit=deref(DB[last]);
-      if(hit) return hit;
-      // 5) sobrenome composto (últimos 2 tokens), p/ ex. "de bruyne"
-      hit=deref(DB[parts[parts.length-2]+" "+last]);
-      if(hit) return hit;
+      var first=parts[0], last=parts[parts.length-1], hit;
+      // 2) "primeiro + último" sem nomes do meio
+      hit=tryKey(first+" "+last); if(hit) return hit;
+      // 3) "inicial + sobrenome" (Lionel Messi -> "l messi")
+      hit=tryKey(first.charAt(0)+" "+last); if(hit) return hit;
+      // 4) sobrenome composto (últimos 2 tokens), p/ ex. "de bruyne"
+      hit=tryKey(parts[parts.length-2]+" "+last); if(hit) return hit;
+      // 5) só o sobrenome — só aceita se a posição bater (senão pega homônimo)
+      hit=tryKey(last); if(hit) return hit;
     }
+    // se chegou aqui e havia um exato mas de outra posição, melhor não retornar nada
     return null;
   }
 
@@ -251,7 +252,7 @@
       hasMatch = !!(dm && dm.byKey[key]);
     }
     // temporada: stats reais da base (sempre conta)
-    if(findStats(_ctx.name)) hasSeason=true;
+    if(findStats(_ctx.name, _ctx.pos)) hasSeason=true;
     // ou agregado de jogos finalizados — mas só se houver dado ALÉM do jogo aberto
     if(!hasSeason){
       var ds=collect(null);
@@ -316,7 +317,7 @@
     var Q=window.playerQuality;
     var mp=Q?Q.findMaster(name, pos):null;
     var col=function(v){return v>=85?"#34d399":v>=70?"#60a5fa":v>=55?"#f59e0b":"#9aa4b2";};
-    var st=findStats(name);
+    var st=findStats(name, pos);
     // CASO 1: tem stats reais de desempenho (12 ligas) → overall por DESEMPENHO + preço (se no master)
     if(st && st.ovrStats!=null){
       var od=st.ovrStats;
@@ -413,7 +414,7 @@
   }
 
   function qualityAttrsHTML(name, pos){
-    var st=findStats(name);
+    var st=findStats(name, pos);
     // ── CAMINHO 1: stats REAIS (12 ligas) ──
     if(st && st.areas){
       var order = st.gk ? ["Goleiro","Distribuição","Físico"] : ["Ataque","Criação","Defesa","Físico","Técnica"];

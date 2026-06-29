@@ -436,18 +436,22 @@ function playerResultsHTML(){
   // 1) MASTER primeiro (tem OVR e preço)
   const DBpre=window.PLAYER_STATS;
   // resolve stats de um nome com os mesmos fallbacks do findStats (inicial+sobrenome, sobrenome, etc.)
-  const resolveStats=(nm)=>{
+  const resolveStats=(nm, pos)=>{
     if(!DBpre) return null;
     const deref=(h)=>{ if(typeof h==="string"&&h.charAt(0)==="@") h=DBpre[h.slice(1)]; return (h&&typeof h==="object")?h:null; };
+    const okPos=(o)=> o && (!pos || !o.pos || o.pos===pos);
     const kk=normTxt(nm); const parts=kk.split(" ").filter(Boolean);
-    const cands=[kk];
+    // exato primeiro
+    let ex=deref(DBpre[kk]);
+    if(ex && okPos(ex)) return {obj:ex, keys:[kk]};
+    const cands=[];
     if(parts.length>=2){
       const f=parts[0], l=parts[parts.length-1];
-      cands.push(f.charAt(0)+" "+l, f+" "+l, l, parts[parts.length-2]+" "+l);
+      cands.push(f+" "+l, f.charAt(0)+" "+l, parts[parts.length-2]+" "+l, l);
     }
     for(const c of cands){
       const o=deref(DBpre[c]);
-      if(o){ return {obj:o, keys:cands}; }
+      if(o && okPos(o)){ return {obj:o, keys:[kk,...cands]}; }
     }
     return null;
   };
@@ -456,9 +460,9 @@ function playerResultsHTML(){
     if(normTxt(p.name).includes(q)){
       const k=normTxt(p.name);
       if(seen[k]) return; seen[k]=1;
-      // tenta o overall por DESEMPENHO (stats reais, com fallback de nome); senão usa o de mercado
+      // tenta o overall por DESEMPENHO (stats reais, com fallback de nome + posição); senão usa o de mercado
       let ovrVal=null, statsOnly=false;
-      const rs=resolveStats(p.name);
+      const rs=resolveStats(p.name, p.pos);
       if(rs && rs.obj.ovrStats!=null){
         ovrVal=rs.obj.ovrStats; statsOnly=true;
         // marca todas as grafias como vistas, pra não listar o mesmo jogador de novo via stats
