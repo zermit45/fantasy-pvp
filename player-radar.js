@@ -204,7 +204,7 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260629-base2")
+    _statsPromise = fetch("player-stats.json?v=20260629-ovrfinal")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
@@ -319,8 +319,8 @@
     var col=function(v){return v>=85?"#34d399":v>=70?"#60a5fa":v>=55?"#f59e0b":"#9aa4b2";};
     var st=findStats(name, pos);
     // CASO 1: tem stats reais de desempenho (12 ligas) → overall por DESEMPENHO + preço (se no master)
-    if(st && st.ovrStats!=null){
-      var od=st.ovrStats;
+    if(st && (st.ovrFinal!=null||st.ovrStats!=null)){
+      var od=(st.ovrFinal!=null?st.ovrFinal:st.ovrStats);
       var priceCard = mp ? ('<div style="flex:1;max-width:130px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px">'
         +'<div style="font-size:10px;color:#9aa4b2;letter-spacing:.5px">PREÇO DRAFT</div>'
         +'<div style="font-size:26px;font-weight:800;color:#e8edf2;line-height:1.1">'+mp.draftPrice+'</div>'

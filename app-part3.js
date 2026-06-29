@@ -463,8 +463,8 @@ function playerResultsHTML(){
       // tenta o overall por DESEMPENHO (stats reais, com fallback de nome + posição); senão usa o de mercado
       let ovrVal=null, statsOnly=false;
       const rs=resolveStats(p.name, p.pos);
-      if(rs && rs.obj.ovrStats!=null){
-        ovrVal=rs.obj.ovrStats; statsOnly=true;
+      if(rs && (rs.obj.ovrFinal!=null||rs.obj.ovrStats!=null)){
+        ovrVal=(rs.obj.ovrFinal!=null?rs.obj.ovrFinal:rs.obj.ovrStats); statsOnly=true;
         // marca todas as grafias como vistas, pra não listar o mesmo jogador de novo via stats
         rs.keys.forEach(c=>{ seen[c]=1; });
         seen[normTxt(rs.obj.nm||"")]=1;
@@ -489,7 +489,7 @@ function playerResultsHTML(){
       if(seen[k]||seen[realKey]) continue;
       if(k.includes(q)){
         seen[k]=1; seen[realKey]=1;
-        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrStats!=null?v.ovrStats:null), statsOnly:true});
+        out.push({name:v.nm||k, pos:v.pos, team:v.team||"", club:"", ovr:(v.ovrFinal!=null?v.ovrFinal:(v.ovrStats!=null?v.ovrStats:null)), statsOnly:true});
       }
     }
   } else if(q.length>=2 && APP._statsLoading){
