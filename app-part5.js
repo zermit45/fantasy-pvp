@@ -229,34 +229,55 @@ function buildHTML(){
     const tits=["GK","DEF","MID","ATT","FLEX"].map(sl=>s[sl]).filter(Boolean)
       .map(pid=>byId[pid]).filter(Boolean);
     const P=window.QUIMICA.PERSONAS;
-    // etiquetas das personas dos titulares
-    let chips="";
+    const POSCOL={GK:"var(--pos-gk)",DEF:"var(--pos-def)",MID:"var(--pos-mid)",ATT:"var(--pos-att)",FLEX:"var(--pos-flex)"};
+    // CARDS visuais de personalidade (ícone grande + nome + cor por setor)
+    let cards="";
     ["GK","DEF","MID","ATT","FLEX"].forEach(sl=>{
-      const pid=s[sl]; if(!pid){return;}
-      const pl=byId[pid]; if(!pl)return;
+      const pid=s[sl]; const pl=pid?byId[pid]:null;
+      const col=POSCOL[sl]||"#888";
+      if(!pl){
+        cards+=`<div style="flex:1;min-width:62px;text-align:center;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.1);border-radius:12px;padding:8px 4px;opacity:.5">`
+          +`<div style="font-size:22px;line-height:1">·</div><div style="font-size:9px;color:var(--dim);margin-top:3px">${SLOT_LABEL[sl]}</div></div>`;
+        return;
+      }
       const pk=window.personaOf(pl.name,pl.pos)||"camaleao";
       const per=P[pk]||P.camaleao;
-      chips+=`<div style="display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px 8px;font-size:11px">`
-        +`<span style="font-size:13px">${per.ico}</span><span style="color:var(--chalk);font-weight:600">${esc(per.nome)}</span>`
-        +`<span style="color:var(--dim);font-size:9px">${SLOT_LABEL[sl]}</span></div>`;
+      cards+=`<div title="${esc(per.desc)}" style="flex:1;min-width:62px;text-align:center;background:color-mix(in srgb,${col} 10%,transparent);border:1px solid color-mix(in srgb,${col} 35%,transparent);border-radius:12px;padding:8px 4px">`
+        +`<div style="font-size:24px;line-height:1">${per.ico}</div>`
+        +`<div style="font-size:11px;font-weight:700;color:var(--chalk);margin-top:4px;line-height:1.1">${esc(per.nome)}</div>`
+        +`<div style="font-size:9px;color:${col};font-weight:700;margin-top:2px">${SLOT_LABEL[sl]}</div></div>`;
     });
+
     let body, headRight;
     if(tits.length<3){
-      body=`<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0 0">Escale os titulares pra ver a química do time.</p>`;
+      body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div><p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 0">Escale os titulares pra ver a química do time.</p>`;
       headRight=`<span class="tag">—</span>`;
     }else{
       const q=window.computeQuimica(tits.map(m=>({name:m.name,pos:m.pos})));
-      headRight=`<span class="mono" style="color:${q.bonus>0?"#34d399":"var(--dim)"};font-weight:800">+${q.bonus.toFixed(1)}</span>`;
-      let hitsHTML="";
+      const sugg=window.suggestQuimica?window.suggestQuimica(tits.map(m=>({name:m.name,pos:m.pos}))):[];
+      headRight=`<span class="mono" style="color:${q.bonus>0?"#34d399":"var(--dim)"};font-weight:800;font-size:16px">+${q.bonus.toFixed(1)}</span>`;
+      // combos ATIVOS
+      let activeHTML="";
       if(q.hits.length){
-        hitsHTML=q.hits.map(h=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px">`
-          +`<span style="font-size:14px">${h.ico}</span>`
-          +`<span style="flex:1;color:var(--chalk)">${esc(h.nome)} <span style="color:var(--dim);font-size:10px">${esc(h.txt)}</span></span>`
-          +`<span class="mono" style="color:#34d399;font-weight:700">+${h.pts.toFixed(1)}</span></div>`).join("");
-      }else{
-        hitsHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:6px 0 0">Nenhuma combinação ainda. Junte personalidades que se completam (ex: 🪄 Maestro + 🎯 Matador) ou repita uma identidade.</p>`;
+        activeHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">✅ ATIVOS</div>`
+          +q.hits.map(h=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;background:color-mix(in srgb,#34d399 8%,transparent);border-radius:8px;padding:6px 8px">`
+            +`<span style="font-size:15px">${h.ico}</span>`
+            +`<span style="flex:1;color:var(--chalk);font-weight:600">${esc(h.nome)} <span style="color:var(--dim);font-size:10px;font-weight:400">${esc(h.txt)}</span></span>`
+            +`<span class="mono" style="color:#34d399;font-weight:800">+${h.pts.toFixed(1)}</span></div>`).join("");
       }
-      body=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">${chips}</div>${hitsHTML}`;
+      // SUGESTÕES (o que falta)
+      let suggHTML="";
+      if(sugg.length && q.bonus<window.QUIMICA.CAP){
+        suggHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">💡 PRA GANHAR MAIS</div>`
+          +sugg.map(sg=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;border:1px dashed rgba(255,255,255,.12);border-radius:8px;padding:6px 8px">`
+            +`<span style="font-size:14px;opacity:.85">${sg.falta.ico}</span>`
+            +`<span style="flex:1;color:var(--dim)">Escale um <b style="color:var(--chalk)">${esc(sg.falta.nome)}</b> → ativa <b style="color:var(--chalk)">${esc(sg.nome)}</b></span>`
+            +`<span class="mono" style="color:#FFC247;font-weight:700">+${sg.pts.toFixed(1)}</span></div>`).join("");
+      }
+      if(!q.hits.length && !sugg.length){
+        activeHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:8px 0 0">Junte personalidades que se completam (ex: 🪄 Maestro + 🎯 Matador) ou repita uma identidade pra ganhar bônus.</p>`;
+      }
+      body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div>${activeHTML}${suggHTML}`;
     }
     return `<div class="card">
       <div class="sectionhead"><span>🧬 Química do time${helpBtn("quimica")}</span>${headRight}</div>
@@ -340,6 +361,12 @@ function buildHTML(){
     if(p.pos==="GK")return !s.GK?"GK":(!s.BENCH?"BENCH":null);
     if(!s[p.pos])return p.pos; if(!s.FLEX)return "FLEX"; if(!s.BENCH)return "BENCH"; return null;
   }
+  const poolPersonaIco=(p)=>{
+    if(typeof window==="undefined"||!window.personaOf||!window.QUIMICA) return "";
+    const pk=window.personaOf(p.name,p.pos); if(!pk) return "";
+    const per=window.QUIMICA.PERSONAS[pk]; if(!per) return "";
+    return `<span title="${esc(per.nome)}" style="margin-left:5px;font-size:12px;opacity:.95">${per.ico}</span>`;
+  };
   const poolHTML=filt.map(p=>{
     const sel=used.includes(p.id);
     const dest=destSlot(p);
@@ -350,7 +377,7 @@ function buildHTML(){
       else if(left-p.price<0){dis=true;reason="orc";} // titular: respeita orçamento
     }
     const tag = (!sel&&dest==="BENCH"&&!dis)?` <span style="font-size:9px;color:var(--green)">grátis</span>`:"";
-    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}"${dis?"":` data-pid="${p.id}"`}><div class="posbar pb-${p.pos}"></div>${playerImg(p,"pface")}<div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
+    return `<div class="prow playerpick ${sel?" sel":""}${dis?" dis":""}"${dis?"":` data-pid="${p.id}"`}><div class="posbar pb-${p.pos}"></div>${playerImg(p,"pface")}<div class="pos mono pc-${p.pos}">${SLOT_LABEL[p.pos]}</div><div class="nm">${esc(p.name)}${poolPersonaIco(p)}<span class="teamtag" style="--tc:${teamColor(p.team)};margin-left:6px">${p.team}</span>${p.age?` <span class="age">${p.age}a</span>`:""}${tag}</div><div class="pr mono">${p.price}</div></div>`;
   }).join("");
   // ── MODO TORCIDA: jogo travado mas não finalizado → mostra resumo limpo do time escalado ──
   if(gameLocked){

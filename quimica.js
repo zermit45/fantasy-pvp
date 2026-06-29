@@ -107,6 +107,32 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     bonus=Math.min(bonus, Q.CAP);
     return {bonus:Math.round(bonus*10)/10, hits:hits, personas:personas, count:count};
   };
+
+  // sugere combos que FALTAM pouco: pra cada combo não-ativo, diz se você já tem
+  // uma das duas personas (falta só a outra). Retorna lista ordenada por pts.
+  window.suggestQuimica = function(players){
+    var Q=window.QUIMICA; if(!Q) return [];
+    var personas=players.map(function(p){return window.personaOf(p.name,p.pos);}).filter(Boolean);
+    var count={}; personas.forEach(function(pe){count[pe]=(count[pe]||0)+1;});
+    var sugg=[];
+    Q.COMBOS.forEach(function(c){
+      var a=c.par[0], b=c.par[1];
+      if(count[a] && count[b]) return; // já ativo
+      // tem um dos dois? sugere o que falta
+      if(count[a] && !count[b]){
+        sugg.push({pts:c.pts, nome:c.nome, tem:Q.PERSONAS[a], falta:Q.PERSONAS[b]});
+      } else if(count[b] && !count[a]){
+        sugg.push({pts:c.pts, nome:c.nome, tem:Q.PERSONAS[b], falta:Q.PERSONAS[a]});
+      }
+    });
+    // dedup por persona que falta (mostra o melhor combo por persona faltante)
+    var bestByFalta={};
+    sugg.forEach(function(s){
+      var k=s.falta.nome;
+      if(!bestByFalta[k] || s.pts>bestByFalta[k].pts) bestByFalta[k]=s;
+    });
+    return Object.values(bestByFalta).sort(function(x,y){return y.pts-x.pts;}).slice(0,3);
+  };
 })();
 
 // ====== carrega persona-map.json sob demanda ======
