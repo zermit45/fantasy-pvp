@@ -204,7 +204,7 @@ function buildHTML(){
     const ini=(p.name||"").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
     const attr=v=>String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
     if(!url)return `<span class="${cls||"pface"} ph">${ini}</span>`;
-    return `<span class="${cls||"pface"}"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="lazy" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
+    return `<span class="${cls||"pface"}"><img src="${attr(url)}" data-direct="${attr(direct)}" data-initials="${ini}" loading="lazy" decoding="async" onerror="window.avatarImageError&&window.avatarImageError(this)"></span>`;
   };
   const slotPersonaHTML=(pl,posKey)=>{
     if(!pl||typeof window==="undefined"||!window.personaOf||!window.QUIMICA) return "";

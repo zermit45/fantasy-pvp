@@ -489,7 +489,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
     if(/^https?:\/\/images\.weserv\.nl\//i.test(u)) return u;
     if(u.indexOf("/img/") === 0) u = "https://media.api-sports.io/" + u.replace(/^\/img\//,"");
     var m = u.match(/^https?:\/\/media\.api-sports\.io\/(.+)$/i);
-    if(m) return "https://images.weserv.nl/?url=media.api-sports.io/" + m[1] + "&w=160&h=160&fit=cover&output=png";
+    if(m) return "https://images.weserv.nl/?url=media.api-sports.io/" + m[1] + "&w=160&h=160&fit=cover&output=png&maxage=30d";
     return u;
   }
 
@@ -565,17 +565,35 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
   };
 
   window.fixPlayerPhotosByName = fillMissingPhotosByName;
+
+  // photoOfDirect: devolve a URL ORIGINAL da API-Football (sem o proxy weserv),
+  // pra servir de fallback REAL quando o weserv falha ou está lento.
+  window.photoOfDirect = function(roomId, teamCode, playerId){
+    var url = null;
+    try{ if(typeof originalPhotoOf === "function") url = originalPhotoOf(roomId, teamCode, playerId); }catch(e){}
+    if(!url && window.PLAYER_PHOTOS){
+      var key = String(roomId) + "|" + String(teamCode) + "|" + String(playerId);
+      url = window.PLAYER_PHOTOS[key] || null;
+    }
+    if(!url) url = findPhotoBySameName(roomId, teamCode, playerId);
+    if(!url) return null;
+    // normaliza /img/ e devolve direto da media.api-sports.io
+    var u = String(url);
+    if(u.indexOf("/img/") === 0) u = "https://media.api-sports.io/" + u.replace(/^\/img\//,"");
+    return u;
+  };
+
 })();
 </script>
 
-<script src="quimica.js?v=20260629-persona33"></script>
+<script src="quimica.js?v=20260629-base2"></script>
 <script src="engine.js?v=20260627-bonus-visitante"></script>
 <script src="apurador.js?v=20260628-fix-score-empate-minuto"></script>
 <script src="app-part1.js?v=orcamento-20260627"></script>
 <script src="app-part2.js?v=photo-v3-real"></script>
-<script src="app-part3.js?v=20260629-base2"></script>
+<script src="app-part3.js?v=20260629-fotos"></script>
 <script src="app-part4.js?v=20260627-fix-pendencia-escalacao"></script>
-<script src="app-part5.js?v=20260628-perfil9"></script>
+<script src="app-part5.js?v=20260629-fotos"></script>
 <script src="app-part6.js?v=20260628-persona1"></script>
 <script src="player-quality.js?v=20260628-perfil1"></script>
 <script src="player-radar.js?v=20260629-base2"></script>
@@ -632,11 +650,20 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
   }
   window.avatarImageError = function(img){
     try{
-      if(!img.dataset.triedDirect && img.dataset.direct && img.src !== img.dataset.direct){
+      // 1ª falha: tenta de novo o MESMO weserv uma vez (cache pode ter aquecido / rede oscilou)
+      if(!img.dataset.triedRetry){
+        img.dataset.triedRetry = "1";
+        var base = img.src.split("#")[0];
+        img.src = base + (base.indexOf("?")>=0 ? "&" : "?") + "retry=1";
+        return;
+      }
+      // 2ª falha: tenta a URL DIRETA da API (sem weserv)
+      if(!img.dataset.triedDirect && img.dataset.direct && img.src.indexOf(img.dataset.direct)<0){
         img.dataset.triedDirect = "1";
         img.src = img.dataset.direct;
         return;
       }
+      // 3ª falha: cai pras iniciais
       if(img.parentNode){
         img.parentNode.classList.add("ph");
         img.parentNode.textContent = img.dataset.initials || "?";
