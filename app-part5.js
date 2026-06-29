@@ -222,9 +222,8 @@ function buildHTML(){
       ${pl?playerImg(pl,"slotpic"):""}
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
       ${pl?slotPersonaHTML(pl,posKey):""}
-      ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
+      ${pl?`<div class="pr mono" style="display:flex;align-items:center;justify-content:center;gap:6px">${typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}')" title="Ver perfil completo">ℹ️</button>`:""}<span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
-      ${pl&&typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}')" title="Ver perfil completo">ℹ️</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
   const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
