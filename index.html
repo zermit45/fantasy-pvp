@@ -126,9 +126,9 @@ body{background:var(--bg)}
 .lineupMeta .mini{border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:9px;text-align:center}
 .lineupMeta .mini b{font-family:'JetBrains Mono';font-size:15px;color:var(--chalk)}
 .lineupMeta .mini span{display:block;font-size:8.5px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
-.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:15px;align-items:stretch}
-.slot{border:1px solid var(--line);border-radius:12px;padding:10px 9px 11px;min-height:118px;background:var(--panel2);position:relative;cursor:pointer;transition:border-color .15s,transform .15s,background .15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
-.slot>*{flex:none}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:15px;align-items:stretch}
+.slot{border:1px solid var(--line);border-radius:12px;padding:12px 8px 14px;min-height:150px;min-width:0;background:var(--panel2);position:relative;cursor:pointer;transition:border-color .15s,transform .15s,background .15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;box-sizing:border-box;overflow:hidden}
+.slot>*{flex:none;max-width:100%}
 .slot:hover{border-color:var(--line2);transform:translateY(-2px)}
 .slot .lab{font-size:8.5px;letter-spacing:.16em;color:var(--dim);font-weight:700;align-self:flex-start;margin-bottom:2px}
 .slot .nm{font-size:12px;font-weight:700;line-height:1.25;margin:0}
@@ -575,7 +575,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="app-part2.js?v=photo-v3-real"></script>
 <script src="app-part3.js?v=20260628-perfil2"></script>
 <script src="app-part4.js?v=20260627-fix-pendencia-escalacao"></script>
-<script src="app-part5.js?v=20260628-perfil6"></script>
+<script src="app-part5.js?v=20260628-perfil7"></script>
 <script src="app-part6.js?v=20260628-perfil3"></script>
 <script src="player-quality.js?v=20260628-perfil1"></script>
 <script src="player-radar.js?v=20260628-perfil6"></script>

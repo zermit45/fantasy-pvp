@@ -211,8 +211,8 @@ function buildHTML(){
     const pk=window.personaOf(pl.name,pl.pos); if(!pk) return "";
     const per=window.QUIMICA.PERSONAS[pk]; if(!per) return "";
     const col=({GK:"var(--pos-gk)",DEF:"var(--pos-def)",MID:"var(--pos-mid)",ATT:"var(--pos-att)",FLEX:"var(--pos-flex)"})[posKey]||"var(--dim)";
-    return `<div class="slotpersona" style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,${col} 14%,transparent);border:1px solid color-mix(in srgb,${col} 30%,transparent);font-size:9px;font-weight:700;color:var(--chalk)">`
-      +`<span style="font-size:11px">${per.ico}</span>${esc(per.nome)}</div>`;
+    return `<div class="slotpersona" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;max-width:100%;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,${col} 14%,transparent);border:1px solid color-mix(in srgb,${col} 30%,transparent);font-size:9px;font-weight:700;color:var(--chalk);line-height:1.15">`
+      +`<span style="font-size:11px;flex:none">${per.ico}</span><span style="min-width:0">${esc(per.nome)}</span></div>`;
   };
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
@@ -222,7 +222,7 @@ function buildHTML(){
       ${pl?playerImg(pl,"slotpic"):""}
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
       ${pl?slotPersonaHTML(pl,posKey):""}
-      ${pl?`<div class="pr mono" style="display:flex;align-items:center;justify-content:center;gap:6px">${typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}')" title="Ver perfil completo">ℹ️</button>`:""}<span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
+      ${pl?`<div class="pr mono" style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;max-width:100%">${typeof window!=="undefined"&&window.openPlayerRadar?`<button class="ibtn" onclick="event.stopPropagation();window.openPlayerRadar('${esc(pl.name).replace(/'/g,"\\'")}','${pl.pos}')" title="Ver perfil completo">ℹ️</button>`:""}<span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span><span style="color:var(--amber)">${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</span></div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
