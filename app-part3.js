@@ -580,7 +580,7 @@ function srTrio(roomId, teamCode){
       const direct=(typeof photoOfDirect==="function")?photoOfDirect(roomId,p.team,p.id):url;
       const ini=(p.name||"").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
       if(url){
-        html+=`<span class="sr-pf"><img src="${attr(url)}" data-direct="${attr(direct)}" data-initials="${ini}" loading="eager" fetchpriority="high" decoding="async" onerror="window.avatarImageError&&window.avatarImageError(this)"></span>`;
+        html+=`<span class="sr-pf"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="eager" fetchpriority="high" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
       }else{
         html+=`<span class="sr-pf ph">${ini}</span>`;
       }
