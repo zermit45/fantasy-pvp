@@ -214,10 +214,28 @@
   // acha o registro de stats reais por nome (segue ponteiros de alias "@chave")
   function findStats(name){
     var DB=window.PLAYER_STATS; if(!DB)return null;
+    var deref=function(h){ if(typeof h==="string" && h.charAt(0)==="@") h=DB[h.slice(1)]; return (h&&typeof h==="object")?h:null; };
     var k=norm(name);
-    var hit=DB[k];
-    if(typeof hit==="string" && hit.charAt(0)==="@") hit=DB[hit.slice(1)];
-    return hit||null;
+    // 1) match exato
+    var hit=deref(DB[k]);
+    if(hit) return hit;
+    var parts=k.split(" ").filter(Boolean);
+    if(parts.length>=2){
+      var first=parts[0], last=parts[parts.length-1];
+      // 2) "inicial + sobrenome" (Lionel Messi -> "l messi") — a API costuma abreviar o 1º nome
+      hit=deref(DB[first.charAt(0)+" "+last]);
+      if(hit) return hit;
+      // 3) "primeiro + último" sem nomes do meio
+      hit=deref(DB[first+" "+last]);
+      if(hit) return hit;
+      // 4) só o sobrenome (último token)
+      hit=deref(DB[last]);
+      if(hit) return hit;
+      // 5) sobrenome composto (últimos 2 tokens), p/ ex. "de bruyne"
+      hit=deref(DB[parts[parts.length-2]+" "+last]);
+      if(hit) return hit;
+    }
+    return null;
   }
 
   // monta o conteúdo (todos os radares) pro jogador no modo atual

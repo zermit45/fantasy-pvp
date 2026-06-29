@@ -435,17 +435,35 @@ function playerResultsHTML(){
 
   // 1) MASTER primeiro (tem OVR e preço)
   const DBpre=window.PLAYER_STATS;
+  // resolve stats de um nome com os mesmos fallbacks do findStats (inicial+sobrenome, sobrenome, etc.)
+  const resolveStats=(nm)=>{
+    if(!DBpre) return null;
+    const deref=(h)=>{ if(typeof h==="string"&&h.charAt(0)==="@") h=DBpre[h.slice(1)]; return (h&&typeof h==="object")?h:null; };
+    const kk=normTxt(nm); const parts=kk.split(" ").filter(Boolean);
+    const cands=[kk];
+    if(parts.length>=2){
+      const f=parts[0], l=parts[parts.length-1];
+      cands.push(f.charAt(0)+" "+l, f+" "+l, l, parts[parts.length-2]+" "+l);
+    }
+    for(const c of cands){
+      const o=deref(DBpre[c]);
+      if(o){ return {obj:o, keys:cands}; }
+    }
+    return null;
+  };
   P.forEach(p=>{
     if(out.length>=22) return;
     if(normTxt(p.name).includes(q)){
       const k=normTxt(p.name);
       if(seen[k]) return; seen[k]=1;
-      // tenta o overall por DESEMPENHO (stats reais); se não houver, usa o de mercado
+      // tenta o overall por DESEMPENHO (stats reais, com fallback de nome); senão usa o de mercado
       let ovrVal=null, statsOnly=false;
-      if(DBpre){
-        let ref=DBpre[k];
-        if(typeof ref==="string" && ref.charAt(0)==="@"){ seen[ref.slice(1)]=1; ref=DBpre[ref.slice(1)]; }
-        if(ref && typeof ref==="object" && ref.ovrStats!=null){ ovrVal=ref.ovrStats; statsOnly=true; }
+      const rs=resolveStats(p.name);
+      if(rs && rs.obj.ovrStats!=null){
+        ovrVal=rs.obj.ovrStats; statsOnly=true;
+        // marca todas as grafias como vistas, pra não listar o mesmo jogador de novo via stats
+        rs.keys.forEach(c=>{ seen[c]=1; });
+        seen[normTxt(rs.obj.nm||"")]=1;
       }
       if(ovrVal==null) ovrVal=(Q?Q.overall(p):null);
       out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:ovrVal, statsOnly:statsOnly, age:(p.age!=null?p.age:null), mv:(p.marketValue!=null?p.marketValue:null)});
