@@ -364,14 +364,20 @@ function calNav(delta){
 }
 function toggleShowAll(){APP.homeShowAll=(APP.homeShowAll===true?false:true);render();}
 function pickCalDay(dayKey){APP.homeDay=decodeURIComponent(dayKey);APP.calOpen=false;render();}
+let _homeSearchTimer=null;
 function setHomeSearch(v){
   APP.homeSearch=v;
-  render();
-  // restaura foco e cursor no campo de busca (senão o iPhone perde o foco a cada tecla)
-  requestAnimationFrame(()=>{
-    const inp=document.getElementById("homeSearchInput");
-    if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
-  });
+  // debounce: não re-renderiza a tela inteira a cada tecla (é o que travava o teclado).
+  // Espera o usuário parar de digitar ~160ms, então atualiza a lista uma vez só.
+  if(_homeSearchTimer)clearTimeout(_homeSearchTimer);
+  _homeSearchTimer=setTimeout(()=>{
+    render();
+    // restaura foco e cursor no campo de busca (senão o iPhone perde o foco)
+    requestAnimationFrame(()=>{
+      const inp=document.getElementById("homeSearchInput");
+      if(inp){inp.focus();const n=inp.value.length;try{inp.setSelectionRange(n,n);}catch(e){}}
+    });
+  },160);
 }
 // tira acentos e normaliza (ç→c) pra busca tolerante: "sao"/"são", "suica"/"suíça" batem igual
 function normTxt(s){
