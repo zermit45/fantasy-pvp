@@ -253,6 +253,26 @@ function toggleDream(){
   render();
 }
 function toggleDreamPlayer(k){_dreamPlayer[k]=!_dreamPlayer[k];render();}
+// ── Química no resultado: bloco recolhível compartilhado (Time Ideal + times dos jogadores) ──
+let _openQuimica={};   // key -> aberto?
+function toggleQuimicaResult(k){_openQuimica[k]=!_openQuimica[k];render();}
+if(typeof window!=="undefined")window.toggleQuimicaResult=toggleQuimicaResult;
+function quimicaResultBlockHTML(quimica, quimicaPts, key){
+  if(!(quimicaPts>0)) return "";
+  var hits=(quimica&&Array.isArray(quimica.hits))?quimica.hits:[];
+  var open=!!_openQuimica[key];
+  var caret=hits.length?`<span style="color:var(--blue);font-size:10px;margin-left:2px">${open?"▲":"▼"}</span>`:"";
+  var head=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px;${hits.length?"cursor:pointer":""}" ${hits.length?`onclick="toggleQuimicaResult('${key}')"`:""}><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span>${caret}</span><span class="v mono plus">+${quimicaPts.toFixed(1)}</span></div>`;
+  var detail="";
+  if(open && hits.length){
+    detail=`<div style="margin:2px 0 4px;padding-left:6px;border-left:2px solid color-mix(in srgb,#34d399 40%,transparent)">`
+      + hits.map(function(h){
+          return `<div class="line" style="padding:3px 4px"><span style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="font-size:13px">${h.ico||"🧬"}</span><span style="color:var(--chalk)">${esc(h.nome||"")}</span>${h.txt?`<span style="color:var(--dim);font-size:10px">${esc(h.txt)}</span>`:""}</span><span class="v mono plus" style="font-size:11px">+${(+h.pts||0).toFixed(1)}</span></div>`;
+        }).join("")
+      + `</div>`;
+  }
+  return head+detail;
+}
 function dreamTeamHTML(){
   const roomId=APP.roomId;
   const calc=_dreamCalc[roomId];
@@ -300,15 +320,7 @@ function dreamTeamHTML(){
         }
       }
       if(best.quimicaPts>0){
-        var _qhits=(best.quimica&&Array.isArray(best.quimica.hits))?best.quimica.hits:[];
-        html+=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px"><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span></span><span class="v mono plus">+${best.quimicaPts.toFixed(1)}</span></div>`;
-        if(_qhits.length){
-          html+=`<div style="margin:2px 0 4px;padding-left:6px;border-left:2px solid color-mix(in srgb,#34d399 40%,transparent)">`
-            + _qhits.map(function(h){
-                return `<div class="line" style="padding:3px 4px"><span style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="font-size:13px">${h.ico||"🧬"}</span><span style="color:var(--chalk)">${esc(h.nome||"")}</span>${h.txt?`<span style="color:var(--dim);font-size:10px">${esc(h.txt)}</span>`:""}</span><span class="v mono plus" style="font-size:11px">+${(+h.pts||0).toFixed(1)}</span></div>`;
-              }).join("")
-            + `</div>`;
-        }
+        html+=quimicaResultBlockHTML(best.quimica, best.quimicaPts, "dream");
       }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }

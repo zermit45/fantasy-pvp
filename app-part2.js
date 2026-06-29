@@ -187,6 +187,9 @@ function roundUserTeamsHTML(username){
     sc.view.forEach(v=>{if(!v||v.slot==="BENCH")return;html+=renderLine(v,false);});
     const b=sc.view.find(v=>v&&v.slot==="BENCH");
     if(b&&b.pid)html+=renderLine(b,true);
+    if(sc.quimicaPts>0 && typeof quimicaResultBlockHTML==="function"){
+      html+=quimicaResultBlockHTML(sc.quimica, sc.quimicaPts, "team_"+username+"_"+rr.room_id);
+    }
     html+=`</div>`;
   });
   if(!achou)html+=`<p class="p" style="margin:0">Sem time apurado nos jogos já encerrados.</p>`;
