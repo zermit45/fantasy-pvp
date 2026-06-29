@@ -372,10 +372,65 @@ function topbarHTML(){
       ${isDev()?`<div class="userchip" onclick="toggleDevMode()" style="cursor:pointer;border-color:${APP.devMode?"var(--amber)":"var(--line)"};color:${APP.devMode?"var(--amber)":"var(--dim)"}" title="Alternar modo DEV / jogador">${APP.devMode?"🛠 DEV":"🎮 jogador"}</div>`:""}
       ${APP.user?`<div class="userchip">${inGroup?`<span onclick="openProfile()" style="cursor:pointer" title="Meu perfil">👤 <b>${esc(APP.user.username)}</b></span>`:`👤 <b>${esc(APP.user.username)}</b>`} · <span onclick="logout()" style="cursor:pointer">sair</span></div>`:""}
     </div>
-  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}${APP.calOpen?calModalHTML():""}`;
+  </div>${APP.showRules?rulesModalHTML():""}${APP.help?helpModalHTML():""}${APP.showManual?superManualHTML():""}${APP.showQuimica?quimicaGuideHTML():""}${APP.calOpen?calModalHTML():""}`;
 }
 function toggleRules(){APP.showRules=!APP.showRules;render();}
 function toggleManual(){APP.showManual=!APP.showManual;render();}
+function toggleQuimicaGuide(){APP.showQuimica=!APP.showQuimica;render();}
+function quimicaGuideHTML(){
+  if(typeof window==="undefined"||!window.QUIMICA) return "";
+  const Q=window.QUIMICA, P=Q.PERSONAS;
+  const SETOR={GK:"Goleiros",DEF:"Defensores",MID:"Meio-campo",ATT:"Ataque",ANY:"Coringa"};
+  const SETCOL={GK:"var(--pos-gk)",DEF:"var(--pos-def)",MID:"var(--pos-mid)",ATT:"var(--pos-att)",ANY:"var(--pos-flex)"};
+  // personas agrupadas por setor
+  let personasHTML="";
+  ["GK","DEF","MID","ATT","ANY"].forEach(setor=>{
+    const list=Object.entries(P).filter(([k,v])=>v.setor===setor);
+    if(!list.length) return;
+    const col=SETCOL[setor];
+    personasHTML+=`<div style="font-size:11px;font-weight:800;letter-spacing:.04em;color:${col};margin:12px 0 6px;text-transform:uppercase">${SETOR[setor]}</div>`;
+    list.forEach(([k,v])=>{
+      personasHTML+=`<div style="display:flex;align-items:center;gap:10px;margin:6px 0;padding:8px;background:color-mix(in srgb,${col} 7%,transparent);border:1px solid color-mix(in srgb,${col} 22%,transparent);border-radius:10px">`
+        +`<span style="font-size:22px;line-height:1">${v.ico}</span>`
+        +`<div><div style="font-weight:700;color:var(--chalk);font-size:13px">${v.nome}</div>`
+        +`<div style="color:var(--dim);font-size:11px;line-height:1.4">${v.desc}</div></div></div>`;
+    });
+  });
+  // combos
+  const comboHTML=Q.COMBOS.slice().sort((a,b)=>b.pts-a.pts).map(c=>{
+    const a=P[c.par[0]], b=P[c.par[1]];
+    return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0;padding:9px;background:color-mix(in srgb,#34d399 7%,transparent);border:1px solid color-mix(in srgb,#34d399 18%,transparent);border-radius:10px">`
+      +`<span style="font-size:17px;white-space:nowrap">${a.ico}${b.ico}</span>`
+      +`<div style="flex:1"><div style="font-weight:700;color:var(--chalk);font-size:13px">${c.nome}</div>`
+      +`<div style="color:var(--dim);font-size:11px;line-height:1.4">${a.nome} + ${b.nome} — ${c.txt}</div></div>`
+      +`<span class="mono" style="color:#34d399;font-weight:800;font-size:14px">+${c.pts.toFixed(1)}</span></div>`;
+  }).join("");
+  // reforço
+  const rf=Q.REFORCO;
+  const reforcoHTML=Object.keys(rf).map(Number).sort((x,y)=>x-y).map(n=>
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0;padding:7px 10px;background:rgba(255,255,255,.03);border-radius:8px;font-size:12px">`
+    +`<span style="color:var(--chalk)"><b>${n}+</b> jogadores da mesma personalidade</span>`
+    +`<span class="mono" style="color:#FFC247;font-weight:700">+${rf[n].toFixed(1)}</span></div>`).join("");
+
+  const sec=(t)=>`<div style="font-family:'Saira Condensed';font-weight:800;font-size:15px;letter-spacing:.03em;text-transform:uppercase;color:var(--amber);margin:16px 0 4px">${t}</div>`;
+  return `<div class="modal" onclick="toggleQuimicaGuide()"><div class="box" onclick="event.stopPropagation()" style="max-height:85vh;overflow:auto">
+    <div class="h2 disp" style="color:var(--amber)">🧬 Guia de Química</div>
+    <p class="p" style="margin:4px 0 2px;font-size:12px;line-height:1.5">Cada jogador tem uma <b style="color:var(--chalk)">personalidade</b> derivada do estilo dele na temporada. Você ganha <b style="color:var(--green)">bônus de química</b> de dois jeitos: <b>combinando</b> personalidades que se completam, ou <b>repetindo</b> a mesma. O bônus soma no total do time (teto de +${Q.CAP.toFixed(0)}), separado da tática.</p>
+
+    ${sec("⚡ Combos (personalidades que se completam)")}
+    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Tenha um de cada personalidade do par no seu time pra ativar:</p>
+    ${comboHTML}
+
+    ${sec("🔁 Reforço (repetir identidade)")}
+    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Escalar vários da mesma personalidade dá bônus de identidade (o Camaleão não conta):</p>
+    ${reforcoHTML}
+
+    ${sec("🎭 Todas as personalidades")}
+    ${personasHTML}
+
+    <button class="btn" style="margin-top:14px" onclick="toggleQuimicaGuide()">Fechar guia</button>
+  </div></div>`;
+}
 // ---- mini-ajudas contextuais (botão ? pequeno em vários lugares) ----
 const HELP={
   minirodada:["Mini rodada","Você recebe um número de fichas (tokens) de entrada. Cada jogo que você escolher gasta 1 ficha e garante sua vaga naquele jogo. Você não precisa usar todas. Escolher os jogos certos (onde você acha que vai pontuar mais) é a estratégia. A escalação de cada jogo é montada depois e pode ser ajustada até a partida começar."],

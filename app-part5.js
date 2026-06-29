@@ -206,6 +206,14 @@ function buildHTML(){
     if(!url)return `<span class="${cls||"pface"} ph">${ini}</span>`;
     return `<span class="${cls||"pface"}"><img src="${attr(url)}" data-direct="${attr(direct)}" loading="lazy" decoding="async" onerror="if(!this.dataset.triedDirect&&this.dataset.direct&&this.src!==this.dataset.direct){this.dataset.triedDirect='1';this.src=this.dataset.direct}else{this.parentNode.classList.add('ph');this.parentNode.textContent='${ini}'}"></span>`;
   };
+  const slotPersonaHTML=(pl,posKey)=>{
+    if(!pl||typeof window==="undefined"||!window.personaOf||!window.QUIMICA) return "";
+    const pk=window.personaOf(pl.name,pl.pos); if(!pk) return "";
+    const per=window.QUIMICA.PERSONAS[pk]; if(!per) return "";
+    const col=({GK:"var(--pos-gk)",DEF:"var(--pos-def)",MID:"var(--pos-mid)",ATT:"var(--pos-att)",FLEX:"var(--pos-flex)"})[posKey]||"var(--dim)";
+    return `<div class="slotpersona" style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,${col} 14%,transparent);border:1px solid color-mix(in srgb,${col} 30%,transparent);font-size:9px;font-weight:700;color:var(--chalk)">`
+      +`<span style="font-size:11px">${per.ico}</span>${esc(per.nome)}</div>`;
+  };
   const slotsHTML=["GK","DEF","MID","ATT","FLEX","BENCH"].map(sl=>{
     const pid=s[sl],pl=pid?byId[pid]:null;
     const posKey=sl==="BENCH"&&pl?pl.pos:sl; // banco herda a cor da posição real do jogador
@@ -213,6 +221,7 @@ function buildHTML(){
       <div class="lab"><span class="pc-${posKey}">${SLOT_LABEL[sl]}</span>${sl==="FLEX"?" ·DEF/MEI/ATA":""}${sl==="BENCH"?(bcap!=null?` ·grátis ≤${bcap}`:" ·grátis"):""}</div>
       ${pl?playerImg(pl,"slotpic"):""}
       <div class="nm">${pl?esc(pl.name):"toque num jogador"}</div>
+      ${pl?slotPersonaHTML(pl,posKey):""}
       ${pl?`<div class="pr mono"><span class="teamtag" style="--tc:${teamColor(pl.team)}">${pl.team}</span> · ${sl==="BENCH"?'<span style="color:var(--green)">grátis</span>':pl.price}</div>`:""}
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
@@ -283,6 +292,7 @@ function buildHTML(){
       <div class="sectionhead"><span>🧬 Química do time${helpBtn("quimica")}</span>${headRight}</div>
       <p class="p" style="font-size:11px;margin-bottom:2px;line-height:1.5">Cada jogador tem uma <b>personalidade</b>. Personalidades que se completam (ou se repetem) geram <b style="color:var(--green)">bônus de química</b> — somado ao seu time, separado da tática.</p>
       ${body}
+      <div onclick="toggleQuimicaGuide()" style="margin-top:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);padding:8px;border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);border-radius:10px">📖 Ver todas as combinações de química</div>
     </div>`;
   }
 
