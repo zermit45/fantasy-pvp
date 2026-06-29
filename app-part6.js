@@ -292,6 +292,9 @@ function dreamTeamHTML(){
           </div>`;
         }
       }
+      if(best.quimicaPts>0){
+        html+=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px"><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span></span><span class="v mono plus">+${best.quimicaPts.toFixed(1)}</span></div>`;
+      }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }
   }

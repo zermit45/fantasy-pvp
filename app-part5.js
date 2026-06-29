@@ -754,24 +754,33 @@ function computeDreamTeam(roomId){
           for(const fx of POOL){
             if(usados.has(fx.id))continue;
             const p5=p4+fx.price; if(p5>BUDGET_IDEAL)continue;
-            // PODA: teto otimista (5 melhores possíveis + 20% no maior) não supera o best? pula squadSum
+            // PODA: teto otimista (5 melhores possíveis + 20% no maior + teto da química) não supera o best? pula squadSum
             if(best){
               const tetoFive=base4+bestPossible[fx.id];
               const maxInd=Math.max(bestPossible[gk.id],bestPossible[df.id],bestPossible[mf.id],bestPossible[at.id],bestPossible[fx.id]);
-              if(tetoFive+maxInd*0.2<=best.total)continue;
+              const quimCap=(typeof window!=="undefined"&&window.QUIMICA&&window.QUIMICA.CAP)?window.QUIMICA.CAP:0;
+              if(tetoFive+maxInd*0.2+quimCap<=best.total)continue;
             }
             const five=[gk,df,mf,at,fx];
             const sq=eng.squadSum(five.map(x=>x.raw));
+            // química do quinteto (depende só das personalidades, não da tática): calcula 1x
+            let quimicaPts=0, quimicaObj=null;
+            if(typeof window!=="undefined"&&window.computeQuimica){
+              try{
+                quimicaObj=window.computeQuimica(five.map(x=>({name:ctx.byId[x.id]?ctx.byId[x.id].name:"",pos:x.pos})));
+                quimicaPts=quimicaObj?quimicaObj.bonus:0;
+              }catch(e){quimicaPts=0;}
+            }
             for(const tac of tactics){
               const stt=sq.status[tac];
               let sum=0;const arr=[];
               for(const it of five){const v=pts[it.id][tac][stt];arr.push(v);sum+=v;}
               let capBonus=0,capIx=-1;
               for(let i=0;i<arr.length;i++){const e=arr[i]*0.2;if(e>capBonus){capBonus=e;capIx=i;}}
-              const total=Math.round((sum+capBonus)*10)/10;
+              const total=Math.round((sum+capBonus+quimicaPts)*10)/10;
               if(!best||total>best.total){
                 best={total,tactic:tac,captainId:five[capIx].id,spend:p5,
-                  picks:{GK:gk,DEF:df,MID:mf,ATT:at,FLEX:fx},sq};
+                  picks:{GK:gk,DEF:df,MID:mf,ATT:at,FLEX:fx},sq,quimicaPts,quimica:quimicaObj};
               }
             }
           }

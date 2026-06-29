@@ -420,7 +420,7 @@ function playerResultsHTML(){
         const ref=DBpre[k];
         if(typeof ref==="string" && ref.charAt(0)==="@") seen[ref.slice(1)]=1;
       }
-      out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:(Q?Q.overall(p):null)});
+      out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:(Q?Q.overall(p):null), age:(p.age!=null?p.age:null), mv:(p.marketValue!=null?p.marketValue:null)});
     }
   });
 
@@ -448,12 +448,21 @@ function playerResultsHTML(){
       : `<p class="p" style="margin:8px 2px 0">Nenhum jogador com "${esc(APP.playerSearch)}".</p>`;
   }
 
+  const fmtMvShort=(v)=>{
+    if(v==null||!isFinite(v)||v<=0) return null;
+    if(v>=1e6){ const m=v/1e6; return "€"+(m>=10?Math.round(m):m.toFixed(1).replace(/\.0$/,""))+"M"; }
+    if(v>=1e3){ return "€"+Math.round(v/1e3)+"K"; }
+    return "€"+v;
+  };
   let html=out.map(p=>{
     const nm=esc(p.name).replace(/'/g,"\\'");
+    const mvTxt=fmtMvShort(p.mv);
+    const extra=[p.age!=null?(p.age+" anos"):null, mvTxt?("💰 "+mvTxt):null].filter(Boolean).join(" · ");
     return `<div onclick="window.openPlayerRadar&&window.openPlayerRadar('${nm}','${p.pos}')" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-top:7px;cursor:pointer">
       <span class="mono" style="font-size:11px;min-width:30px;color:var(--blue);font-weight:700">${SLOT[p.pos]||p.pos}</span>
       <div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-      <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div></div>
+      <div style="font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team)}${p.club?" · "+esc(p.club):""}</div>
+      ${extra?`<div style="font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${extra}</div>`:""}</div>
       ${p.ovr!=null?`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">OVR${p.statsOnly?"*":""}</div><div style="font-weight:800;color:var(--blue);font-size:16px;line-height:1">${p.ovr}</div></div>`:`<div style="text-align:center;min-width:40px"><div style="font-size:9px;color:var(--dim)">stats</div><div style="font-size:13px">📈</div></div>`}
       <span style="color:var(--blue);font-size:15px">📊</span>
     </div>`;
