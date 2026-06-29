@@ -121,6 +121,9 @@ function resultHTML(){
           </div>`;
         }
       });
+      if(s.quimicaPts>0){
+        html+=quimicaResultBlockHTML(s.quimica, s.quimicaPts, "rank_"+i);
+      }
     }
     html+=`</div></div>`;
   });
@@ -133,6 +136,9 @@ function resultHTML(){
   if(mine){
     html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
     mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
+    if(mine.quimicaPts>0){
+      html+=quimicaResultBlockHTML(mine.quimica, mine.quimicaPts, "mine");
+    }
     html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
     if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
