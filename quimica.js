@@ -11,7 +11,7 @@ var PERSONAS = {
   // goleiros
   paredao:        {nome:"Paredão",          ico:"🧤", setor:"GK",  desc:"Defende muito, segura o time."},
   goleiro_linha:  {nome:"Goleiro-Linha",    ico:"🦶", setor:"GK",  desc:"Sai jogando, distribui como um zagueiro."},
-  pegador:        {nome:"Pegador de Pênalti",ico:"🥅", setor:"GK", desc:"Especialista em defender pênaltis."},
+  voador:         {nome:"Goleiro-Voador",    ico:"🦅", setor:"GK", desc:"O mais exigido: faz muitas defesas por jogo."},
   // defensores
   muro:           {nome:"Muro",             ico:"🧱", setor:"DEF", desc:"Desarma, intercepta e bloqueia tudo."},
   torre:          {nome:"Torre",            ico:"🗼", setor:"DEF", desc:"Domina o jogo aéreo dos dois lados."},
@@ -46,7 +46,7 @@ var COMBOS = [
   {par:["zagueiro_artista","maestro"], pts:1.3, nome:"Construção",      txt:"Zaga sai jogando, Maestro conduz."},
   // goleiros (antes órfãos)
   {par:["paredao","muro"],          pts:1.4, nome:"Defesa blindada",    txt:"Paredão no gol, Muro na frente dele."},
-  {par:["pegador","volante"],       pts:1.1, nome:"Cofre",             txt:"Volante protege, Pegador segura o pênalti."},
+  {par:["voador","volante"],        pts:1.1, nome:"Cofre",             txt:"Volante protege, Voador faz a defensaça."},
   {par:["goleiro_linha","zagueiro_artista"], pts:1.4, nome:"Saída de bola", txt:"Time todo sai jogando de trás."},
 ];
 
@@ -184,7 +184,7 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
   window.ensurePersonaMap=function(){
     if(window.PERSONA_MAP) return Promise.resolve(window.PERSONA_MAP);
     if(_p) return _p;
-    _p=fetch("persona-map.json?v=20260629-base2")
+    _p=fetch("persona-map.json?v=20260629-persona33")
       .then(function(r){return r.ok?r.json():null;})
       .then(function(j){window.PERSONA_MAP=j||{};return window.PERSONA_MAP;})
       .catch(function(){window.PERSONA_MAP={};return window.PERSONA_MAP;});
