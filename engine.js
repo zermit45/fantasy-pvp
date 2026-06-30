@@ -7,7 +7,7 @@
 // Pesos de pontuação. BASE = rebalanceado (gol/assist valem mais, passe/desarme menos).
 // BASE_V1 = pesos antigos, usados SÓ pelos jogos já apurados (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram.
-const BASE = { goal:4.6, assist:3.6, sot:2.2, dribble:.85, prgp:.15, pib:0, tib:0, sca:1.0, gca:2.4,
+const BASE = { goal:4.6, assist:3.6, sot:2.2, dribble:.85, prgp:.06, pib:0, tib:0, sca:1.0, gca:2.4,
   tklint:.36, block:.48, recovery:.05, aerial:.16, clearance:.03,
   save:1.4, penSave:6, opa:1.35, crossStop:.8, accCross:.2, inaccCross:-.08,
   wasFouled:.08, longBall:.12, prgCarry:.10, penaltyWon:2.5,
@@ -613,4 +613,4 @@ function makeEngine(match){
 }
 
 if (typeof module!=="undefined" && module.exports) module.exports={makeEngine,TACTICS:ENGINE_BASE_TACTICS};
-if (typeof window!=="undefined"){ window.makeEngine=makeEngine; window.ENGINE_TACTICS=ENGINE_BASE_TACTICS; window.ENGINE_MODEB_DEFAULT=(typeof TACT_MODE_B_DEFAULT!=="undefined"&&TACT_MODE_B_DEFAULT); }
+if (typeof window!=="undefined"){ window.makeEngine=makeEngine; window.ENGINE_TACTICS=ENGINE_BASE_TACTICS; window.ENGINE_MODEB_DEFAULT=(typeof TACT_MODE_B_DEFAULT!=="undefined"&&TACT_MODE_B_DEFAULT); window.ENGINE_TACT_B_CONDS=TACT_B_CONDS; }
