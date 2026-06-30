@@ -107,7 +107,10 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     // fallback final: o nome existe em OUTRA posição. Aceita se TODAS as chaves que
     // batem apontam pra mesma persona (sem ambiguidade entre homônimos).
     // resolve Neymar (ATT na pool, MID na base), Raphinha (MID/ATT), etc.
-    var POSES=["GK","DEF","MID","ATT"], hits=[];
+    // IMPORTANTE: goleiro e jogador de linha nunca se cruzam — são mundos separados.
+    // Sem isso, "Alexander Schlager"/GK herdaria a persona de "Xaver Schlager"/MID.
+    var POSES = (pos==="GK") ? ["GK"] : ["DEF","MID","ATT"];
+    var hits=[];
     for(var vi=0; vi<vs.length; vi++){
       for(var pi=0; pi<POSES.length; pi++){
         var key=vs[vi]+"|"+POSES[pi];
