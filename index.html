@@ -439,6 +439,31 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .face-inline{display:inline-flex;align-items:center;gap:8px;min-width:0}
 .face-inline .txt{min-width:0}
 
+
+/* ===== VERSÃO PC (telas largas) — pool e escalação lado a lado ===== */
+.build-cols{display:block} /* mobile: empilhado, sem mudança */
+@media (min-width:900px){
+  /* o shell respira no desktop */
+  .app{padding-left:24px;padding-right:24px}
+  .shell{max-width:1180px;padding-top:18px}
+  /* duas colunas: escalação/tática/química à esquerda, pool grudado à direita */
+  .build-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:18px;align-items:start}
+  .build-left{min-width:0}
+  .build-right{min-width:0;position:sticky;top:14px}
+  /* pool mais alto no PC (sobra tela vertical) */
+  .build-right .pool{max-height:calc(100vh - 150px)}
+  /* táticas: cabem mais por linha em vez de scroll horizontal */
+  .tacts{flex-wrap:wrap}
+  .tact{flex:1 1 calc(50% - 5px);min-width:200px}
+  /* lista de jogos da home em grade de cards */
+  .legendbar~.roomrow.gamecard, .roomrow.gamecard{}
+}
+@media (min-width:1280px){
+  .shell{max-width:1320px}
+  .build-cols{grid-template-columns:minmax(0,1fr) 460px}
+  .tact{flex:1 1 calc(33.333% - 7px)}
+}
+
 </style>
 </head>
 <body>
@@ -582,7 +607,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="app-part2.js?v=20260629-quimica-times"></script>
 <script src="app-part3.js?v=20260630-proxdata2"></script>
 <script src="app-part4.js?v=20260627-fix-pendencia-escalacao"></script>
-<script src="app-part5.js?v=20260630-modob-ui8-sync"></script>
+<script src="app-part5.js?v=20260630-pc-cols1"></script>
 <script src="app-part6.js?v=20260630-modob-ui9-cap45"></script>
 <script src="player-quality.js?v=20260628-perfil1"></script>
 <script src="player-radar.js?v=20260629-base2"></script>

@@ -457,7 +457,7 @@ function buildHTML(){
       <div class="line" style="margin-top:10px"><span>Capitão (pontos ×1,20)${helpBtn("capitao")}</span><span class="v">${APP.captain?esc(byId[s[APP.captain]]?.name||SLOT_LABEL[APP.captain]):"—"}</span></div>
     </div>`;
   }
-  return `<div class="card buildhero">
+  return `<div class="build-cols"><div class="build-left"><div class="card buildhero">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
       <div>
         <div class="tag">${esc(pp.comp)}</div>
@@ -483,6 +483,7 @@ function buildHTML(){
     <div class="tacts">${tactsHTML}</div>
   </div>
   ${quimicaBlockHTML(s,byId)}
+  </div><div class="build-right">
   <div class="card">
     <div class="sectionhead"><span>Pool <span class="tag">· ${pp.players.length} JOGADORES</span>${helpBtn("pool")}</span><span>${filledCount}/6 escolhidos</span></div>
     ${(function(){
@@ -504,7 +505,7 @@ function buildHTML(){
         ? `<button class="btn ${ready?"ready":""}" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"💾 Salvar escalação":"Complete 6 slots, capitão e tática"}</button>
            <p class="p" style="margin-top:8px;font-size:12px;color:var(--dim)">Pode ajustar quantas vezes quiser até o jogo começar. O que está garantido é a <b>vaga neste jogo</b> (ficha gasta) — a escalação trava sozinha no apito inicial.</p>`
         : `<button class="btn ${ready?"ready":""}" style="margin-top:12px" ${ready?"":"disabled"} onclick="saveEntry()">${ready?"Salvar time":"Complete 6 slots, capitão e tática"}</button>`}
-  </div>`;
+  </div></div></div>`;
 }
 function askConfirmTeam(){
   APP.confirm={mode:"confirmTeam",roomId:APP.roomId,label:"Confirmar equipe"};render();
