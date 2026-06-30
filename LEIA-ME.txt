@@ -1,0 +1,24 @@
+═══════════════════════════════════════════════════════════════
+BACKUP DO SISTEMA DE TÁTICAS ATUAL — 30/06/2026
+═══════════════════════════════════════════════════════════════
+
+Esta pasta guarda os arquivos do sistema de táticas COMO ESTAVA HOJE,
+ANTES de introduzir o Modo B (táticas por meta absoluta + bônus fixo).
+
+Sistema atual (o que está aqui):
+  - 6 táticas: Estacionar o Ônibus, Gegenpress, Tiki-Taka, Ataque Total,
+    Jogo Aéreo, Contra-Ataque.
+  - Ativa por Z-SCORE: a tática ativa se o time se destacou NAQUELA ação
+    acima da média dos times reais (comparação estatística).
+  - Bônus PROPORCIONAL por jogador + ônus se errar a tática.
+
+COMO VOLTAR PRA ESTE SISTEMA (reverter o Modo B):
+  Opção 1 (simples): suba estes arquivos de volta no repositório,
+    substituindo os novos. Pronto, volta tudo como era.
+  Opção 2 (sem trocar arquivos): no engine.js novo, o Modo B só liga
+    quando o jogo tem match.tactModeB===true. Se você nunca ligar essa
+    flag, o sistema continua usando o método antigo automaticamente.
+
+Arquivos salvos: engine.js, app-part1..6.js, index.html
+(todos na versão de 30/06/2026, sistema z-score)
+═══════════════════════════════════════════════════════════════
