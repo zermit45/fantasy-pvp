@@ -104,6 +104,23 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
       var cands=_prefixIdx[nn+"|"+pos];
       if(cands && cands.length===1) return cands[0]; // só casa se não houver ambiguidade
     }
+    // fallback de PREFIXO: o nome do pool é o início de um nome mais completo na base.
+    // Ex.: pool="Pau Cubarsí", base tem "pau cubarsi paredes|DEF". Casa se a posição
+    // bate e há correspondência ÚNICA (evita pegar o jogador errado).
+    if(nn.indexOf(" ")>=0){
+      var pfxHits=[], pfxSeen={};
+      for(var k2 in MAP){
+        var sp=k2.lastIndexOf("|"); if(sp<0) continue;
+        if(k2.slice(sp+1)!==pos) continue;            // mesma posição só
+        var base=k2.slice(0,sp);
+        if(base===nn || base.indexOf(nn+" ")===0){    // base começa com o nome do pool
+          var pv=MAP[k2];
+          if(!pfxSeen[pv]){ pfxSeen[pv]=1; pfxHits.push(pv); }
+          if(pfxHits.length>1) break;                 // ambíguo, desiste
+        }
+      }
+      if(pfxHits.length===1) return pfxHits[0];
+    }
     // fallback final: o nome existe em OUTRA posição. Aceita se TODAS as chaves que
     // batem apontam pra mesma persona (sem ambiguidade entre homônimos).
     // resolve Neymar (ATT na pool, MID na base), Raphinha (MID/ATT), etc.
