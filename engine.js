@@ -121,7 +121,7 @@ const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no ma
 // Metas calibradas sobre 5000 times reais misturados (nível difícil, ~25%).
 // Mantém os MESMOS nomes/ícones das táticas atuais.
 const TACT_MODE_B_DEFAULT=true; // ⬅️ MODO B LIGADO (sistema principal). Pra voltar ao antigo (z-score), troque pra false.
-const TACT_B_BONUS=5;            // bônus fixo total do time quando a tática ativa
+const TACT_B_BONUS=6;            // bônus fixo total do time quando a tática ativa
 // condições por tática: ativa se QUALQUER {stat>=goal} bater.
 // stats lidas do jogador apurado: prgp(passes), dribbles, recovery, tklint(tackles),
 // clearance, aerial, sots.length(shots), goals.length, accCross(crosses), assists.length
@@ -516,7 +516,7 @@ function makeEngine(match){
       const st=squadSum.status[tacticKey];
       // ===== MODO B: bônus FIXO dividido igual entre os 5 titulares =====
       if(squadSum.modeB){
-        if(st==="full"){ tact = TACT_B_BONUS/5; } // +5 no time = +1.0 por titular
+        if(st==="full"){ tact = TACT_B_BONUS/5; } // +6 no time = +1.2 por titular
         else { tact = 0; }                          // não bateu: sem bônus, sem ônus
         if(Math.abs(tact)>=0.05) push(`Tática ${T.name} ${st==="full"?"ativada":"sem meta"}`,r1(tact));
       } else {

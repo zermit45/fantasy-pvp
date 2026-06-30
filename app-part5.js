@@ -317,7 +317,7 @@ function buildHTML(){
         const sep = i>0 ? `<div class="bou">— OU —</div>` : "";
         return `${sep}<div class="bcond"><span class="bdot"></span><span class="bcl">${c[0]} ≥ ${c[1]}</span></div>`;
       }).join("");
-      return `<div class="teff bmeta"><div class="up">▲ bater 1 das metas = <b style="color:var(--green)">+5 no time</b></div><div class="blist">${linhas}</div></div>`;
+      return `<div class="teff bmeta"><div class="up">▲ bater 1 das metas = <b style="color:var(--green)">+6 no time</b></div><div class="blist">${linhas}</div></div>`;
     }
     const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
     const uniq=[...new Set(fam)];
@@ -460,7 +460,7 @@ function buildHTML(){
     <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
     <div class="sectionhead"><span>Escolha 1 tática${helpBtn("tatica")}</span><span>${APP.tactic?"selecionada":"pendente"}</span></div>
     <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">${_modeBon()
-      ? `Cada tática dá um <b style="color:var(--green)">bônus fixo de +5</b> no time se, no fim do jogo, o seu time <b>bater a meta</b> dela (qualquer uma das duas condições). Não bater = sem bônus, sem perda. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas. Capitão puxa o estilo.`
+      ? `Cada tática dá um <b style="color:var(--green)">bônus fixo de +6</b> no time se, no fim do jogo, o seu time <b>bater a meta</b> dela (qualquer uma das duas condições). Não bater = sem bônus, sem perda. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas. Capitão puxa o estilo.`
       : `Cada tática dá um <b style="color:var(--green)">bônus</b> nas ações dela se, no fim do jogo, seus jogadores produzirem bastante naquilo. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas — não é garantia, mas indica pra qual estilo ele tem cara. Capitão puxa o estilo.`}</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
