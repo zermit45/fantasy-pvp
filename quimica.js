@@ -55,7 +55,7 @@ var COMBOS = [
 // REFORÇO de iguais: N+ da mesma persona dá bônus de "identidade".
 var REFORCO = { 2:0.7 };  // só 2 iguais=+0.7. (3+/4+ impossíveis: max 2 da mesma persona = posição + FLEX)
 
-var QUIM_CAP = 4.5; // teto do bônus total de química por time
+var QUIM_CAP = 5.0; // teto do bônus total de química por time
 
 if(typeof window!=="undefined"){
   window.QUIMICA = {PERSONAS:PERSONAS, COMBOS:COMBOS, REFORCO:REFORCO, CAP:QUIM_CAP};
