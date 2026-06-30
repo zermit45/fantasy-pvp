@@ -317,16 +317,20 @@ function toggleQuim(k){_openQuim[k]=!_openQuim[k];render();}
 // monta a linha "Química do time +X.X" clicável; quando aberta, lista os combos/reforços.
 // key precisa ser único por contexto (ex: "rank2", "mine", "dream").
 function quimicaLineHTML(quimObj, quimicaPts, key){
-  if(!(quimicaPts>0)) return "";
+  // mostra a linha sempre que houver um objeto de química calculado, mesmo que o
+  // bônus seja 0 — assim fica claro que o sistema considerou a química (e não some).
+  if(quimObj==null && !(quimicaPts>0)) return "";
+  const pts=(+quimicaPts)||0;
   const open=_openQuim[key];
   const hits=(quimObj&&quimObj.hits)?quimObj.hits:[];
   const canOpen=hits.length>0;
+  const ptsCol=pts>0?"plus":"";
   let h=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px;${canOpen?"cursor:pointer":""}" ${canOpen?`onclick="toggleQuim('${key}')"`:""}>`
     +`<span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:13px">🧬</span>`
     +`<span style="color:var(--chalk);font-size:12px">Química do time</span>`
-    +`<span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span>`
+    +`<span style="color:var(--dim);font-size:10px">${pts>0?"(personalidades entrosadas)":"(sem combo neste time)"}</span>`
     +`${canOpen?` <span style="color:var(--blue);font-size:10px">${open?"▲":"▼"}</span>`:""}</span>`
-    +`<span class="v mono plus">+${(+quimicaPts).toFixed(1)}</span></div>`;
+    +`<span class="v mono ${ptsCol}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
   if(open&&canOpen){
     h+=`<div style="padding:2px 0 4px 8px;border-left:2px solid var(--line);margin:2px 0 4px 6px">`
       +hits.map(x=>`<div class="line" style="padding:3px 0;font-size:11px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:13px;flex:none">${x.ico}</span><span style="color:var(--chalk)">${esc(x.nome)} <span style="color:var(--dim);font-size:10px">${esc(x.txt)}</span></span></span><span class="v mono plus">+${(+x.pts).toFixed(1)}</span></div>`).join("")
