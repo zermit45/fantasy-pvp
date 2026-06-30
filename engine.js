@@ -68,28 +68,28 @@ const TACT_ONUS_PTS  = -1.4;
 const TACT_PTSREF = { muralha:1.21, pressaototal:1.95, cerebro:6.47, tridente:12.3, aereo:1.04, contra:1.4 };
 const TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
-    desc:"Defesa raçuda no próprio campo. Ativa se travar o jogo (bloqueios, cortes e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
-    fam:["block","clearance","aerial"], minPlayers:3,
-    metric:p=>p.block*3+p.clearance+p.aerial, partMin:1},
+    desc:"Defesa raçuda no próprio campo. Ativa se travar o jogo (bloqueios de jogada, cortes e bloqueios de chute a gol) for o ponto forte do seu time e 2+ jogadores defenderem bem.",
+    fam:["block","clearance","blockShot"], minPlayers:2,
+    metric:p=>p.block*2+p.clearance+p.blockShot*4, partMin:1},
   pressaototal:{name:"Gegenpress",
-    desc:"Pressão alta pra roubar a bola. Ativa se recuperar a posse (recuperações, desarmes e faltas táticas) for o ponto forte do seu time e 3+ jogadores pressionarem.",
-    fam:["recovery","tklint"], minPlayers:3,
-    metric:p=>p.recovery+p.tklint+p.fouls, partMin:1.5},
+    desc:"Pressão alta pra roubar a bola. Ativa se recuperar a posse (recuperações de bola, desarmes e interceptações) for o ponto forte do seu time e 2+ jogadores pressionarem.",
+    fam:["recovery","tackle","intercept"], minPlayers:2,
+    metric:p=>p.recovery+splitTkl(p).tackle*1.5+splitTkl(p).intercept*1.5, partMin:1.5},
   cerebro:{name:"Tiki-Taka",
-    desc:"Criação e troca de passes. Ativa se gerar chances (criação de finalizações, passes decisivos e assistências) for o forte do seu time e 3+ jogadores criarem.",
-    fam:["prgp","sca","gca","assist"], minPlayers:3,
+    desc:"Criação e troca de passes. Ativa se gerar chances (criação de finalizações, passes decisivos e assistências) for o forte do seu time e 2+ jogadores criarem.",
+    fam:["prgp","sca","gca","assist"], minPlayers:2,
     metric:p=>p.prgp*0.15+p.sca*2+p.gca*2+(p.assists?p.assists.length:0)*2, partMin:1},
-  tridente:{name:"Ataque Total", legacy:true,
-    desc:"(tática descontinuada — mantida só para jogos antigos)",
-    fam:["goal","sotPts"], minPlayers:2,
-    metric:p=>p.sots.length+p.goals.length*2, partMin:1},
+  tridente:{name:"Ataque Total",
+    desc:"Pressão ofensiva total. Ativa se finalizar (gols, finalizações no gol e penetração na área sofrendo faltas) for o forte do seu time e 2+ jogadores atacarem.",
+    fam:["goal","sot","wasFouled"], minPlayers:2,
+    metric:p=>(p.goals?p.goals.length:0)*3+(p.sots?p.sots.length:0)*2+p.wasFouled, partMin:1},
   aereo:{name:"Jogo Aéreo",
     desc:"Bola alta e jogo direto. Ativa se o jogo pelo alto (duelos aéreos, cruzamentos certos e lançamentos longos) for o forte do seu time e 2+ jogadores explorarem o alto.",
     fam:["aerial","accCross","longBall"], minPlayers:2,
     metric:p=>p.aerial*2+p.accCross*3+p.longBall, partMin:1},
   contra:{name:"Contra-Ataque",
-    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções, dribles e passes na área) for o forte do seu time e 3+ jogadores conduzirem.",
-    fam:["prgCarry","dribbles","pib"], minPlayers:3,
+    desc:"Transição rápida conduzindo a bola. Ativa se carregar pra frente (conduções, dribles e passes na área) for o forte do seu time e 2+ jogadores conduzirem.",
+    fam:["prgCarry","dribbles","pib"], minPlayers:2,
     metric:p=>p.prgCarry*2+p.dribbles*2+p.pib, partMin:1},
 };
 // famílias de referência pra calcular a DOMINÂNCIA (proporção interna do time).
@@ -104,24 +104,24 @@ const TACT_NORM={ muralha:39, pressaototal:77, cerebro:186, tridente:6, aereo:20
 // ACIMA DA MÉDIA daquela família o time está, em desvios-padrão (z-score). Assim toda
 // tática ativa com frequência parecida — "dominante" = o time se destacou NAQUILO.
 // Média e desvio medidos em milhares de times reais de 5 jogadores nos jogos apurados.
-const TACT_MEAN={ muralha:14.16, pressaototal:28.26, cerebro:16.34, tridente:2, aereo:17.92, contra:22.28 };
-const TACT_SD={ muralha:8.37, pressaototal:9.86, cerebro:8.48, tridente:2.5, aereo:8.32, contra:10.21 };
+const TACT_MEAN={ muralha:13.04, pressaototal:26.56, cerebro:16.86, tridente:7.12, aereo:19.53, contra:13.24 };
+const TACT_SD={ muralha:6.91, pressaototal:9.36, cerebro:8.48, tridente:5.10, aereo:9.03, contra:8.35 };
 // z-score mínimo por tática pra a família contar como "estilo do time".
 // Ajustado por tática (não global) pra equilibrar a frequência de ativação entre as 6
 // (todas ~16-24% nos 8 jogos limpos). Régua por-tática: menos elegante que um valor único,
 // porém empareia a viabilidade estratégica. Revisar quando houver mais jogos.
-const TACT_ZTHRESH={ muralha:1.6, pressaototal:0.28, cerebro:0.35, tridente:0, aereo:0, contra:-0.3 };
+const TACT_ZTHRESH={ muralha:0.9, pressaototal:0.85, cerebro:0.85, tridente:0.8, aereo:0.85, contra:0.85 };
 const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no mapa
 // REGRA ANTIGA (v1): usada SÓ pelos jogos já apurados antes do reboot (match.tacticRules==="v1"),
 // pra não recalcular pontuações que já valeram. Jogos novos usam o z-score acima.
 // v1 = top-3 famílias dominantes + NORM antigo + participação antiga (tridente/aereo pediam 3 jogadores).
 const TACT_NORM_V1={ muralha:45, pressaototal:70, cerebro:113, tridente:11, aereo:26, contra:28 };
-const TACT_PART_V1={ tridente:{minPlayers:3,partMin:2}, aereo:{minPlayers:3,partMin:2} }; // antes do afrouxamento
+const TACT_PART_V1={ tridente:{minPlayers:2,partMin:2}, aereo:{minPlayers:2,partMin:2} }; // antes do afrouxamento
 const TACT_FAMILIES={
-  muralha:p=>p.block*3+p.clearance+p.aerial,
-  pressaototal:p=>p.recovery+p.tklint*1.5+p.fouls,
+  muralha:p=>p.block*2+p.clearance+p.blockShot*4,
+  pressaototal:p=>p.recovery+splitTkl(p).tackle*1.5+splitTkl(p).intercept*1.5,
   cerebro:p=>p.prgp*0.15+p.sca*2+p.gca*3+(p.assists?p.assists.length:0)*3,
-  tridente:p=>(p.sots?p.sots.length:0)+(p.goals?p.goals.length:0)*2,
+  tridente:p=>(p.goals?p.goals.length:0)*3+(p.sots?p.sots.length:0)*2+p.wasFouled,
   aereo:p=>p.aerial*2+p.accCross*3+p.longBall,
   contra:p=>p.prgCarry*2+p.dribbles*2+p.pib,
 };
@@ -139,7 +139,10 @@ const TACT_FAMILIES_V1={
 function normP(raw){
   return Object.assign({
     min:0, started:false, goals:[], assists:[], sots:[], dribbles:0, prgp:0, pib:0, tib:0,
-    sca:0, gca:0, tklint:0, block:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
+    sca:0, gca:0, tklint:0, block:0, blockShot:0, recovery:0, aerial:0, clearance:0, fouls:0, dribbledPast:0,
+    // tackle/intercept: desarmes e interceptações SEPARADOS (tklint continua sendo a soma, p/ pontuação base e jogos antigos).
+    // Usados só nas táticas: Gegenpress=tackle (desarme), Estacionar Ônibus=intercept (interceptação).
+    tackle:0, intercept:0,
     yellow:0, red:null, errGoal:0, errShot:0, penCom:0, accCross:0, inaccCross:0, gk:null, ownGoal:0,
     wasFouled:0, longBall:0, prgCarry:0, dispossessed:0, penaltyWon:0,
     // disputa de pênaltis (shootout): psConv=convertidos | psMiss=NÃO convertidos do batedor (fora OU defendido) | psSave=defesas do GK
@@ -147,6 +150,14 @@ function normP(raw){
     // dados de finalização (capturados do shotmap): bola parada e chute de fora
     setPieceSot:0, setPieceGoals:0, longSot:0, longGoals:0
   }, raw||{});
+}
+// Fallback: jogos antigos só têm tklint (soma). Se tackle/intercept não vierem,
+// estima ~55% desarme / ~45% interceptação pra as táticas novas funcionarem retroativamente.
+function splitTkl(p){
+  if((p.tackle||0)===0 && (p.intercept||0)===0 && (p.tklint||0)>0){
+    return { tackle: p.tklint*0.55, intercept: p.tklint*0.45 };
+  }
+  return { tackle: p.tackle||0, intercept: p.intercept||0 };
 }
 
 function makeEngine(match){
