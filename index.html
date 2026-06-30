@@ -440,28 +440,28 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 .face-inline .txt{min-width:0}
 
 
-/* ===== VERSÃO PC (telas largas) — pool e escalação lado a lado ===== */
+/* ===== VERSÃO PC (telas largas) ===== */
 .build-cols{display:block} /* mobile: empilhado, sem mudança */
 @media (min-width:900px){
-  /* o shell respira no desktop */
-  .app{padding-left:24px;padding-right:24px}
-  .shell{max-width:1180px;padding-top:18px}
+  /* o shell ocupa a tela toda (com margem), não fica preso numa coluna */
+  .app{padding-left:3vw;padding-right:3vw}
+  .shell{max-width:none;width:100%;padding-top:18px}
   /* duas colunas: escalação/tática/química à esquerda, pool grudado à direita */
-  .build-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:18px;align-items:start}
+  .build-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,460px);gap:22px;align-items:start}
   .build-left{min-width:0}
   .build-right{min-width:0;position:sticky;top:14px}
-  /* pool mais alto no PC (sobra tela vertical) */
   .build-right .pool{max-height:calc(100vh - 150px)}
-  /* táticas: cabem mais por linha em vez de scroll horizontal */
+  /* táticas: lado a lado em vez de scroll horizontal */
   .tacts{flex-wrap:wrap}
-  .tact{flex:1 1 calc(50% - 5px);min-width:200px}
-  /* lista de jogos da home em grade de cards */
-  .legendbar~.roomrow.gamecard, .roomrow.gamecard{}
+  .tact{flex:1 1 calc(33.333% - 8px);min-width:220px}
+  /* destaque/jogos da home: grade de cards aproveitando a largura */
+  .legendbar{max-width:none}
 }
-@media (min-width:1280px){
-  .shell{max-width:1320px}
-  .build-cols{grid-template-columns:minmax(0,1fr) 460px}
-  .tact{flex:1 1 calc(33.333% - 7px)}
+@media (min-width:1500px){
+  /* monitores grandes: não deixa as linhas absurdamente largas, mas usa bem o espaço */
+  .shell{max-width:1500px;margin:0 auto}
+  .build-cols{grid-template-columns:minmax(0,1fr) 480px}
+  .tact{flex:1 1 calc(25% - 9px)}
 }
 
 </style>
@@ -498,7 +498,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="games-part26.js?v=20260628-pool-v19-gknerf"></script>
 <script src="games-part27.js?v=20260630-nldmar-apurado"></script>
 <script src="games-legacy-tactic-lock.js?v=20260630-lock"></script>
-<script src="flags.js?v=20260627-escudos-clube"></script>
+<script src="flags.js?v=20260630-pc-imgflags"></script>
 <script src="fotos-copa.js?v=20260628-fix-ederson-sucic"></script>
 <script src="fotos-brasileirao.js?v=20260627-faces-blocos-1e2"></script>
 <script>
