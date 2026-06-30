@@ -76,16 +76,14 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     }
     return out;
   }
-  // acha a persona de um jogador (por nome|pos, com variantes e fallback de prefixo)
   var _prefixIdx=null;
   function buildPrefixIdx(MAP){
-    // indexa: "primeiranome|POS" -> [lista de personas] (pra casar nome curto tipo "Alisson")
     var idx={};
     for(var k in MAP){
       var sep=k.lastIndexOf("|"); if(sep<0) continue;
       var nm=k.slice(0,sep), pos=k.slice(sep+1);
       var first=nm.split(" ")[0];
-      if(first===nm) continue; // já é nome simples, não precisa
+      if(first===nm) continue;
       var pk=first+"|"+pos;
       if(!idx[pk]) idx[pk]=[];
       if(idx[pk].indexOf(MAP[k])<0) idx[pk].push(MAP[k]);
@@ -96,36 +94,26 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     var MAP=window.PERSONA_MAP; if(!MAP) return null;
     var vs=variants(name);
     for(var i=0;i<vs.length;i++){ if(MAP[vs[i]+"|"+pos]) return MAP[vs[i]+"|"+pos]; }
-    // fallback: nome curto (uma palavra) que é o primeiro nome de alguém único na posição
-    // ex: pool manda "Alisson"/GK, base tem "alisson becker|GK" → casa se for o único
     var nn=norm(name);
     if(nn.indexOf(" ")<0){
       if(!_prefixIdx) _prefixIdx=buildPrefixIdx(MAP);
       var cands=_prefixIdx[nn+"|"+pos];
-      if(cands && cands.length===1) return cands[0]; // só casa se não houver ambiguidade
+      if(cands && cands.length===1) return cands[0];
     }
-    // fallback de PREFIXO: o nome do pool é o início de um nome mais completo na base.
-    // Ex.: pool="Pau Cubarsí", base tem "pau cubarsi paredes|DEF". Casa se a posição
-    // bate e há correspondência ÚNICA (evita pegar o jogador errado).
     if(nn.indexOf(" ")>=0){
       var pfxHits=[], pfxSeen={};
       for(var k2 in MAP){
         var sp=k2.lastIndexOf("|"); if(sp<0) continue;
-        if(k2.slice(sp+1)!==pos) continue;            // mesma posição só
+        if(k2.slice(sp+1)!==pos) continue;
         var base=k2.slice(0,sp);
-        if(base===nn || base.indexOf(nn+" ")===0){    // base começa com o nome do pool
+        if(base===nn || base.indexOf(nn+" ")===0){
           var pv=MAP[k2];
           if(!pfxSeen[pv]){ pfxSeen[pv]=1; pfxHits.push(pv); }
-          if(pfxHits.length>1) break;                 // ambíguo, desiste
+          if(pfxHits.length>1) break;
         }
       }
       if(pfxHits.length===1) return pfxHits[0];
     }
-    // fallback final: o nome existe em OUTRA posição. Aceita se TODAS as chaves que
-    // batem apontam pra mesma persona (sem ambiguidade entre homônimos).
-    // resolve Neymar (ATT na pool, MID na base), Raphinha (MID/ATT), etc.
-    // IMPORTANTE: goleiro e jogador de linha nunca se cruzam — são mundos separados.
-    // Sem isso, "Alexander Schlager"/GK herdaria a persona de "Xaver Schlager"/MID.
     var POSES = (pos==="GK") ? ["GK"] : ["DEF","MID","ATT"];
     var hits=[];
     for(var vi=0; vi<vs.length; vi++){
@@ -133,19 +121,16 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
         var key=vs[vi]+"|"+POSES[pi];
         if(MAP[key] && hits.indexOf(MAP[key])<0) hits.push(MAP[key]);
       }
-      if(hits.length>1) break; // ambíguo, desiste
+      if(hits.length>1) break;
     }
     if(hits.length===1) return hits[0];
-    return "camaleao"; // sem dado ou ambíguo → coringa
+    return "camaleao";
   };
-  // calcula química do time: recebe lista [{name,pos}] dos titulares
   window.computeQuimica = function(players){
     var Q=window.QUIMICA; if(!Q) return null;
     var personas=players.map(function(p){return window.personaOf(p.name,p.pos);}).filter(Boolean);
-    // conta cada persona
     var count={}; personas.forEach(function(pe){count[pe]=(count[pe]||0)+1;});
     var bonus=0, hits=[];
-    // 1) combos especiais (cada par presente conta uma vez)
     Q.COMBOS.forEach(function(c){
       var a=c.par[0], b=c.par[1];
       if(count[a] && count[b]){
@@ -153,7 +138,6 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
         hits.push({tipo:"combo", nome:c.nome, txt:c.txt, pts:c.pts, ico:(Q.PERSONAS[a].ico+Q.PERSONAS[b].ico)});
       }
     });
-    // 2) reforço de iguais (maior faixa atingida por persona) — camaleão NÃO conta (não é identidade)
     for(var pe in count){
       if(pe==="camaleao") continue;
       var nrep=count[pe];
@@ -170,8 +154,6 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     return {bonus:Math.round(bonus*10)/10, hits:hits, personas:personas, count:count};
   };
 
-  // sugere combos que FALTAM pouco: pra cada combo não-ativo, diz se você já tem
-  // uma das duas personas (falta só a outra). Retorna lista ordenada por pts.
   window.suggestQuimica = function(players){
     var Q=window.QUIMICA; if(!Q) return [];
     var personas=players.map(function(p){return window.personaOf(p.name,p.pos);}).filter(Boolean);
@@ -179,15 +161,13 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
     var sugg=[];
     Q.COMBOS.forEach(function(c){
       var a=c.par[0], b=c.par[1];
-      if(count[a] && count[b]) return; // já ativo
-      // tem um dos dois? sugere o que falta
+      if(count[a] && count[b]) return;
       if(count[a] && !count[b]){
         sugg.push({pts:c.pts, nome:c.nome, tem:Q.PERSONAS[a], falta:Q.PERSONAS[b]});
       } else if(count[b] && !count[a]){
         sugg.push({pts:c.pts, nome:c.nome, tem:Q.PERSONAS[b], falta:Q.PERSONAS[a]});
       }
     });
-    // dedup por persona que falta (mostra o melhor combo por persona faltante)
     var bestByFalta={};
     sugg.forEach(function(s){
       var k=s.falta.nome;
@@ -204,13 +184,12 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
   window.ensurePersonaMap=function(){
     if(window.PERSONA_MAP) return Promise.resolve(window.PERSONA_MAP);
     if(_p) return _p;
-    _p=fetch("persona-map.json?v=20260630-williams")
+    _p=fetch("persona-map.json?v=20260630-voador-fix")
       .then(function(r){return r.ok?r.json():null;})
       .then(function(j){window.PERSONA_MAP=j||{};return window.PERSONA_MAP;})
       .catch(function(){window.PERSONA_MAP={};return window.PERSONA_MAP;});
     return _p;
   };
-  // carrega cedo (não bloqueia): assim a química já está pronta quando o user monta
   if(typeof document!=="undefined" && document.addEventListener){
     document.addEventListener("DOMContentLoaded",function(){window.ensurePersonaMap();});
   } else if(typeof window!=="undefined" && window.ensurePersonaMap){ try{window.ensurePersonaMap();}catch(e){} }
