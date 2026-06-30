@@ -181,7 +181,11 @@ function buildHTML(){
   const spent=used.reduce((a,id)=>a+(id===s.BENCH?0:(byId[id]?byId[id].price:0)),0);
   const left=100-spent;
   const bcap=benchCap(s,byId); // teto de preço do banco = titular mais barato escalado (null se nenhum)
-  const TAC=window.ENGINE_TACTICS;
+  // TÁTICAS: instancia o engine com o match atual pra pegar as táticas JÁ
+  // processadas pelo Modo B (Ataque Total reativado + descrições das metas).
+  // Pré-jogo: usa o match do prepool (ou um placeholder pendente) pra decidir o modo.
+  const _matchForTac = APP.match || {status:"pending"};
+  const TAC=(window.makeEngine ? window.makeEngine(_matchForTac).TACTICS : window.ENGINE_TACTICS);
   const inRound=APP.roundId&&APP.roundRooms.some(rr=>rr.room_id===APP.roomId);
   const poolClosedOutOfRound = !inRound && APP.roomMeta && APP.roomMeta.status!=="open" && !(APP.match&&APP.match.status==="finished");
   const gameLocked=(inRound&&roomLockedInRound(APP.roomId)) || poolClosedOutOfRound;
@@ -305,7 +309,7 @@ function buildHTML(){
     contra:       "4+ dribles ou 91+ passes progressivos",
     tridente:     "3+ finalizações ou 2+ gols",
   };
-  function _modeBon(){ return !!(APP.match && (APP.match.tactModeB===true || (window.ENGINE_MODEB_DEFAULT && APP.match.tactModeB!==false))); }
+  function _modeBon(){ var mt=APP.match||{status:"pending"}; return !!(mt.tactModeB===true || (window.ENGINE_MODEB_DEFAULT && mt.tactModeB!==false)); }
   function tactEffectHTML(t, key){
     if(_modeBon()){
       const meta=TACT_B_GOALS_UI[key]||"";
