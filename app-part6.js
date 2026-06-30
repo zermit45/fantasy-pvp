@@ -429,7 +429,7 @@ function quimicaGuideHTML(){
   const sec=(t)=>`<div style="font-family:'Saira Condensed';font-weight:800;font-size:15px;letter-spacing:.03em;text-transform:uppercase;color:var(--amber);margin:16px 0 4px">${t}</div>`;
   return `<div class="modal" onclick="toggleQuimicaGuide()"><div class="box" onclick="event.stopPropagation()" style="max-height:85vh;overflow:auto">
     <div class="h2 disp" style="color:var(--amber)">🧬 Guia de Química</div>
-    <p class="p" style="margin:4px 0 2px;font-size:12px;line-height:1.5">Cada jogador tem uma <b style="color:var(--chalk)">personalidade</b> derivada do estilo dele na temporada. Você ganha <b style="color:var(--green)">bônus de química</b> de dois jeitos: <b>combinando</b> personalidades que se completam, ou <b>repetindo</b> a mesma. O bônus soma no total do time (teto de +${Q.CAP.toFixed(0)}), separado da tática.</p>
+    <p class="p" style="margin:4px 0 2px;font-size:12px;line-height:1.5">Cada jogador tem uma <b style="color:var(--chalk)">personalidade</b> derivada do estilo dele na temporada. Você ganha <b style="color:var(--green)">bônus de química</b> de dois jeitos: <b>combinando</b> personalidades que se completam, ou <b>repetindo</b> a mesma. O bônus soma no total do time (teto de +${Q.CAP.toFixed(1)}), separado da tática.</p>
 
     ${sec("🧮 Como a conta funciona")}
     <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px">É um bônus <b style="color:var(--chalk)">por time</b>, não por jogador — soma <b>uma vez só</b> no seu total, não multiplica nada em cada carta.</p>
