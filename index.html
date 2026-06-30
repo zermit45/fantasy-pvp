@@ -443,6 +443,29 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 /* ===== VERSÃO PC (telas largas) ===== */
 .build-cols{display:block} /* mobile: empilhado, sem mudança */
 @media (min-width:900px){
+  /* === PC: elementos mais altos e fontes maiores (menos "achatado") === */
+  /* botões grandes de navegação (Partidas, Rodadas, Mini-rodadas, Ligas, Mercado) */
+  .navtab{padding:20px 14px;font-size:16px;border-radius:14px}
+  .navtab .ic{font-size:18px}
+  .navtab .ct{font-size:12px}
+  /* barras de busca mais altas e legíveis */
+  .input{padding:17px 16px;font-size:17px;border-radius:13px}
+  /* toggles "A jogar / Finalizados" e abas de posição */
+  .ptab{padding:15px 10px;font-size:14px;border-radius:11px}
+  /* cartões de estatística (A jogar / Finalizadas / Escalações) maiores */
+  .quickstat{padding:20px 14px;border-radius:14px}
+  .quickstat b{font-size:30px}
+  .quickstat span{font-size:11px;margin-top:6px}
+  /* card do jogo em destaque / próximo: mais respiro vertical */
+  .gamecard{padding:18px 16px}
+  .gamecard .nm{font-size:17px}
+  /* botões de ação primários (Escalar time, Salvar, etc.) mais altos */
+  .btn{padding:17px;font-size:16px}
+  /* buscas não esticam infinito (linha legível), mas centralizadas */
+  #playerSearchInput, #homeSearchInput, #draftSearchInput{max-width:920px}
+  /* botões de navegação: 5 colunas confortáveis em telas largas em vez de 2 gigantes */
+  .navtabs{gap:10px}
+  .navtab{min-width:calc(33.333% - 7px)}
   /* o shell ocupa a tela toda (com margem), não fica preso numa coluna */
   .app{padding-left:3vw;padding-right:3vw}
   .shell{max-width:none;width:100%;padding-top:18px}
