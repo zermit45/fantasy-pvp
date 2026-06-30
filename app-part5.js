@@ -300,19 +300,37 @@ function buildHTML(){
     </div>`;
   }
 
-  // ── condições estruturadas por tática (espelham o engine) — pra lista legível ──
-  const TACT_B_CONDS_UI = {
-    muralha:      [["Cortes",13],["Duelos aéreos",7]],
-    pressaototal: [["Recuperações",24],["Desarmes",12]],
-    cerebro:      [["Passes progressivos",88],["Assistências",2]],
-    aereo:        [["Duelos aéreos",7],["Cruzamentos certos",3]],
-    contra:       [["Dribles",4],["Passes progressivos",91]],
-    tridente:     [["Finalizações",3],["Gols",2]],
+  // ── condições estruturadas por tática — LIDAS DIRETO DO ENGINE ──
+  // (window.ENGINE_TACT_B_CONDS) pra UI e cálculo NUNCA dessincronizarem.
+  // Só traduzimos a chave da stat pro rótulo em português; os números vêm do engine.
+  const TACT_STAT_LABEL = {
+    clearance:"Cortes", block:"Bloqueios", recovery:"Recuperações", tklint:"Desarmes",
+    prgp:"Passes progressivos", sca:"Criação de chances", aerial:"Duelos aéreos",
+    accCross:"Cruzamentos certos", prgCarry:"Conduções progressivas", dribbles:"Dribles",
+    shots:"Finalizações", goals:"Gols", assists:"Assistências"
   };
+  // fallback caso o engine não exponha (versão antiga em cache): metas atuais hardcoded.
+  const _CONDS_FALLBACK = {
+    muralha:      [["clearance",12],["block",3]],
+    pressaototal: [["recovery",24],["tklint",12]],
+    cerebro:      [["prgp",83],["sca",6]],
+    aereo:        [["aerial",8],["accCross",3]],
+    contra:       [["prgCarry",8],["dribbles",5]],
+    tridente:     [["shots",3],["goals",2]],
+  };
+  function _condsUI(key){
+    const src=(window.ENGINE_TACT_B_CONDS && window.ENGINE_TACT_B_CONDS[key]) || _CONDS_FALLBACK[key] || [];
+    // engine usa [{stat,goal}]; fallback usa [[stat,goal]] — normaliza os dois
+    return src.map(c=>{
+      const stat = Array.isArray(c) ? c[0] : c.stat;
+      const goal = Array.isArray(c) ? c[1] : c.goal;
+      return [TACT_STAT_LABEL[stat]||stat, goal];
+    });
+  }
   function _modeBon(){ var mt=APP.match||{status:"pending"}; return !!(mt.tactModeB===true || (window.ENGINE_MODEB_DEFAULT && mt.tactModeB!==false)); }
   function tactEffectHTML(t, key){
     if(_modeBon()){
-      const conds=TACT_B_CONDS_UI[key]||[];
+      const conds=_condsUI(key);
       const linhas=conds.map((c,i)=>{
         const sep = i>0 ? `<div class="bou">— OU —</div>` : "";
         return `${sep}<div class="bcond"><span class="bdot"></span><span class="bcl">${c[0]} ≥ ${c[1]}</span></div>`;
