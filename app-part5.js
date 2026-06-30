@@ -226,9 +226,10 @@ function buildHTML(){
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
-  const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
+  const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",sot:"finalizações no gol",assist:"assistências",sca:"criação",gca:"jogada do gol",
     dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
-    tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
+    tklint:"desarmes",tackle:"desarmes",intercept:"interceptações",block:"bloqueios",blockShot:"bloqueios de chute",
+    recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",wasFouled:"faltas sofridas",
     accCross:"cruzamentos",fouls:"faltas",prgCarry:"conduções",longBall:"lançamentos"};
   // cor-tema por tática (casa com as variáveis --tac-* do CSS)
   const TACT_COLOR={muralha:"var(--tac-muralha)",pressaototal:"var(--tac-pressaototal)",cerebro:"var(--tac-cerebro)",tridente:"var(--tac-tridente)",aereo:"var(--tac-aereo)",contra:"var(--tac-contra)"};
@@ -298,7 +299,13 @@ function buildHTML(){
 
   function tactEffectHTML(t){
     const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
-    const uniq=[...new Set(fam)];
+    let uniq=[...new Set(fam)];
+    // exibição: junta "criação" (sca) + "jogada do gol" (gca) num label só, pra não poluir
+    if(uniq.includes("criação") && uniq.includes("jogada do gol")){
+      uniq = uniq.filter(x=>x!=="criação" && x!=="jogada do gol");
+      const idx = (t.fam||[]).indexOf("sca");
+      uniq.splice(idx>=0?idx:uniq.length, 0, "criação de chances");
+    }
     return `<div class="teff"><div class="up">▲ ativa = bônus nas ações dela</div><div class="foco">depende de: <b>${uniq.join(", ")}</b></div></div>`;
   }
 
