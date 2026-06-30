@@ -300,20 +300,24 @@ function buildHTML(){
     </div>`;
   }
 
-  // ── METAS DO MODO B (espelham as do engine) — usadas só quando Modo B ligado ──
-  const TACT_B_GOALS_UI = {
-    muralha:      "20+ cortes ou 9+ duelos aéreos",
-    pressaototal: "24+ recuperações ou 12+ desarmes",
-    cerebro:      "88+ passes progressivos ou 2+ assistências",
-    aereo:        "7+ duelos aéreos ou 3+ cruzamentos certos",
-    contra:       "4+ dribles ou 91+ passes progressivos",
-    tridente:     "3+ finalizações ou 2+ gols",
+  // ── condições estruturadas por tática (espelham o engine) — pra lista legível ──
+  const TACT_B_CONDS_UI = {
+    muralha:      [["Cortes",13],["Duelos aéreos",7]],
+    pressaototal: [["Recuperações",24],["Desarmes",12]],
+    cerebro:      [["Passes progressivos",88],["Assistências",2]],
+    aereo:        [["Duelos aéreos",7],["Cruzamentos certos",3]],
+    contra:       [["Dribles",4],["Passes progressivos",91]],
+    tridente:     [["Finalizações",3],["Gols",2]],
   };
   function _modeBon(){ var mt=APP.match||{status:"pending"}; return !!(mt.tactModeB===true || (window.ENGINE_MODEB_DEFAULT && mt.tactModeB!==false)); }
   function tactEffectHTML(t, key){
     if(_modeBon()){
-      const meta=TACT_B_GOALS_UI[key]||"";
-      return `<div class="teff"><div class="up">▲ ativa = +5 no time (fixo)</div><div class="foco">seu time precisa: <b>${meta}</b></div></div>`;
+      const conds=TACT_B_CONDS_UI[key]||[];
+      const linhas=conds.map((c,i)=>{
+        const sep = i>0 ? `<div class="bou">— OU —</div>` : "";
+        return `${sep}<div class="bcond"><span class="bdot"></span><span class="bcl">${c[0]} ≥ ${c[1]}</span></div>`;
+      }).join("");
+      return `<div class="teff bmeta"><div class="up">▲ bater 1 das metas = <b style="color:var(--green)">+5 no time</b></div><div class="blist">${linhas}</div></div>`;
     }
     const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
     const uniq=[...new Set(fam)];

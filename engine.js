@@ -190,7 +190,7 @@ function makeEngine(match){
     }
     // descrições alinhadas às metas do Modo B (mantêm os nomes atuais)
     const DESC_B={
-      muralha:"Defesa raçuda. Ativa se o time travar muito (20+ cortes) ou ganhar o alto (9+ duelos aéreos).",
+      muralha:"Defesa raçuda. Ativa se o time travar muito (13+ cortes) ou ganhar o alto (7+ duelos aéreos).",
       pressaototal:"Pressão alta pra roubar a bola. Ativa se o time recuperar muito (24+) ou desarmar muito (12+).",
       cerebro:"Posse e troca de passes. Ativa se o time trocar muitos passes (88+ progressivos) ou criar assistências (2+).",
       aereo:"Bola alta e jogo direto. Ativa se o time ganhar o alto (7+ aéreos) ou cruzar bem (3+ cruzamentos certos).",
