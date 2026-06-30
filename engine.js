@@ -125,12 +125,15 @@ const TACT_B_BONUS=6;            // bônus fixo total do time quando a tática a
 // condições por tática: ativa se QUALQUER {stat>=goal} bater.
 // stats lidas do jogador apurado: prgp(passes), dribbles, recovery, tklint(tackles),
 // clearance, aerial, sots.length(shots), goals.length, accCross(crosses), assists.length
+// CALIBRADO 30/06/2026: metas niveladas p/ todas as taticas ativarem ~22%
+// (medido sobre 36 jogos apurados x 144k escalacoes reais). "Sem nenhuma" ~37%.
+// tridente fixado em shots>=3 (seu piso natural de 18%); demais ajustadas pra acompanhar.
 const TACT_B_CONDS={
-  muralha:      [{stat:"clearance",goal:13},{stat:"aerial",goal:7}],
+  muralha:      [{stat:"clearance",goal:12},{stat:"block",goal:3}],
   pressaototal: [{stat:"recovery",goal:24},{stat:"tklint",goal:12}],
-  cerebro:      [{stat:"prgp",goal:88},{stat:"assists",goal:2}],
-  aereo:        [{stat:"aerial",goal:7},{stat:"accCross",goal:3}],
-  contra:       [{stat:"dribbles",goal:4},{stat:"prgp",goal:91}],
+  cerebro:      [{stat:"prgp",goal:83},{stat:"sca",goal:6}],
+  aereo:        [{stat:"aerial",goal:8},{stat:"accCross",goal:3}],
+  contra:       [{stat:"prgCarry",goal:8},{stat:"dribbles",goal:5}],
   tridente:     [{stat:"shots",goal:3},{stat:"goals",goal:2}],
 };
 // helper: soma de uma stat de um jogador normalizado (trata arrays)
@@ -186,15 +189,15 @@ function makeEngine(match){
     TACTICS = {};
     for(const k in ENGINE_BASE_TACTICS){
       TACTICS[k] = Object.assign({}, ENGINE_BASE_TACTICS[k]);
-      if(k==="tridente"){ TACTICS[k].legacy=false; TACTICS[k].desc="Ataque direto pra finalizar. Ativa se o seu time chutar bastante a gol (finalizações) ou marcar (2+ gols)."; }
+      if(k==="tridente"){ TACTICS[k].legacy=false; TACTICS[k].desc="Ataque pesado pra finalizar. Ativa se o time chutar muito a gol (3+ finalizações) ou marcar (2+ gols)."; }
     }
     // descrições alinhadas às metas do Modo B (mantêm os nomes atuais)
     const DESC_B={
-      muralha:"Defesa raçuda. Ativa se o time travar muito (13+ cortes) ou ganhar o alto (7+ duelos aéreos).",
-      pressaototal:"Pressão alta pra roubar a bola. Ativa se o time recuperar muito (24+) ou desarmar muito (12+).",
-      cerebro:"Posse e troca de passes. Ativa se o time trocar muitos passes (88+ progressivos) ou criar assistências (2+).",
-      aereo:"Bola alta e jogo direto. Ativa se o time ganhar o alto (7+ aéreos) ou cruzar bem (3+ cruzamentos certos).",
-      contra:"Transição rápida conduzindo a bola. Ativa se o time driblar muito (4+) ou conduzir/passar muito pra frente (91+ passes progressivos).",
+      muralha:"Defesa raçuda no próprio campo. Ativa se o time travar muito (12+ cortes) ou bloquear bastante (3+ bloqueios).",
+      pressaototal:"Pressão alta pra roubar a bola. Ativa se o time recuperar muito (24+ recuperações) ou desarmar muito (12+ desarmes).",
+      cerebro:"Criação e troca de passes. Ativa se o time trocar muitos passes (83+ progressivos) ou criar muitas chances (6+ criações de finalização).",
+      aereo:"Bola alta e jogo direto. Ativa se o time dominar o alto (8+ duelos aéreos) ou cruzar bem (3+ cruzamentos certos).",
+      contra:"Transição rápida conduzindo a bola. Ativa se o time conduzir muito pra frente (8+ conduções progressivas) ou driblar muito (5+ dribles).",
     };
     for(const k in DESC_B){ if(TACTICS[k]) TACTICS[k].desc=DESC_B[k]; }
   }
@@ -559,7 +562,7 @@ function makeEngine(match){
     if(useModeB){
       const teamStat={};
       // soma de cada stat usada pelas condições, no time todo (titulares que entraram)
-      const allStats=["clearance","aerial","recovery","tklint","prgp","dribbles","shots","goals","accCross","assists"];
+      const allStats=["clearance","aerial","recovery","tklint","prgp","dribbles","shots","goals","accCross","assists","block","sca","prgCarry"];
       for(const s of allStats){teamStat[s]=0;}
       for(const p of ps){for(const s of allStats){teamStat[s]+=_tactBStat(p,s);}}
       const status={}, bMeta={};
