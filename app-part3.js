@@ -702,7 +702,7 @@ function homeHTML(){
     } else {
       // A JOGAR: jogos de HOJE viram esteira de destaque; o resto vai pra lista larga
       const hoje=lista.filter(j=>j.ki&&j.ki.rel==="Hoje").sort((a,b)=>(a.ts||Infinity)-(b.ts||Infinity));
-      const resto=lista.filter(j=>!(j.ki&&j.ki.rel==="Hoje"));
+      const resto=lista.filter(j=>!(j.ki&&j.ki.rel==="Hoje")).sort((a,b)=>(a.ts||Infinity)-(b.ts||Infinity));
       const admBtn=(j,cls)=>{
         if(!isAdmin())return "";
         if(j.archived)return `<button class="cbtn ${cls}" onclick="event.stopPropagation();unarchiveGame('${j.room_id}')" title="Desarquivar">↩</button>`;
@@ -735,7 +735,16 @@ function homeHTML(){
         resto.forEach(j=>{
           const isOpen=j.status==="open";
           const fo=flagsOf(j.room_id);
-          const hora=j.ki?(j.ki.rel?j.ki.rel+" "+j.ki.hh:j.ki.hh):"a definir";
+          // sempre mostra a DATA (dia da semana + dd/mm) junto da hora, pra nunca
+          // ficar só "16:00" solto. dayKey já vem como "dow dd/mm".
+          // Hoje/Amanhã/Ontem ganham rótulo extra na frente pra leitura rápida.
+          let hora="a definir";
+          if(j.ki){
+            const k=j.ki;
+            const ddmm=(k.dayKey.split(" ")[1])||"";   // "dd/mm" de "dow dd/mm"
+            const dia=k.rel ? `${k.rel} · ${ddmm}` : k.dayKey;
+            hora=`${dia} · ${k.hh}`;
+          }
           listaHTML+=`<div class="sr-row ${isOpen?"":"closed"}" onclick="go('room','${j.room_id}')">
             <div class="sr-row-l"><span class="sr-fl2">${fo.hf}</span><span class="sr-nm">${esc(fo.hn||j.match_name)}</span></div>
             <span class="sr-vs2">×</span>
