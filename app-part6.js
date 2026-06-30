@@ -121,7 +121,6 @@ function resultHTML(){
           </div>`;
         }
       });
-      html+=quimicaLineHTML(s.quimica, s.quimicaPts, "rank"+i);
     }
     html+=`</div></div>`;
   });
@@ -134,7 +133,6 @@ function resultHTML(){
   if(mine){
     html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
     mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
-    html+=quimicaLineHTML(mine.quimica, mine.quimicaPts, "mine");
     html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
     if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
@@ -301,7 +299,9 @@ function dreamTeamHTML(){
           </div>`;
         }
       }
-      html+=quimicaLineHTML(best.quimica, best.quimicaPts, "dream");
+      if(best.quimicaPts>0){
+        html+=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px"><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span></span><span class="v mono plus">+${best.quimicaPts.toFixed(1)}</span></div>`;
+      }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }
   }
@@ -311,33 +311,6 @@ function dreamTeamHTML(){
 let _openRec={};
 let _openRank={};
 function toggleRank(i){_openRank[i]=!_openRank[i];render();}
-// ── QUÍMICA expansível (acordeão) — usada no ranking, na sua apuração e no time ideal ──
-let _openQuim={};
-function toggleQuim(k){_openQuim[k]=!_openQuim[k];render();}
-// monta a linha "Química do time +X.X" clicável; quando aberta, lista os combos/reforços.
-// key precisa ser único por contexto (ex: "rank2", "mine", "dream").
-function quimicaLineHTML(quimObj, quimicaPts, key){
-  // mostra a linha sempre que houver um objeto de química calculado, mesmo que o
-  // bônus seja 0 — assim fica claro que o sistema considerou a química (e não some).
-  if(quimObj==null && !(quimicaPts>0)) return "";
-  const pts=(+quimicaPts)||0;
-  const open=_openQuim[key];
-  const hits=(quimObj&&quimObj.hits)?quimObj.hits:[];
-  const canOpen=hits.length>0;
-  const ptsCol=pts>0?"plus":"";
-  let h=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px;${canOpen?"cursor:pointer":""}" ${canOpen?`onclick="toggleQuim('${key}')"`:""}>`
-    +`<span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:13px">🧬</span>`
-    +`<span style="color:var(--chalk);font-size:12px">Química do time</span>`
-    +`<span style="color:var(--dim);font-size:10px">${pts>0?"(personalidades entrosadas)":"(sem combo neste time)"}</span>`
-    +`${canOpen?` <span style="color:var(--blue);font-size:10px">${open?"▲":"▼"}</span>`:""}</span>`
-    +`<span class="v mono ${ptsCol}">${pts>0?"+":""}${pts.toFixed(1)}</span></div>`;
-  if(open&&canOpen){
-    h+=`<div style="padding:2px 0 4px 8px;border-left:2px solid var(--line);margin:2px 0 4px 6px">`
-      +hits.map(x=>`<div class="line" style="padding:3px 0;font-size:11px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:13px;flex:none">${x.ico}</span><span style="color:var(--chalk)">${esc(x.nome)} <span style="color:var(--dim);font-size:10px">${esc(x.txt)}</span></span></span><span class="v mono plus">+${(+x.pts).toFixed(1)}</span></div>`).join("")
-      +`</div>`;
-  }
-  return h;
-}
 let _openRankPlayer={};
 function toggleRankPlayer(k){_openRankPlayer[k]=!_openRankPlayer[k];render();}
 function receiptHTML(v,idx){
@@ -486,7 +459,7 @@ const HELP={
   liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
   capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
-  tatica:["Tática","Cada tática premia um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque...). Ela dá um BÔNUS nas ações dela se, no fim da partida, seus jogadores produzirem bastante naquilo — e só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, mostramos uma TENDÊNCIA na hora de montar: pelo perfil das posições que você escalou (e do capitão), o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
+  tatica:["Tática","Escolha 1. Cada tática tem um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque, finalização...) e dá um BÔNUS se, no fim da partida, o seu time se sair bem naquele estilo — e é só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, na hora de montar mostramos uma TENDÊNCIA pelo perfil das posições que você escalou (e do capitão): o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
   quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS POR TIME, separado da tática, que vem da MONTAGEM (você vê na hora, não depende do que rola no jogo): some personalidades que se COMPLETAM (ex: 🪄 Maestro que arma + 🎯 Matador que finaliza = bônus) ou REPITA uma identidade (vários do mesmo tipo = time com DNA). O jogo soma TODOS os combos e reforços de uma vez (a ordem não importa) e adiciona ao total do seu time, até um TETO pequeno — passou do teto, o excedente é cortado. É um bônus único do time, não multiplica por jogador. Personalidades aparecem como etiqueta em cada titular."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],

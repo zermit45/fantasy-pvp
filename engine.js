@@ -65,7 +65,7 @@ const TACT_ONUS_PTS  = -1.4;
 // soma de PONTOS típica de cada família num time (medida nos jogos reais) — usada
 // como divisor pra igualar a escala entre táticas de famílias grandes e pequenas.
 const TACT_PTSREF = { muralha:1.21, pressaototal:1.95, cerebro:6.47, tridente:12.3, aereo:1.04, contra:1.4 };
-const TACTICS = {
+const ENGINE_BASE_TACTICS = {
   muralha:{name:"Estacionar o Ônibus",
     desc:"Defesa raçuda no próprio campo. Ativa se travar o jogo (bloqueios, cortes e duelos aéreos) for o ponto forte do seu time e 3+ jogadores defenderem bem.",
     fam:["block","clearance","aerial"], minPlayers:3,
@@ -126,12 +126,12 @@ const TACT_B_BONUS=5;            // bônus fixo total do time quando a tática a
 // stats lidas do jogador apurado: prgp(passes), dribbles, recovery, tklint(tackles),
 // clearance, aerial, sots.length(shots), goals.length, accCross(crosses), assists.length
 const TACT_B_CONDS={
-  muralha:      [{stat:"clearance",goal:18},{stat:"aerial",goal:9}],
+  muralha:      [{stat:"clearance",goal:13},{stat:"aerial",goal:7}],
   pressaototal: [{stat:"recovery",goal:24},{stat:"tklint",goal:12}],
-  cerebro:      [{stat:"prgp",goal:88},{stat:"dribbles",goal:5}],
+  cerebro:      [{stat:"prgp",goal:88},{stat:"assists",goal:2}],
+  aereo:        [{stat:"aerial",goal:7},{stat:"accCross",goal:3}],
+  contra:       [{stat:"dribbles",goal:4},{stat:"prgp",goal:91}],
   tridente:     [{stat:"shots",goal:3},{stat:"goals",goal:2}],
-  aereo:        [{stat:"accCross",goal:4},{stat:"assists",goal:2}],
-  contra:       [{stat:"dribbles",goal:5},{stat:"shots",goal:3}],
 };
 // helper: soma de uma stat de um jogador normalizado (trata arrays)
 function _tactBStat(p,stat){
@@ -177,6 +177,27 @@ function normP(raw){
 
 function makeEngine(match){
   const B = match.tacticRules==="v1" ? BASE_V1 : BASE; // pesos antigos p/ jogos já apurados
+  // ===== MODO B: reativa o Ataque Total (tridente) como 6ª tática =====
+  // No sistema antigo o tridente fica legacy (escondido). No Modo B ele volta,
+  // com descrição própria de finalização. Mantém aposentado fora do Modo B.
+  const _useModeB = (match.tactModeB===true) || (typeof TACT_MODE_B_DEFAULT!=="undefined" && TACT_MODE_B_DEFAULT && match.tactModeB!==false);
+  let TACTICS = ENGINE_BASE_TACTICS;
+  if(_useModeB){
+    TACTICS = {};
+    for(const k in ENGINE_BASE_TACTICS){
+      TACTICS[k] = Object.assign({}, ENGINE_BASE_TACTICS[k]);
+      if(k==="tridente"){ TACTICS[k].legacy=false; TACTICS[k].desc="Ataque direto pra finalizar. Ativa se o seu time chutar bastante a gol (finalizações) ou marcar (2+ gols)."; }
+    }
+    // descrições alinhadas às metas do Modo B (mantêm os nomes atuais)
+    const DESC_B={
+      muralha:"Defesa raçuda. Ativa se o time travar muito (20+ cortes) ou ganhar o alto (9+ duelos aéreos).",
+      pressaototal:"Pressão alta pra roubar a bola. Ativa se o time recuperar muito (24+) ou desarmar muito (12+).",
+      cerebro:"Posse e troca de passes. Ativa se o time trocar muitos passes (88+ progressivos) ou criar assistências (2+).",
+      aereo:"Bola alta e jogo direto. Ativa se o time ganhar o alto (7+ aéreos) ou cruzar bem (3+ cruzamentos certos).",
+      contra:"Transição rápida conduzindo a bola. Ativa se o time driblar muito (4+) ou conduzir/passar muito pra frente (91+ passes progressivos).",
+    };
+    for(const k in DESC_B){ if(TACTICS[k]) TACTICS[k].desc=DESC_B[k]; }
+  }
   const GOALS_TL = match.goals_tl||[];
   const endMin = match.endMin||96;
   function scoreAt(min){let h=0,a=0;for(const g of GOALS_TL){if(g.m<min){g.t===match.homeCode?h++:a++;}}return [h,a];}
@@ -588,5 +609,5 @@ function makeEngine(match){
   return { scorePlayer, squadSum, TACTICS, matchBase:MATCH_BASE };
 }
 
-if (typeof module!=="undefined" && module.exports) module.exports={makeEngine,TACTICS};
-if (typeof window!=="undefined"){ window.makeEngine=makeEngine; window.ENGINE_TACTICS=TACTICS; }
+if (typeof module!=="undefined" && module.exports) module.exports={makeEngine,TACTICS:ENGINE_BASE_TACTICS};
+if (typeof window!=="undefined"){ window.makeEngine=makeEngine; window.ENGINE_TACTICS=ENGINE_BASE_TACTICS; window.ENGINE_MODEB_DEFAULT=(typeof TACT_MODE_B_DEFAULT!=="undefined"&&TACT_MODE_B_DEFAULT); }

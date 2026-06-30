@@ -226,10 +226,9 @@ function buildHTML(){
       ${pl&&sl!=="BENCH"?`<button class="cbtn${APP.captain===sl?" on":""}" onclick="event.stopPropagation();toggleCap('${sl}')">C</button>`:""}
     </div>`;}).join("");
   // rótulos legíveis pras ações de buff/nerf das táticas
-  const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",sot:"finalizações no gol",assist:"assistências",sca:"criação",gca:"jogada do gol",
+  const TACT_LABEL={goal:"gols",sotPts:"chutes/gols",assist:"assistências",sca:"criação",gca:"jogada do gol",
     dribbles:"dribles",prgp:"passes progressivos",pib:"passes na área",tib:"toques na área",
-    tklint:"desarmes",tackle:"desarmes",intercept:"interceptações",block:"bloqueios",blockShot:"bloqueios de chute",
-    recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",wasFouled:"faltas sofridas",
+    tklint:"desarmes",block:"bloqueios",recovery:"recuperações",aerial:"duelos aéreos",clearance:"cortes",
     accCross:"cruzamentos",fouls:"faltas",prgCarry:"conduções",longBall:"lançamentos"};
   // cor-tema por tática (casa com as variáveis --tac-* do CSS)
   const TACT_COLOR={muralha:"var(--tac-muralha)",pressaototal:"var(--tac-pressaototal)",cerebro:"var(--tac-cerebro)",tridente:"var(--tac-tridente)",aereo:"var(--tac-aereo)",contra:"var(--tac-contra)"};
@@ -297,15 +296,23 @@ function buildHTML(){
     </div>`;
   }
 
-  function tactEffectHTML(t){
-    const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
-    let uniq=[...new Set(fam)];
-    // exibição: junta "criação" (sca) + "jogada do gol" (gca) num label só, pra não poluir
-    if(uniq.includes("criação") && uniq.includes("jogada do gol")){
-      uniq = uniq.filter(x=>x!=="criação" && x!=="jogada do gol");
-      const idx = (t.fam||[]).indexOf("sca");
-      uniq.splice(idx>=0?idx:uniq.length, 0, "criação de chances");
+  // ── METAS DO MODO B (espelham as do engine) — usadas só quando Modo B ligado ──
+  const TACT_B_GOALS_UI = {
+    muralha:      "20+ cortes ou 9+ duelos aéreos",
+    pressaototal: "24+ recuperações ou 12+ desarmes",
+    cerebro:      "88+ passes progressivos ou 2+ assistências",
+    aereo:        "7+ duelos aéreos ou 3+ cruzamentos certos",
+    contra:       "4+ dribles ou 91+ passes progressivos",
+    tridente:     "3+ finalizações ou 2+ gols",
+  };
+  function _modeBon(){ return !!(APP.match && (APP.match.tactModeB===true || (window.ENGINE_MODEB_DEFAULT && APP.match.tactModeB!==false))); }
+  function tactEffectHTML(t, key){
+    if(_modeBon()){
+      const meta=TACT_B_GOALS_UI[key]||"";
+      return `<div class="teff"><div class="up">▲ ativa = +5 no time (fixo)</div><div class="foco">seu time precisa: <b>${meta}</b></div></div>`;
     }
+    const fam=(t.fam||[]).map(k=>TACT_LABEL[k]||k);
+    const uniq=[...new Set(fam)];
     return `<div class="teff"><div class="up">▲ ativa = bônus nas ações dela</div><div class="foco">depende de: <b>${uniq.join(", ")}</b></div></div>`;
   }
 
@@ -314,16 +321,15 @@ function buildHTML(){
   // posições escaladas: cada tática é alimentada naturalmente por certas posições.
   // Não é garantia — é "seu time tem cara de" tal estilo.
   const TACT_POS = {
-    muralha:      {DEF:1.0,  GK:0.4,  MID:0.4, ATT:0.0},  // bloqueios/cortes/bloqueios de chute
-    pressaototal: {MID:1.0,  DEF:0.6,  ATT:0.3, GK:0.0},  // recuperações/desarmes/interceptações
-    cerebro:      {MID:1.0,  DEF:0.3,  ATT:0.6, GK:0.0},  // criação/passes (meio + ataque)
-    tridente:     {ATT:1.0,  MID:0.25, DEF:0.0, GK:0.0},  // ataque PURO (finalizar)
-    contra:       {ATT:0.85, MID:0.75, DEF:0.1, GK:0.0},  // ataque + meio (transição)
-    aereo:        {ATT:0.75, DEF:0.85, MID:0.1, GK:0.0},  // ataque + defesa (cabeçada dos dois lados)
+    muralha:      {DEF:1.0, GK:0.6, MID:0.3, ATT:0.0},  // bloqueios/cortes/aéreo
+    pressaototal: {DEF:0.8, MID:1.0, ATT:0.4, GK:0.0},  // recuperações/desarmes
+    cerebro:      {MID:1.0, DEF:0.4, ATT:0.5, GK:0.0},  // criação/passes
+    contra:       {ATT:1.0, MID:0.8, DEF:0.2, GK:0.0},  // conduções/dribles
+    aereo:        {ATT:0.9, DEF:0.9, MID:0.2, GK:0.0},  // duelos aéreos/cruzamentos
+    tridente:     {ATT:1.0, MID:0.5, DEF:0.1, GK:0.0},  // finalizações/gols (Modo B)
   };
-  // estima a tendência: normaliza o score do time contra o melhor caso possível da tática.
-  // Retorna só o PCT cru — o selo (verde/amarelo/cinza) é decidido depois, comparando todas.
-  function tacticTendencyPct(tacKey, s, byId){
+  // estima a tendência: normaliza o score do time contra o melhor caso possível da tática
+  function tacticTendency(tacKey, s, byId){
     const w=TACT_POS[tacKey]; if(!w) return null;
     const TIT=["GK","DEF","MID","ATT","FLEX"];
     let score=0, filled=0;
@@ -335,32 +341,19 @@ function buildHTML(){
       if(APP.captain===sl) wt*=1.5; // capitão puxa o estilo do time
       score+=wt;
     }
-    if(filled<5) return {pct:0, incompleto:true};
+    if(filled<5) return {level:"?", txt:"escale os 5 titulares", pct:0};
+    // baseline: GK+DEF+MID+ATT sempre presentes (formação fixa)
     const base=(w.GK||0)+(w.DEF||0)+(w.MID||0)+(w.ATT||0);
-    const bestFlex=Math.max(w.DEF||0,w.MID||0,w.ATT||0);
-    const max=base+bestFlex+bestFlex*0.5;  // teto (melhor FLEX + capitão ideal)
-    const min=base;                         // piso (FLEX inútil, sem capitão)
+    const bestFlex=Math.max(w.DEF||0,w.MID||0,w.ATT||0);   // melhor FLEX possível
+    const maxWt=Math.max(w.DEF||0,w.MID||0,w.ATT||0);
+    const max=base+bestFlex+maxWt*0.5;  // teto (melhor FLEX + capitão ideal)
+    const min=base;                      // piso (FLEX inútil, sem capitão)
     const pct=(max>min)?Math.max(0,Math.min(100,Math.round((score-min)/(max-min)*100))):50;
-    return {pct, incompleto:false};
-  }
-  // decide o selo de UMA tática à luz do MÁXIMO entre todas:
-  // só a(s) mais provável(is) — topo e empates a ≤8pp — ganha(m) ✅; resto ≥33% vira ➖.
-  function tacticTendency(tacKey, s, byId, maxPct){
-    const r=tacticTendencyPct(tacKey, s, byId);
-    if(!r) return null;
-    if(r.incompleto) return {level:"?", txt:"escale os 5 titulares", pct:0};
-    const pct=r.pct;
     let level, txt;
-    if(pct>=66 && pct>=(maxPct-8)){ level="alta"; txt="✅ tende a ativar"; }
+    if(pct>=66){ level="alta"; txt="✅ tende a ativar"; }
     else if(pct>=33){ level="media"; txt="➖ pode ativar"; }
     else { level="baixa"; txt="⬜ pouco provável"; }
     return {level, txt, pct};
-  }
-  // pré-calcula o maior pct entre todas as táticas não-legacy (pro critério "só topo vira verde")
-  function maxTendPct(s, byId){
-    let m=0;
-    for(const k in TACT_POS){ const r=tacticTendencyPct(k,s,byId); if(r&&!r.incompleto&&r.pct>m) m=r.pct; }
-    return m;
   }
   const TEND_COL={alta:"#34d399",media:"#FFC247",baixa:"#7C879E","?":"#7C879E"};
   function tendBadgeHTML(tend){
@@ -371,8 +364,7 @@ function buildHTML(){
       +(tend.pct?`<div style="flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:${tend.pct}%;height:100%;background:${c}"></div></div>`:``)
       +`</div>`;
   }
-  const _maxTend=maxTendPct(s,byId);
-  const tactsHTML=Object.entries(TAC).filter(([k,t])=>!t.legacy).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";const tend=tacticTendency(k,s,byId,_maxTend);return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t)}${tendBadgeHTML(tend)}</div>`;}).join("");
+  const tactsHTML=Object.entries(TAC).filter(([k,t])=>!t.legacy).map(([k,t])=>{const tc=TACT_COLOR[k]||"var(--amber)";const tend=tacticTendency(k,s,byId);return `<div class="tact${APP.tactic===k?" on":""}" style="--tac:${tc}" onclick="setTactic('${k}')"><div class="ttop"></div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${tactEffectHTML(t,k)}${tendBadgeHTML(tend)}</div>`;}).join("");
   // ── FILTROS COMBINÁVEIS: uma fileira de TIME + uma de POSIÇÃO (aplicam juntos) ──
   const teamTabs=["ALL",pp.home.code,pp.away.code];
   const teamTabsHTML=teamTabs.map(t=>{
@@ -459,7 +451,9 @@ function buildHTML(){
     <div class="slots">${slotsHTML}</div>
     <p class="p" style="font-size:11px;margin:-4px 0 10px;line-height:1.5">🪑 O <b style="color:var(--green)">BANCO é grátis</b> (não gasta moeda), mas só aceita um jogador <b>igual ou mais barato que o seu titular mais barato</b>${bcap!=null?` (hoje: até <b class="mono">${bcap}</b>)`:" (escale um titular primeiro)"}, de qualquer posição. Ele entra se um titular for mal.${helpBtn("banco")}</p>
     <div class="sectionhead"><span>Escolha 1 tática${helpBtn("tatica")}</span><span>${APP.tactic?"selecionada":"pendente"}</span></div>
-    <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">Cada tática dá um <b style="color:var(--green)">bônus</b> nas ações dela se, no fim do jogo, seus jogadores produzirem bastante naquilo. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas — não é garantia, mas indica pra qual estilo ele tem cara. Capitão puxa o estilo.</p>
+    <p class="p" style="font-size:11px;margin-bottom:8px;line-height:1.5">${_modeBon()
+      ? `Cada tática dá um <b style="color:var(--green)">bônus fixo de +5</b> no time se, no fim do jogo, o seu time <b>bater a meta</b> dela (qualquer uma das duas condições). Não bater = sem bônus, sem perda. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas. Capitão puxa o estilo.`
+      : `Cada tática dá um <b style="color:var(--green)">bônus</b> nas ações dela se, no fim do jogo, seus jogadores produzirem bastante naquilo. O selo abaixo mostra a <b>tendência</b> do seu time pelas posições escaladas — não é garantia, mas indica pra qual estilo ele tem cara. Capitão puxa o estilo.`}</p>
     <div class="tacts">${tactsHTML}</div>
   </div>
   ${quimicaBlockHTML(s,byId)}
