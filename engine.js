@@ -120,7 +120,7 @@ const TACT_ZTHRESH_DEFAULT=0.5; // fallback se alguma tática não estiver no ma
 // dividido igualmente entre os 5 titulares. Não bater → +0 (sem ônus).
 // Metas calibradas sobre 5000 times reais misturados (nível difícil, ~25%).
 // Mantém os MESMOS nomes/ícones das táticas atuais.
-const TACT_MODE_B_DEFAULT=false; // ⬅️⬅️⬅️ TROQUE PRA true PRA LIGAR O MODO B (TESTE) EM TODOS OS JOGOS. false = sistema antigo (z-score).
+const TACT_MODE_B_DEFAULT=true; // ⬅️ MODO B LIGADO (sistema principal). Pra voltar ao antigo (z-score), troque pra false.
 const TACT_B_BONUS=5;            // bônus fixo total do time quando a tática ativa
 // condições por tática: ativa se QUALQUER {stat>=goal} bater.
 // stats lidas do jogador apurado: prgp(passes), dribbles, recovery, tklint(tackles),
