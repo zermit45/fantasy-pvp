@@ -465,6 +465,16 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
   .card{margin-bottom:10px;padding:14px}
   /* títulos de seção um pouco menores no PC */
   .sectionhead{margin-bottom:8px}
+  /* === PC: fotos dos jogadores maiores (escalação e pool não ficam minúsculas) === */
+  /* foto nos cards da escalação (GOL/DEF/MEI/ATA/FLEX/BANCO) */
+  .slotpic{width:62px;height:62px;min-width:62px;flex-basis:62px}
+  .slotpic.ph{font-size:18px}
+  /* slots mais altos pra acomodar a foto maior + nome + persona */
+  .slot{min-height:184px;padding:14px 10px 16px;gap:10px}
+  .slot .nm{font-size:14px}
+  /* foto na lista do pool um pouco maior */
+  .pface{width:42px;height:42px;min-width:42px}
+  .pface.ph{font-size:13px}
   /* o shell ocupa a tela toda (com margem), não fica preso numa coluna */
   .app{padding-left:3vw;padding-right:3vw}
   .shell{max-width:none;width:100%;padding-top:18px}
@@ -631,7 +641,7 @@ details summary{cursor:pointer;font-size:11px;color:var(--dim);letter-spacing:.0
 <script src="app-part3.js?v=20260630-proxdata2"></script>
 <script src="app-part4.js?v=20260627-fix-pendencia-escalacao"></script>
 <script src="app-part5.js?v=20260630-pc-cols1"></script>
-<script src="app-part6.js?v=20260630-modob-ui9-cap45"></script>
+<script src="app-part6.js?v=20260630-quim-accordion"></script>
 <script src="player-quality.js?v=20260628-perfil1"></script>
 <script src="player-radar.js?v=20260629-base2"></script>
 <script src="draft-master-players.js?v=20260628-perfil1"></script>

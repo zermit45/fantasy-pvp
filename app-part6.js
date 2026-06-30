@@ -121,6 +121,7 @@ function resultHTML(){
           </div>`;
         }
       });
+      if(s.quimica && s.quimica.bonus>0){ html+=quimicaAccordionHTML(s.quimica, "rank_"+i); }
     }
     html+=`</div></div>`;
   });
@@ -133,6 +134,7 @@ function resultHTML(){
   if(mine){
     html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
     mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
+    if(mine.quimica && mine.quimica.bonus>0){ html+=quimicaAccordionHTML(mine.quimica, "mine_"+APP.roomId); }
     html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
     if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
@@ -189,6 +191,36 @@ function resultDuelHTML(scored,mine){
 }
 let _openBaseAll=false;
 function toggleBaseAll(){_openBaseAll=!_openBaseAll;render();}
+// ── QUÍMICA: acordeão reutilizável (Time Ideal, Sua Apuração, Ranking) ──
+let _openQuim={};  // key -> aberto?
+function toggleQuim(k){_openQuim[k]=!_openQuim[k];render();}
+// renderiza a linha de química clicável + detalhe dos combos quando aberta.
+// q = objeto de computeQuimica ({bonus, hits:[{nome,txt,pts,ico}], ...}); key = id único do acordeão
+function quimicaAccordionHTML(q, key){
+  if(!q || !(q.bonus>0)) return "";
+  const open=!!_openQuim[key];
+  const hits=(q.hits||[]).slice().sort((a,b)=>b.pts-a.pts);
+  let h=`<div class="line" style="padding:7px 4px;border-top:1px solid var(--line);margin-top:4px;cursor:pointer" onclick="toggleQuim('${key}')">`
+    +`<span style="display:flex;align-items:center;gap:6px;min-width:0">`
+    +`<span style="font-size:13px">🧬</span>`
+    +`<span style="color:var(--chalk);font-size:12px">Química do time</span>`
+    +`<span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span>`
+    +`<span style="color:var(--blue);font-size:10px">${open?"▲":"▼"}</span></span>`
+    +`<span class="v mono plus">+${q.bonus.toFixed(1)}</span></div>`;
+  if(open && hits.length){
+    h+=`<div style="padding:2px 0 6px 6px;border-left:2px solid var(--line);margin:2px 0 6px 4px">`;
+    for(const hit of hits){
+      h+=`<div class="line" style="padding:3px 0;align-items:flex-start">`
+        +`<span style="display:flex;align-items:flex-start;gap:7px;min-width:0">`
+        +`<span style="font-size:13px;flex:none">${hit.ico||"🧬"}</span>`
+        +`<span style="min-width:0"><b style="color:var(--chalk);font-size:12px">${esc(hit.nome)}</b>`
+        +(hit.txt?` <span style="color:var(--dim);font-size:10.5px">${esc(hit.txt)}</span>`:"")+`</span></span>`
+        +`<span class="v mono plus" style="flex:none">+${hit.pts.toFixed(1)}</span></div>`;
+    }
+    h+=`</div>`;
+  }
+  return h;
+}
 function baseAllHTML(eng){
   const pp=APP.prepool,m=APP.match;
   const rows=pp.players.map(meta=>{
@@ -300,7 +332,7 @@ function dreamTeamHTML(){
         }
       }
       if(best.quimicaPts>0){
-        html+=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px"><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span></span><span class="v mono plus">+${best.quimicaPts.toFixed(1)}</span></div>`;
+        html+=quimicaAccordionHTML(best.quimica||{bonus:best.quimicaPts,hits:[]}, "dream_"+APP.roomId);
       }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }
