@@ -249,13 +249,13 @@ function buildHTML(){
       const pid=s[sl]; const pl=pid?byId[pid]:null;
       const col=POSCOL[sl]||"#888";
       if(!pl){
-        cards+=`<div style="flex:1;min-width:62px;text-align:center;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.1);border-radius:12px;padding:8px 4px;opacity:.5">`
+        cards+=`<div class="quim-persona" style="flex:1;min-width:62px;text-align:center;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.1);border-radius:12px;padding:8px 4px;opacity:.5">`
           +`<div style="font-size:22px;line-height:1">·</div><div style="font-size:9px;color:var(--dim);margin-top:3px">${SLOT_LABEL[sl]}</div></div>`;
         return;
       }
       const pk=window.personaOf(pl.name,pl.pos)||"camaleao";
       const per=P[pk]||P.camaleao;
-      cards+=`<div title="${esc(per.desc)}" style="flex:1;min-width:62px;text-align:center;background:color-mix(in srgb,${col} 10%,transparent);border:1px solid color-mix(in srgb,${col} 35%,transparent);border-radius:12px;padding:8px 4px">`
+      cards+=`<div class="quim-persona" title="${esc(per.desc)}" style="flex:1;min-width:62px;text-align:center;background:color-mix(in srgb,${col} 10%,transparent);border:1px solid color-mix(in srgb,${col} 35%,transparent);border-radius:12px;padding:8px 4px">`
         +`<div style="font-size:24px;line-height:1">${per.ico}</div>`
         +`<div style="font-size:11px;font-weight:700;color:var(--chalk);margin-top:4px;line-height:1.1">${esc(per.nome)}</div>`
         +`<div style="font-size:9px;color:${col};font-weight:700;margin-top:2px">${SLOT_LABEL[sl]}</div></div>`;
