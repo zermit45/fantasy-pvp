@@ -121,9 +121,6 @@ function resultHTML(){
           </div>`;
         }
       });
-      if(s.quimicaPts>0){
-        html+=quimicaResultBlockHTML(s.quimica, s.quimicaPts, "rank_"+i);
-      }
     }
     html+=`</div></div>`;
   });
@@ -136,9 +133,6 @@ function resultHTML(){
   if(mine){
     html+=`<div class="card"><div class="h2 disp">Sua apuração</div><p class="p" style="margin-bottom:10px">Toque em cada jogador para abrir o cálculo.</p>`;
     mine.view.filter(Boolean).forEach((v,idx)=>{html+=receiptHTML(v,idx);});
-    if(mine.quimicaPts>0){
-      html+=quimicaResultBlockHTML(mine.quimica, mine.quimicaPts, "mine");
-    }
     html+=`<div class="line total" style="font-size:16px;padding:10px 4px 4px"><span class="disp">TOTAL</span><span class="v mono" style="color:var(--amber);font-size:22px">${mine.total.toFixed(1)}</span></div>`;
     if(mine.subOut)html+=`<p class="p" style="margin-top:8px">🔄 Substituição: banco entrou no slot ${SLOT_LABEL[mine.subOut]}.</p>`;
     html+=`</div>`;
@@ -259,26 +253,6 @@ function toggleDream(){
   render();
 }
 function toggleDreamPlayer(k){_dreamPlayer[k]=!_dreamPlayer[k];render();}
-// ── Química no resultado: bloco recolhível compartilhado (Time Ideal + times dos jogadores) ──
-let _openQuimica={};   // key -> aberto?
-function toggleQuimicaResult(k){_openQuimica[k]=!_openQuimica[k];render();}
-if(typeof window!=="undefined")window.toggleQuimicaResult=toggleQuimicaResult;
-function quimicaResultBlockHTML(quimica, quimicaPts, key){
-  if(!(quimicaPts>0)) return "";
-  var hits=(quimica&&Array.isArray(quimica.hits))?quimica.hits:[];
-  var open=!!_openQuimica[key];
-  var caret=hits.length?`<span style="color:var(--blue);font-size:10px;margin-left:2px">${open?"▲":"▼"}</span>`:"";
-  var head=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px;${hits.length?"cursor:pointer":""}" ${hits.length?`onclick="toggleQuimicaResult('${key}')"`:""}><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span>${caret}</span><span class="v mono plus">+${quimicaPts.toFixed(1)}</span></div>`;
-  var detail="";
-  if(open && hits.length){
-    detail=`<div style="margin:2px 0 4px;padding-left:6px;border-left:2px solid color-mix(in srgb,#34d399 40%,transparent)">`
-      + hits.map(function(h){
-          return `<div class="line" style="padding:3px 4px"><span style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="font-size:13px">${h.ico||"🧬"}</span><span style="color:var(--chalk)">${esc(h.nome||"")}</span>${h.txt?`<span style="color:var(--dim);font-size:10px">${esc(h.txt)}</span>`:""}</span><span class="v mono plus" style="font-size:11px">+${(+h.pts||0).toFixed(1)}</span></div>`;
-        }).join("")
-      + `</div>`;
-  }
-  return head+detail;
-}
 function dreamTeamHTML(){
   const roomId=APP.roomId;
   const calc=_dreamCalc[roomId];
@@ -326,7 +300,7 @@ function dreamTeamHTML(){
         }
       }
       if(best.quimicaPts>0){
-        html+=quimicaResultBlockHTML(best.quimica, best.quimicaPts, "dream");
+        html+=`<div class="line" style="padding:6px 4px;border-top:1px solid var(--line);margin-top:4px"><span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">🧬</span><span style="color:var(--chalk);font-size:12px">Química do time</span><span style="color:var(--dim);font-size:10px">(personalidades entrosadas)</span></span><span class="v mono plus">+${best.quimicaPts.toFixed(1)}</span></div>`;
       }
       html+=`<div class="line total" style="font-size:15px;padding:10px 4px 4px"><span class="disp">TOTAL IDEAL</span><span class="v mono" style="color:var(--amber);font-size:20px">${best.total.toFixed(1)}</span></div>`;
     }
@@ -485,7 +459,7 @@ const HELP={
   liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
   capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
-  tatica:["Tática","Cada tática premia um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque...). Ela dá um BÔNUS nas ações dela se, no fim da partida, seus jogadores produzirem bastante naquilo — e só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, mostramos uma TENDÊNCIA na hora de montar: pelo perfil das posições que você escalou (e do capitão), o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
+  tatica:["Tática","Cada tática premia um ESTILO de jogo. São 6: Estacionar o Ônibus (defesa: bloqueios, cortes, bloqueios de chute), Gegenpress (pressão: recuperações, desarmes, interceptações), Tiki-Taka (criação: passes, passes-chave, assistências), Ataque Total (finalização: gols, chutes no gol, faltas sofridas), Jogo Aéreo (bola alta: duelos aéreos, cruzamentos, lançamentos) e Contra-Ataque (transição: conduções, dribles, passes na área). A tática dá um BÔNUS nas ações dela se, no fim da partida, seu time tiver se DESTACADO naquele estilo acima da média — e 2+ jogadores tiverem participado. É só bônus: errar não tira pontos. Como o resultado depende do que rola em campo, mostramos uma TENDÊNCIA na hora de montar: pelo perfil das posições escaladas (e do capitão), o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia. Todas as táticas têm chance parecida de ativar (~18%) — nenhuma é mais fácil; o que decide é seu time combinar com o estilo. Ex: capitão e FLEX no ataque → Ataque Total e Contra-Ataque ganham cara."],
   quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS POR TIME, separado da tática, que vem da MONTAGEM (você vê na hora, não depende do que rola no jogo): some personalidades que se COMPLETAM (ex: 🪄 Maestro que arma + 🎯 Matador que finaliza = bônus) ou REPITA uma identidade (vários do mesmo tipo = time com DNA). O jogo soma TODOS os combos e reforços de uma vez (a ordem não importa) e adiciona ao total do seu time, até um TETO pequeno — passou do teto, o excedente é cortado. É um bônus único do time, não multiplica por jogador. Personalidades aparecem como etiqueta em cada titular."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
@@ -595,7 +569,7 @@ function rulesModalHTML(){
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Os 6 slots:</b> 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Capitão (×1.20):</b> escolha 1 jogador (qualquer um menos o banco) pra pontuar 20% a mais.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Banco:</b> se um titular de linha pontuar pouco, o reserva pode entrar no lugar dele — mas o reserva rende só <b style="color:var(--chalk)">80%</b> da nota (pedágio por começar fora). Ele só entra se, já com o desconto, ainda superar o titular. <b style="color:var(--chalk)">Exceção do goleiro:</b> o GK do banco só entra se o GK titular não jogar NENHUM minuto. Se o titular jogar, o reserva fica com 0.</p>
-    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1. Cada tática premia um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque...). Ela <b style="color:var(--chalk)">ativa (bônus)</b> se, na partida, seus jogadores produzirem bastante naquele estilo — e é <b style="color:var(--chalk)">só bônus: errar não tira pontos</b>, no pior caso a tática só não ativa. Na hora de montar, um selo mostra a <b style="color:var(--chalk)">tendência</b> do seu time pra cada tática (✅ tende a ativar / ➖ pode / ⬜ pouco provável), olhando as posições que você escalou e o capitão — é um guia, não garantia. Todas as táticas são balanceadas e o bônus (até +4) é dividido entre quem mais produziu no estilo. Conta todos que entraram, mesmo substituídos.</p>
+    <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Tática:</b> escolha 1 entre 6 — <b>Estacionar o Ônibus</b> (defesa), <b>Gegenpress</b> (pressão pra roubar a bola), <b>Tiki-Taka</b> (posse e criação), <b>Ataque Total</b> (finalização), <b>Jogo Aéreo</b> (bola alta) e <b>Contra-Ataque</b> (transição). Ela <b style="color:var(--chalk)">ativa (bônus)</b> se, na partida, seu time tiver se DESTACADO naquele estilo acima da média e pelo menos 2 jogadores produzirem nele — e é <b style="color:var(--chalk)">só bônus: errar não tira pontos</b>, no pior caso a tática só não ativa. Na hora de montar, um selo mostra a <b style="color:var(--chalk)">tendência</b> do seu time pra cada tática (✅ tende a ativar / ➖ pode / ⬜ pouco provável), olhando as posições que você escalou e o capitão — é um guia, não garantia. Todas as táticas são balanceadas (chance parecida de ativar) e o bônus (até +4) é dividido entre quem mais produziu no estilo. Conta todos que entraram, mesmo substituídos.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Pontuação:</b> gols, assistências, defesas, desarmes etc. somam pontos. Gol difícil vale mais que fácil. Gol nos minutos finais de jogo apertado vale mais (clutch). Time mais fraco (underdog) ganha um bônus — calculado por ELO, forma recente e mando de campo.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Penalidades:</b> o jogador perde pontos por cartão amarelo (-2), vermelho (-10 no 1º tempo / -6 no 2º), erro que levou a gol (-5), erro que levou a finalização (-2), pênalti cometido (-4), <b style="color:#FF6B6B">gol contra (-5)</b>, faltas e ser driblado. Um gol contra conta no placar do jogo e ainda desconta 5 pontos de quem o fez — pesa como um gol ao contrário.</p>
     <p class="p" style="margin:10px 0"><b style="color:var(--chalk)">Outras ações que pontuam:</b> além de gols e defesas, o jogo recompensa quem constrói: faltas sofridas, lançamentos longos certos e conduções progressivas (carregar a bola pra frente) dão pontos leves, premiando armadores e quem puxa contra-ataque.</p>
@@ -627,7 +601,7 @@ function superManualHTML(){
       p(`${b("Os 6 slots:")} 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante, 1 FLEX (pode ser def/mei/ata) e 1 Banco. Quem você escalar mas não entrar em campo no jogo real fica com 0 pontos.`)+
       p(`${b("Capitão (×1.20):")} escolha 1 jogador (menos o banco) pra render 20% a mais.`)+
       p(`${b("Banco:")} se um titular de linha for mal, o reserva entra no lugar — mas rende 80% da nota (pedágio). Só entra se, já com o desconto, superar o titular. O goleiro reserva só entra se o titular não jogar nenhum minuto.`)+
-      p(`${b("Tática:")} escolha 1. Cada uma premia um estilo (marcação, posse, jogo aéreo, contra-ataque...) e dá um ${b("bônus")} nas ações dela se seus jogadores produzirem bastante naquilo no jogo — ${b("só bônus, errar não tira pontos")}. Na montagem, um selo mostra a ${b("tendência")} do seu time pra cada tática (✅ tende a ativar / ➖ pode / ⬜ pouco provável), calculada pelas posições escaladas e pelo capitão. É um guia, não garantia: o resultado real vem do que acontece em campo.`))}
+      p(`${b("Tática:")} escolha 1 entre 6 (Estacionar o Ônibus, Gegenpress, Tiki-Taka, Ataque Total, Jogo Aéreo, Contra-Ataque). Cada uma premia um estilo e dá um ${b("bônus")} nas ações dela se seu time se destacar naquilo no jogo e 2+ jogadores produzirem — ${b("só bônus, errar não tira pontos")}. Na montagem, um selo mostra a ${b("tendência")} do seu time pra cada tática (✅ tende a ativar / ➖ pode / ⬜ pouco provável), calculada pelas posições escaladas e pelo capitão. É um guia, não garantia: o resultado real vem do que acontece em campo.`))}
 
     ${sec("4. De onde vêm os preços",
       p(`O preço de cada jogador reflete ${b("quantos pontos ele tende a fazer na engine")} — calculado pelo histórico recente dele (gols, assistências, defesas, desarmes...) combinado com o valor de mercado, corrigido por idade e posição.`)+

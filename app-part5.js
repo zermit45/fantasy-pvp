@@ -307,11 +307,12 @@ function buildHTML(){
   // posições escaladas: cada tática é alimentada naturalmente por certas posições.
   // Não é garantia — é "seu time tem cara de" tal estilo.
   const TACT_POS = {
-    muralha:      {DEF:1.0, GK:0.6, MID:0.3, ATT:0.0},  // bloqueios/cortes/aéreo
-    pressaototal: {DEF:0.8, MID:1.0, ATT:0.4, GK:0.0},  // recuperações/desarmes
+    muralha:      {DEF:1.0, GK:0.4, MID:0.4, ATT:0.0},  // bloqueios de jogada/cortes/bloqueios de chute
+    pressaototal: {MID:1.0, DEF:0.6, ATT:0.3, GK:0.0},  // recuperações/desarmes/interceptações
     cerebro:      {MID:1.0, DEF:0.4, ATT:0.5, GK:0.0},  // criação/passes
-    contra:       {ATT:1.0, MID:0.8, DEF:0.2, GK:0.0},  // conduções/dribles
-    aereo:        {ATT:0.9, DEF:0.9, MID:0.2, GK:0.0},  // duelos aéreos/cruzamentos
+    tridente:     {ATT:1.0, MID:0.5, DEF:0.1, GK:0.0},  // gols/finalizações/faltas sofridas
+    contra:       {ATT:1.0, MID:0.6, DEF:0.2, GK:0.0},  // conduções/dribles/passes na área
+    aereo:        {ATT:1.0, DEF:0.5, MID:0.3, GK:0.0},  // duelos aéreos/cruzamentos/lançamentos
   };
   // estima a tendência: normaliza o score do time contra o melhor caso possível da tática
   function tacticTendency(tacKey, s, byId){
