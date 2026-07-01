@@ -263,7 +263,18 @@ function buildHTML(){
 
     let body, headRight;
     if(tits.length<3){
-      body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div><p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 0">Escale os titulares pra ver a química do time.</p>`;
+      // ainda montando: mostra os cards + sugestões de qual persona falta pra fechar um trio
+      const sugg=(tits.length>=1 && window.suggestQuimica)?window.suggestQuimica(tits.map(m=>({name:m.name,pos:m.pos}))):[];
+      let suggHTML="";
+      if(sugg.length){
+        suggHTML=`<div style="font-size:10px;color:#FFC247;font-weight:700;letter-spacing:.04em;margin:12px 0 4px">💡 PRA FORMAR UM TRIO</div>`
+          +sugg.map(sg=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;border:1px dashed color-mix(in srgb,#FFC247 45%,transparent);border-radius:8px;padding:6px 8px">`
+            +`<span style="font-size:14px;opacity:.9">${sg.falta.ico}</span>`
+            +`<span style="flex:1;color:var(--dim)">Escale um <b style="color:var(--chalk)">${esc(sg.falta.nome)}</b> → forma <b style="color:var(--chalk)">${esc(sg.nome)}</b></span>`
+            +`<span class="mono" style="color:#FFC247;font-weight:700">+${sg.pts.toFixed(1)}</span></div>`).join("");
+      }
+      const dica=sugg.length?"":`<p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 0">Escale os titulares pra ver a química do time.</p>`;
+      body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div>${suggHTML}${dica}`;
       headRight=`<span class="tag">—</span>`;
     }else{
       const q=window.computeQuimica(tits.map(m=>({name:m.name,pos:m.pos})));
@@ -299,15 +310,15 @@ function buildHTML(){
             +`<span class="mono" style="color:#FFC247;font-weight:700">+${sg.pts.toFixed(1)}</span></div>`).join("");
       }
       if(!triosForm.length && !reforcos.length && !sugg.length){
-        activeHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:8px 0 0">Forme um TRIO: 3 personalidades de posições diferentes que combinam (ex: 🧱 Muro + 🪄 Maestro + 🎯 Matador). Vale +2.0 por formar e +1.5 se eles produzirem no jogo.</p>`;
+        activeHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:8px 0 0">Forme um TRIO: 3 personalidades de posições diferentes que combinam (ex: 🧱 Muro + 🪄 Maestro + 🎯 Matador) = +3.5 no time.</p>`;
       }
       body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div>${activeHTML}${suggHTML}`;
     }
     return `<div class="card">
       <div class="sectionhead"><span>🧬 Química do time <span style="font-size:10px;color:var(--blue);font-weight:700;letter-spacing:.03em">· PREVISÃO</span>${helpBtn("quimica")}</span>${headRight}</div>
-      <p class="p" style="font-size:11px;margin-bottom:2px;line-height:1.5">Cada jogador tem uma <b>personalidade</b>. Personalidades que se completam (ou se repetem) geram <b style="color:var(--green)">bônus de química</b> — somado ao seu time, separado da tática. <b style="color:var(--dim)">Vale só pra quem entrar em campo:</b> se um titular não jogar, a química dele não conta no resultado.</p>
+      <p class="p" style="font-size:11px;margin-bottom:2px;line-height:1.5">Cada jogador tem uma <b>personalidade</b>. Junte <b>3 de posições diferentes</b> que combinam pra formar um <b style="color:var(--green)">TRIO</b> (+3.5 no time), separado da tática. <b style="color:var(--dim)">Vale só pra quem entrar em campo:</b> se um titular não jogar, a química dele não conta no resultado.</p>
       ${body}
-      <div onclick="toggleQuimicaGuide()" style="margin-top:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);padding:8px;border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);border-radius:10px">📖 Ver todas as combinações de química</div>
+      <div onclick="toggleQuimicaGuide()" style="margin-top:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);padding:8px;border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);border-radius:10px">📖 Ver todos os trios</div>
     </div>`;
   }
 
