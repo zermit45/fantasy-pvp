@@ -717,11 +717,14 @@ function scoreEntryFor(entry,eng,ctx){
     view.push({slot:sl,pid:entry.slots[sl],pts,cap,subIn:sl===subOut,r});
   }
   // QUÍMICA (camada nova, independente da tática): bônus por entrosamento das
-  // personalidades dos 5 TITULARES escalados. É da montagem — vale mesmo sem o jogador
-  // ter atuado, e soma uma vez no total do time (antes do impulso).
+  // personalidades dos jogadores que PONTUARAM. Só conta quem realmente atuou (min>0):
+  // um titular-fantasma escalado só pela persona, que não entra em campo, NÃO gera química.
+  // Se o reserva entrou no lugar de um titular, os slots já foram trocados acima, então
+  // aqui já contamos a persona de QUEM ENTROU (e não a do fantasma que foi pro banco).
   let quimica=null, quimicaPts=0;
   if(typeof window!=="undefined" && window.computeQuimica){
     const tits=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean)
+      .filter(pid=>(rawOf(pid).min||0)>0)               // só quem atuou (min>0)
       .map(pid=>byId[pid]).filter(Boolean).map(mm=>({name:mm.name,pos:mm.pos}));
     if(tits.length>=3){
       quimica=window.computeQuimica(tits);
