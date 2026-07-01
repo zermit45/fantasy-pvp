@@ -53,7 +53,7 @@ function histGameHTML(h,hi,prefix){
         const r=vw.r;
         const pkey=prefix+hi+"_"+mi+"_"+vi;
         const pOpen=_openHistPlayer[pkey];
-        const capTag=vw.cap?` <span class="badgeC"${vw.capTrio?' style="background:#34d399;color:#0a0a0a" title="Capitão em trio ativo ×1.5"':''}>C</span>`:"";
+        const capTag=vw.cap?` <span class="badgeC">C</span>`:"";
         const subTag=vw.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
         const benchTag=vw.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
         const archTag=r&&r.meta&&r.meta.arch&&r.meta.arch!=="—"?` <span style="font-size:9px;color:var(--amber)">⭑ ${esc(r.meta.arch)}</span>`:"";
@@ -66,7 +66,7 @@ function histGameHTML(h,hi,prefix){
           r.statLines.forEach(([l,c,u,pts])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${l} <b style="color:var(--mid)">${c}×</b> <i style="color:var(--dim);font-size:10px">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`;});
           if(r.lines.length){html+=`<div style="font-size:10px;color:var(--dim);margin:6px 0 2px">⚙️ Modificadores</div>`;
             r.lines.forEach(([k,val])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`;});}
-          if(vw.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão${vw.capTrio?' <span style="color:#34d399">🔺 em trio ativo</span>':''}</span><span class="v mono plus">×${vw.capTrio?"1.50":"1.20"}</span></div>`;
+          if(vw.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão</span><span class="v mono plus">×1.20</span></div>`;
           html+=`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>`;
           html+=`</div>`;
         }
@@ -117,6 +117,7 @@ function resultHTML(){
             ${(r.statLines||[]).map(([l,c,u,pts])=>`<div class="line stat" style="padding:2px 0"><span>${l}<b class="cnt">${c}×</b><i class="unit">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`).join("")}
             ${(r.lines||[]).length?`<div class="bsub" style="margin:6px 0 2px">⚙️ Modificadores</div>`:""}
             ${(r.lines||[]).map(([k,val])=>`<div class="line" style="padding:2px 0"><span>${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`).join("")}
+            ${v.cap?`<div class="line" style="padding:2px 0"><span>Capitão</span><span class="v mono plus">×1.20</span></div>`:""}
             ${r.meta?`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${(r.meta.rarity||"").toUpperCase()}</span></div>`:""}
           </div>`;
         }
@@ -475,7 +476,6 @@ function quimicaGuideHTML(){
         +`<div style="color:var(--dim);font-size:11px;line-height:1.4">${nomes} — ${t.txt}</div></div>`
         +`<span class="mono" style="color:#34d399;font-weight:800;font-size:14px">+${(t.pts!=null?t.pts:3.5).toFixed(1)}</span></div>`;
     }).join("")}
-    <p class="p" style="font-size:11px;line-height:1.5;margin:6px 0 2px"><b style="color:#34d399">Capitão em trio:</b> se o seu <b>capitão</b> faz parte de um trio formado, o multiplicador dele sobe de <b>×1.2</b> pra <b style="color:#34d399">×1.5</b>.</p>
 
     ${sec("🔁 Reforço (repetir identidade)")}
     <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Escalar 2 da mesma personalidade dá bônus de identidade (quem está "sem estilo definido" não conta):</p>
@@ -494,9 +494,9 @@ const HELP={
   escalacao:["Escalação","Montar o time é separado de escolher o jogo. A escalação fica salva e você pode mudá-la quantas vezes quiser até a partida começar — ela trava sozinha no apito inicial. Não existe 'confirmar equipe' aqui: o que está garantido é a vaga no jogo (a ficha)."],
   liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
-  capitao:["Capitão (×1.20 · ×1.50 em trio)","Escolha 1 jogador (menos o banco) pra render 20% a mais. E tem um bônus: se o seu capitão fizer parte de um TRIO de química formado (as 3 personalidades escaladas), o multiplicador dele sobe pra ×1.50. Vale a pena capitanear quem está dentro de um trio."],
+  capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
   tatica:["Tática","Escolha 1. Cada tática tem um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque, finalização...) e dá um BÔNUS se, no fim da partida, o seu time se sair bem naquele estilo — e é só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, na hora de montar mostramos uma TENDÊNCIA pelo perfil das posições que você escalou (e do capitão): o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
-  quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS POR TIME, separado da tática, baseada em TRIOS: 3 personalidades de POSIÇÕES DIFERENTES que combinam (ex: 🧱 Muro + 🪄 Maestro + 🎯 Matador). Formou o trio (as 3 escaladas), o time leva +3.5 — simples, sem condição. Cada personalidade está em 2 trios diferentes (com companheiros distintos), então dá pra variar a montagem. IMPORTANTE: vale só pra quem ENTRA EM CAMPO — se um titular do trio não jogar, o trio não conta; se o reserva entrar, vale a personalidade de quem entrou. Soma no total do time até um TETO — passou, corta. É um bônus único do time, não multiplica por jogador. BÔNUS: se o capitão faz parte de um trio formado, ele rende ×1.5 em vez de ×1.2."],
+  quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS POR TIME, separado da tática, baseada em TRIOS: 3 personalidades de POSIÇÕES DIFERENTES que combinam (ex: 🧱 Muro + 🪄 Maestro + 🎯 Matador). Formou o trio (as 3 escaladas), o time leva +3.5 — simples, sem condição. Cada personalidade está em 2 trios diferentes (com companheiros distintos), então dá pra variar a montagem. IMPORTANTE: vale só pra quem ENTRA EM CAMPO — se um titular do trio não jogar, o trio não conta; se o reserva entrar, vale a personalidade de quem entrou. Soma no total do time até um TETO — passou, corta. É um bônus único do time, não multiplica por jogador."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
   slots:["Os slots do time","Você monta 5 TITULARES — 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante e 1 FLEX (curinga de linha) — que gastam do seu orçamento. Mais o BANCO, que é grátis (regra à parte, toque no '?' do banco). Cada slot só aceita a posição certa; o FLEX é mais livre. Quem você escalar mas não entrar em campo fica com 0."],

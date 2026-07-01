@@ -744,27 +744,6 @@ function scoreEntryFor(entry,eng,ctx){
       quimicaPts=quimica?quimica.bonus:0;
       sum+=quimicaPts;
     }
-    // CAPITÃO EM TRIO ATIVO: se o capitão faz parte de um trio que ATIVOU (condição
-    // cumprida), o multiplicador dele sobe de ×1.2 para ×1.5. Aplica o incremento
-    // (×1.5/×1.2 = ×1.25) sobre a pontuação já capitaneada, e ajusta a view.
-    if(quimica && quimica.trios && quimica.trios.length && entry.captain && entry.captain!=="BENCH"){
-      const capPid=entry.slots[entry.captain];
-      const capMeta=capPid?byId[capPid]:null;
-      if(capMeta){
-        const capPersona=window.personaOf(capMeta.name,capMeta.pos);
-        const Q=window.QUIMICA;
-        const emTrioAtivo=(Q.TRIOS||[]).some(t=>quimica.trios.indexOf(t.key)>=0 && t.set.indexOf(capPersona)>=0);
-        if(emTrioAtivo){
-          const vw=view.find(v=>v&&v.slot===entry.captain);
-          if(vw){
-            const antes=vw.pts;
-            const depois=Math.round(antes*(1.5/1.2)*10)/10; // de ×1.2 para ×1.5
-            sum+=(depois-antes);
-            vw.pts=depois; vw.capTrio=true;
-          }
-        }
-      }
-    }
   }
   // IMPULSO (modo boost): aplicado por ÚLTIMO, sobre o total já fechado (tática, capitão, etc.).
   // Modelo novo: entry.boost_chips = lista de valores das fichas neste jogo, ex [25,15] ou [-20].
