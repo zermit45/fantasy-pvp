@@ -269,11 +269,25 @@ function buildHTML(){
       const q=window.computeQuimica(tits.map(m=>({name:m.name,pos:m.pos})));
       const sugg=window.suggestQuimica?window.suggestQuimica(tits.map(m=>({name:m.name,pos:m.pos}))):[];
       headRight=`<span class="mono" style="color:${q.bonus>0?"#34d399":"var(--dim)"};font-weight:800;font-size:16px">+${q.bonus.toFixed(1)}</span>`;
-      // combos ATIVOS
+      // TRIOS formados: na montagem (previsão) todos aparecem "formados" (+2.0) com o
+      // potencial de virar +3.5 se a condição bater no jogo. Reforço também entra aqui.
       let activeHTML="";
-      if(q.hits.length){
-        activeHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">✅ ATIVOS</div>`
-          +q.hits.map(h=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;background:color-mix(in srgb,#34d399 8%,transparent);border-radius:8px;padding:6px 8px">`
+      const triosForm=q.hits.filter(h=>h.tipo==="trio");
+      const reforcos=q.hits.filter(h=>h.tipo==="reforco");
+      if(triosForm.length){
+        activeHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">🔺 TRIOS FORMADOS <span style="color:var(--dim);font-weight:400;letter-spacing:0">· +2.0 por formar, +1.5 se a condição bater</span></div>`
+          +triosForm.map(h=>{
+            const ativado=h.ativado;
+            const cor=ativado?"#34d399":"#FFC247";
+            return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;background:color-mix(in srgb,${cor} 12%,transparent);border:1px solid color-mix(in srgb,${cor} 35%,transparent);border-radius:8px;padding:6px 8px">`
+            +`<span style="font-size:15px">${h.ico}</span>`
+            +`<span style="flex:1;color:var(--chalk);font-weight:600">${esc(h.nome)} <span style="color:var(--dim);font-size:10px;font-weight:400">${ativado?esc(h.txt):("+1.5 se "+esc(h.cond))}</span></span>`
+            +`<span class="mono" style="color:${cor};font-weight:800">+${h.pts.toFixed(1)}</span></div>`;
+          }).join("");
+      }
+      if(reforcos.length){
+        activeHTML+=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">🔁 IDENTIDADE</div>`
+          +reforcos.map(h=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;background:color-mix(in srgb,#34d399 8%,transparent);border-radius:8px;padding:6px 8px">`
             +`<span style="font-size:15px">${h.ico}</span>`
             +`<span style="flex:1;color:var(--chalk);font-weight:600">${esc(h.nome)} <span style="color:var(--dim);font-size:10px;font-weight:400">${esc(h.txt)}</span></span>`
             +`<span class="mono" style="color:#34d399;font-weight:800">+${h.pts.toFixed(1)}</span></div>`).join("");
@@ -284,11 +298,11 @@ function buildHTML(){
         suggHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">💡 PRA GANHAR MAIS</div>`
           +sugg.map(sg=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;border:1px dashed rgba(255,255,255,.12);border-radius:8px;padding:6px 8px">`
             +`<span style="font-size:14px;opacity:.85">${sg.falta.ico}</span>`
-            +`<span style="flex:1;color:var(--dim)">Escale um <b style="color:var(--chalk)">${esc(sg.falta.nome)}</b> → ativa <b style="color:var(--chalk)">${esc(sg.nome)}</b></span>`
+            +`<span style="flex:1;color:var(--dim)">Escale um <b style="color:var(--chalk)">${esc(sg.falta.nome)}</b> → forma <b style="color:var(--chalk)">${esc(sg.nome)}</b></span>`
             +`<span class="mono" style="color:#FFC247;font-weight:700">+${sg.pts.toFixed(1)}</span></div>`).join("");
       }
-      if(!q.hits.length && !sugg.length){
-        activeHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:8px 0 0">Junte personalidades que se completam (ex: 🪄 Maestro + 🎯 Matador) ou repita uma identidade pra ganhar bônus.</p>`;
+      if(!triosForm.length && !reforcos.length && !sugg.length){
+        activeHTML=`<p class="p" style="font-size:11px;color:var(--dim);margin:8px 0 0">Forme um TRIO: 3 personalidades de posições diferentes que combinam (ex: 🧱 Muro + 🪄 Maestro + 🎯 Matador). Vale +2.0 por formar e +1.5 se eles produzirem no jogo.</p>`;
       }
       body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div>${activeHTML}${suggHTML}`;
     }
@@ -723,13 +737,36 @@ function scoreEntryFor(entry,eng,ctx){
   // aqui já contamos a persona de QUEM ENTROU (e não a do fantasma que foi pro banco).
   let quimica=null, quimicaPts=0;
   if(typeof window!=="undefined" && window.computeQuimica){
-    const tits=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean)
-      .filter(pid=>(rawOf(pid).min||0)>0)               // só quem atuou (min>0)
-      .map(pid=>byId[pid]).filter(Boolean).map(mm=>({name:mm.name,pos:mm.pos}));
+    const titSlots=["GK","DEF","MID","ATT","FLEX"].map(sl=>entry.slots[sl]).filter(Boolean)
+      .filter(pid=>(rawOf(pid).min||0)>0);
+    // Passa os STATS INDIVIDUAIS de cada titular (st). Os trios condicionais olham
+    // só os jogadores que os formam — por isso funciona mesmo misturando os dois times.
+    const tits=titSlots.map(pid=>{const mm=byId[pid]; if(!mm) return null; return {name:mm.name,pos:mm.pos,st:rawOf(pid)};}).filter(Boolean);
     if(tits.length>=3){
       quimica=window.computeQuimica(tits);
       quimicaPts=quimica?quimica.bonus:0;
       sum+=quimicaPts;
+    }
+    // CAPITÃO EM TRIO ATIVO: se o capitão faz parte de um trio que ATIVOU (condição
+    // cumprida), o multiplicador dele sobe de ×1.2 para ×1.5. Aplica o incremento
+    // (×1.5/×1.2 = ×1.25) sobre a pontuação já capitaneada, e ajusta a view.
+    if(quimica && quimica.trios && quimica.trios.length && entry.captain && entry.captain!=="BENCH"){
+      const capPid=entry.slots[entry.captain];
+      const capMeta=capPid?byId[capPid]:null;
+      if(capMeta){
+        const capPersona=window.personaOf(capMeta.name,capMeta.pos);
+        const Q=window.QUIMICA;
+        const emTrioAtivo=(Q.TRIOS||[]).some(t=>quimica.trios.indexOf(t.key)>=0 && t.set.indexOf(capPersona)>=0);
+        if(emTrioAtivo){
+          const vw=view.find(v=>v&&v.slot===entry.captain);
+          if(vw){
+            const antes=vw.pts;
+            const depois=Math.round(antes*(1.5/1.2)*10)/10; // de ×1.2 para ×1.5
+            sum+=(depois-antes);
+            vw.pts=depois; vw.capTrio=true;
+          }
+        }
+      }
     }
   }
   // IMPULSO (modo boost): aplicado por ÚLTIMO, sobre o total já fechado (tática, capitão, etc.).

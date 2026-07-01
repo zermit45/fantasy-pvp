@@ -53,7 +53,7 @@ function histGameHTML(h,hi,prefix){
         const r=vw.r;
         const pkey=prefix+hi+"_"+mi+"_"+vi;
         const pOpen=_openHistPlayer[pkey];
-        const capTag=vw.cap?` <span class="badgeC">C</span>`:"";
+        const capTag=vw.cap?` <span class="badgeC"${vw.capTrio?' style="background:#34d399;color:#0a0a0a" title="Capitão em trio ativo ×1.5"':''}>C</span>`:"";
         const subTag=vw.subIn?` <span style="font-size:9px;color:var(--green)">↑entrou</span>`:"";
         const benchTag=vw.slot==="BENCH"?` <span style="font-size:9px;color:var(--dim)">banco</span>`:"";
         const archTag=r&&r.meta&&r.meta.arch&&r.meta.arch!=="—"?` <span style="font-size:9px;color:var(--amber)">⭑ ${esc(r.meta.arch)}</span>`:"";
@@ -66,7 +66,7 @@ function histGameHTML(h,hi,prefix){
           r.statLines.forEach(([l,c,u,pts])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${l} <b style="color:var(--mid)">${c}×</b> <i style="color:var(--dim);font-size:10px">(${u>0?"+":""}${u})</i></span><span class="v mono ${pts>0?"plus":pts<0?"minus":""}">${pts>0?"+":""}${(+pts).toFixed(1)}</span></div>`;});
           if(r.lines.length){html+=`<div style="font-size:10px;color:var(--dim);margin:6px 0 2px">⚙️ Modificadores</div>`;
             r.lines.forEach(([k,val])=>{html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">${k}${modHelpBtn(k)}</span><span class="v mono ${val>0?"plus":val<0?"minus":""}">${val>0?"+":""}${(+val).toFixed(1)}</span></div>`;});}
-          if(vw.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão</span><span class="v mono plus">×1.20</span></div>`;
+          if(vw.cap)html+=`<div class="line" style="padding:3px 0"><span style="font-size:12px">Capitão${vw.capTrio?' <span style="color:#34d399">🔺 em trio ativo</span>':''}</span><span class="v mono plus">×${vw.capTrio?"1.50":"1.20"}</span></div>`;
           html+=`<div class="chips" style="margin-top:6px"><span class="chip arch">⭑ ${esc(r.meta.arch)}</span>${(r.meta.traits||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}<span class="rar r-${r.meta.rarity}">${r.meta.rarity.toUpperCase()}</span></div>`;
           html+=`</div>`;
         }
@@ -443,14 +443,8 @@ function quimicaGuideHTML(){
     });
   });
   // combos
-  const comboHTML=Q.COMBOS.slice().sort((a,b)=>b.pts-a.pts).map(c=>{
-    const a=P[c.par[0]], b=P[c.par[1]];
-    return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0;padding:9px;background:color-mix(in srgb,#34d399 7%,transparent);border:1px solid color-mix(in srgb,#34d399 18%,transparent);border-radius:10px">`
-      +`<span style="font-size:17px;white-space:nowrap">${a.ico}${b.ico}</span>`
-      +`<div style="flex:1"><div style="font-weight:700;color:var(--chalk);font-size:13px">${c.nome}</div>`
-      +`<div style="color:var(--dim);font-size:11px;line-height:1.4">${a.nome} + ${b.nome} — ${c.txt}</div></div>`
-      +`<span class="mono" style="color:#34d399;font-weight:800;font-size:14px">+${c.pts.toFixed(1)}</span></div>`;
-  }).join("");
+  // (combos removidos — química agora é só trios)
+
   // reforço
   const rf=Q.REFORCO;
   const reforcoHTML=Object.keys(rf).map(Number).sort((x,y)=>x-y).map(n=>
@@ -461,20 +455,31 @@ function quimicaGuideHTML(){
   const sec=(t)=>`<div style="font-family:'Saira Condensed';font-weight:800;font-size:15px;letter-spacing:.03em;text-transform:uppercase;color:var(--amber);margin:16px 0 4px">${t}</div>`;
   return `<div class="modal" onclick="toggleQuimicaGuide()"><div class="box" onclick="event.stopPropagation()" style="max-height:85vh;overflow:auto">
     <div class="h2 disp" style="color:var(--amber)">🧬 Guia de Química</div>
-    <p class="p" style="margin:4px 0 2px;font-size:12px;line-height:1.5">Cada jogador tem uma <b style="color:var(--chalk)">personalidade</b> derivada do estilo dele na temporada. Você ganha <b style="color:var(--green)">bônus de química</b> de dois jeitos: <b>combinando</b> personalidades que se completam, ou <b>repetindo</b> a mesma. O bônus soma no total do time (teto de +${Q.CAP.toFixed(1)}), separado da tática.</p>
+    <p class="p" style="margin:4px 0 2px;font-size:12px;line-height:1.5">Cada jogador tem uma <b style="color:var(--chalk)">personalidade</b> derivada do estilo dele na temporada. A química vem de formar <b style="color:var(--green)">TRIOS</b>: 3 personalidades de posições diferentes que combinam. O bônus soma no total do time (teto de +${Q.CAP.toFixed(1)}), separado da tática.</p>
 
     ${sec("🧮 Como a conta funciona")}
     <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px">É um bônus <b style="color:var(--chalk)">por time</b>, não por jogador — soma <b>uma vez só</b> no seu total, não multiplica nada em cada carta.</p>
-    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px"><b style="color:var(--chalk)">A ordem não importa:</b> o jogo olha os 5 titulares de uma vez e soma <b>todos</b> os combos e reforços que existirem ao mesmo tempo. Não é em sequência.</p>
-    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px"><b style="color:var(--amber)">Teto de +${Q.CAP.toFixed(1)}:</b> se a soma passar disso, o excedente é cortado. Ex: 4 combos somando +5.6 viram +${Q.CAP.toFixed(1)} na pontuação. Acima do teto não adianta empilhar mais.</p>
-    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 10px">Esse bônus entra no total <b>antes</b> do impulso, e é <b>separado da tática</b>. Ele vale só pra <b>quem entra em campo</b>: na montagem você vê uma <b>previsão</b> (o potencial dos titulares escalados) e no resultado conta a química <b>real</b>, só de quem atuou.</p>
+    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px"><b style="color:var(--chalk)">Duas camadas por trio:</b> <b style="color:#FFC247">formar</b> o trio (as 3 personalidades escaladas) já dá <b>+2.0</b>. Se os <b>jogadores do trio</b> cumprirem a condição no jogo (ex: participarem de 2 gols), ganha <b style="color:#34d399">+1.5</b> extra — total <b>+3.5</b>.</p>
+    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px"><b style="color:var(--chalk)">Condição olha só os 3 do trio:</b> por isso funciona mesmo misturando jogadores dos dois times do jogo.</p>
+    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 6px"><b style="color:var(--amber)">Teto de +${Q.CAP.toFixed(1)}:</b> se a soma passar disso, o excedente é cortado.</p>
+    <p class="p" style="font-size:11.5px;line-height:1.55;margin:2px 0 10px">Vale só pra <b>quem entra em campo</b>: na montagem você vê a <b>previsão</b> (trios formados + o que podem virar), e no resultado conta a química <b>real</b>, só de quem atuou.</p>
 
-    ${sec("⚡ Combos (personalidades que se completam)")}
-    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Tenha um de cada personalidade do par no seu time pra ativar:</p>
-    ${comboHTML}
+    ${sec("🔺 Os 8 trios")}
+    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Cada personalidade está em 2 trios (todas ativam por igual). Forme os 3 (posições diferentes) — +2.0 na hora, +1.5 se produzirem:</p>
+    ${(Q.TRIOS||[]).map(t=>{
+      const ic=t.set.map(k=>P[k]?P[k].ico:"").join("");
+      const nomes=t.set.map(k=>P[k]?P[k].nome:k).join(" + ");
+      const tot=((t.formPts!=null?t.formPts:2.0)+(t.condPts!=null?t.condPts:1.5)).toFixed(1);
+      return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0;padding:9px;background:color-mix(in srgb,#34d399 6%,transparent);border:1px solid color-mix(in srgb,#34d399 22%,transparent);border-radius:10px">`
+        +`<span style="font-size:16px;white-space:nowrap">${ic}</span>`
+        +`<div style="flex:1"><div style="font-weight:700;color:var(--chalk);font-size:13px">${t.nome} <span style="color:#FFC247;font-size:10px">· +1.5 se ${t.condTxt}</span></div>`
+        +`<div style="color:var(--dim);font-size:11px;line-height:1.4">${nomes} — ${t.txt}</div></div>`
+        +`<span class="mono" style="color:#34d399;font-weight:800;font-size:13px">+2.0<span style="color:var(--dim);font-size:9px"> a +${tot}</span></span></div>`;
+    }).join("")}
+    <p class="p" style="font-size:11px;line-height:1.5;margin:6px 0 2px"><b style="color:#34d399">Capitão em trio:</b> se o seu <b>capitão</b> faz parte de um trio que <b>ativou</b> a condição, o multiplicador dele sobe de <b>×1.2</b> pra <b style="color:#34d399">×1.5</b>.</p>
 
     ${sec("🔁 Reforço (repetir identidade)")}
-    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Escalar vários da mesma personalidade dá bônus de identidade (quem está "sem estilo definido" não conta):</p>
+    <p class="p" style="font-size:11px;color:var(--dim);margin:2px 0 6px">Escalar 2 da mesma personalidade dá bônus de identidade (quem está "sem estilo definido" não conta):</p>
     ${reforcoHTML}
 
     ${sec("🎭 Todas as personalidades")}
@@ -490,9 +495,9 @@ const HELP={
   escalacao:["Escalação","Montar o time é separado de escolher o jogo. A escalação fica salva e você pode mudá-la quantas vezes quiser até a partida começar — ela trava sozinha no apito inicial. Não existe 'confirmar equipe' aqui: o que está garantido é a vaga no jogo (a ficha)."],
   liga:["Liga","Junta várias rodadas numa classificação geral da temporada. Dois rankings: pontos de tabela (10/7/5/3/1 conforme a colocação em cada mini rodada) e pontuação clássica (soma do fantasy). Os pontos sobem somando das mini rodadas → rodadas → liga."],
   rodada:["Rodada","Uma fase que agrupa várias mini rodadas (ex: 'Fase de Grupos'). A classificação da rodada é a soma das mini rodadas dela."],
-  capitao:["Capitão (×1.20)","Escolha 1 jogador (menos o banco) pra render 20% a mais. Vale a pena no jogador que você mais confia que vai pontuar."],
+  capitao:["Capitão (×1.20 · ×1.50 em trio)","Escolha 1 jogador (menos o banco) pra render 20% a mais. E tem um bônus: se o seu capitão fizer parte de um TRIO de química que ATIVAR (os jogadores do trio cumprirem a condição, ex: participar de 2 gols juntos), o multiplicador dele sobe pra ×1.50. Vale a pena capitanear quem está dentro de uma jogada, não solto."],
   tatica:["Tática","Escolha 1. Cada tática tem um ESTILO de jogo (marcação, posse, jogo aéreo, contra-ataque, finalização...) e dá um BÔNUS se, no fim da partida, o seu time se sair bem naquele estilo — e é só bônus, errar não tira pontos. Como o resultado depende do que rola em campo, na hora de montar mostramos uma TENDÊNCIA pelo perfil das posições que você escalou (e do capitão): o selo indica se seu time tem cara daquele estilo (✅ tende a ativar / ➖ pode / ⬜ pouco provável). Não é garantia, é um guia: monte na posição certa pra aumentar a chance. Ex: FLEX e capitão no ataque → Contra-Ataque tende a ativar."],
-  quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS POR TIME, separado da tática: some personalidades que se COMPLETAM (ex: 🪄 Maestro que arma + 🎯 Matador que finaliza = bônus) ou REPITA uma identidade (vários do mesmo tipo = time com DNA). IMPORTANTE: a química vale só pra quem ENTRA EM CAMPO. Na montagem você vê uma PREVISÃO (o potencial dos titulares escalados), mas no resultado conta a química REAL — só dos jogadores que atuaram (minutos > 0). Se um titular não jogar, a personalidade dele não gera química; e se o seu reserva entrar no lugar, passa a valer a personalidade de QUEM ENTROU. Assim não adianta escalar alguém só pela persona e deixar o titular de verdade no banco. O jogo soma TODOS os combos e reforços de quem jogou (a ordem não importa) e adiciona ao total do time, até um TETO pequeno — passou do teto, o excedente é cortado. É um bônus único do time, não multiplica por jogador."],
+  quimica:["Química do time","Cada jogador tem uma PERSONALIDADE de jogo (Maestro, Matador, Muro, Torre, Motor, Veloz...) derivada do estilo dele na temporada. A Química é um BÔNUS POR TIME, separado da tática, baseada em TRIOS: 3 personalidades de POSIÇÕES DIFERENTES que combinam (ex: 🧱 Muro + 🪄 Maestro + 🎯 Matador). Cada trio tem DUAS CAMADAS: formar os 3 já dá +2.0; se os JOGADORES DO TRIO cumprirem a condição no jogo (ex: participarem de 2 gols), ganha +1.5 extra (total +3.5). A condição olha só os 3 do trio, então funciona misturando jogadores dos dois times. IMPORTANTE: vale só pra quem ENTRA EM CAMPO. Na montagem você vê uma PREVISÃO (trios formados + o que podem virar), mas no resultado conta a química REAL — só de quem atuou (minutos > 0). Se um titular não jogar, ele não conta; se o reserva entrar, vale a personalidade de QUEM ENTROU. Soma no total do time até um TETO — passou, corta. É um bônus único do time, não multiplica por jogador. BÔNUS: se o capitão está num trio que ativou, ele rende ×1.5 em vez de ×1.2."],
   pool:["Pool de jogadores","Todos os jogadores dos dois times do confronto, com preço por qualidade. Use os filtros (time / posição) pra achar quem quer. Ordenados do mais caro pro mais barato."],
   orcamento:["Orçamento","Você tem 100 moedas pra montar os 5 TITULARES (Goleiro, Defensor, Meia, Atacante e FLEX). O BANCO é à parte: ele NÃO gasta moeda (é grátis). Cada jogador tem um preço pela qualidade (valor de mercado corrigido pela idade). Gastar tudo nos craques deixa o resto barato — equilibrar é parte da estratégia."],
   slots:["Os slots do time","Você monta 5 TITULARES — 1 Goleiro, 1 Defensor, 1 Meia, 1 Atacante e 1 FLEX (curinga de linha) — que gastam do seu orçamento. Mais o BANCO, que é grátis (regra à parte, toque no '?' do banco). Cada slot só aceita a posição certa; o FLEX é mais livre. Quem você escalar mas não entrar em campo fica com 0."],
