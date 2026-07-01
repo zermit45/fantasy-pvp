@@ -204,7 +204,7 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260701-engcod")
+    _statsPromise = fetch("player-stats.json?v=20260701-copafix")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
