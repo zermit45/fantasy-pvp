@@ -293,8 +293,8 @@ function buildHTML(){
       body=`<div style="display:flex;gap:6px;margin:10px 0">${cards}</div>${activeHTML}${suggHTML}`;
     }
     return `<div class="card">
-      <div class="sectionhead"><span>🧬 Química do time${helpBtn("quimica")}</span>${headRight}</div>
-      <p class="p" style="font-size:11px;margin-bottom:2px;line-height:1.5">Cada jogador tem uma <b>personalidade</b>. Personalidades que se completam (ou se repetem) geram <b style="color:var(--green)">bônus de química</b> — somado ao seu time, separado da tática.</p>
+      <div class="sectionhead"><span>🧬 Química do time <span style="font-size:10px;color:var(--blue);font-weight:700;letter-spacing:.03em">· PREVISÃO</span>${helpBtn("quimica")}</span>${headRight}</div>
+      <p class="p" style="font-size:11px;margin-bottom:2px;line-height:1.5">Cada jogador tem uma <b>personalidade</b>. Personalidades que se completam (ou se repetem) geram <b style="color:var(--green)">bônus de química</b> — somado ao seu time, separado da tática. <b style="color:var(--dim)">Vale só pra quem entrar em campo:</b> se um titular não jogar, a química dele não conta no resultado.</p>
       ${body}
       <div onclick="toggleQuimicaGuide()" style="margin-top:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);padding:8px;border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);border-radius:10px">📖 Ver todas as combinações de química</div>
     </div>`;
