@@ -35,46 +35,35 @@ var COMBOS = []; // vazio (retrocompat: computeQuimica ignora se vazio)
 // REFORÇO de iguais: N+ da mesma persona dá bônus de "identidade".
 var REFORCO = { 2:0.7 };  // só 2 iguais=+0.7. (3+/4+ impossíveis: max 2 da mesma persona = posição + FLEX)
 
-// TRIOS: a química agora é SÓ trios — 3 personas de POSIÇÕES DIFERENTES (escaláveis
-// num time GK+DEF+MID+ATT+FLEX). São 8 trios, cada persona em EXATAMENTE 2 (equilíbrio:
-// ninguém ativa mais que outro). Duas camadas de bônus:
-//   FORMAR o trio (as 3 personas escaladas) = +formPts (2.0)
-//   ATIVAR a condição (os jogadores do trio produzirem X no jogo) = +condPts extra (1.5)
-// A condição olha só os jogadores DO TRIO (funciona misturando os dois times).
-// cond(s) recebe stats somados dos 3: {golsPart,gols,assists,chutesGol,criacoes,desarmes,defesas,recuperacoes}
+// TRIOS: a química é SÓ trios — 3 personas de POSIÇÕES DIFERENTES (escaláveis num time
+// GK+DEF+MID+ATT+FLEX). São 8 trios, cada persona em EXATAMENTE 2, e NENHUM par de personas
+// se repete entre trios (bem espalhado). FORMAR o trio (as 3 personas escaladas) já dá o
+// bônus cheio (+3.5), sem condição. Simples e direto.
 var TRIOS = [
-  { key:"ataque_relampago", set:["muro","maestro","matador"], formPts:2.0, condPts:1.5,
+  { key:"ataque_relampago", set:["muro","maestro","matador"], pts:3.5,
     nome:"Ataque relâmpago", ico:"🧱🪄🎯",
-    cond:function(s){return s.golsPart>=2;}, condTxt:"o trio participa de 2+ gols",
     txt:"Muro lança, Maestro conduz, Matador conclui." },
-  { key:"jogada_ensaiada", set:["muro","maestro","veloz"], formPts:2.0, condPts:1.5,
-    nome:"Jogada ensaiada", ico:"🧱🪄⚡",
-    cond:function(s){return s.golsPart>=1 && s.criacoes>=2;}, condTxt:"o trio faz 1 gol e cria 2+ chances",
-    txt:"Zaga sólida, Maestro inventa, Veloz aparece." },
-  { key:"saida_fulminante", set:["paredao","motor","matador"], formPts:2.0, condPts:1.5,
-    nome:"Saída fulminante", ico:"🧤🔋🎯",
-    cond:function(s){return s.golsPart>=2;}, condTxt:"o trio participa de 2+ gols",
-    txt:"Paredão segura, Motor sustenta, Matador define." },
-  { key:"transicao_veloz", set:["paredao","motor","veloz"], formPts:2.0, condPts:1.5,
-    nome:"Transição veloz", ico:"🧤🔋⚡",
-    cond:function(s){return s.recuperacoes>=6 && s.golsPart>=1;}, condTxt:"6+ recuperações e 1+ gol do trio",
-    txt:"Recupera atrás e dispara o Veloz na frente." },
-  { key:"eixo_criativo", set:["goleiro_linha","torre","armador_avancado"], formPts:2.0, condPts:1.5,
-    nome:"Eixo criativo", ico:"🦶🗼🎪",
-    cond:function(s){return s.criacoes>=3;}, condTxt:"o trio cria 3+ chances",
-    txt:"Sai jogando limpo, Torre e Armador finalizam a jogada." },
-  { key:"construcao_total", set:["goleiro_linha","zagueiro_artista","armador_avancado"], formPts:2.0, condPts:1.5,
-    nome:"Construção total", ico:"🦶🎻🎪",
-    cond:function(s){return s.criacoes>=3;}, condTxt:"o trio cria 3+ chances",
-    txt:"Do goleiro à frente, tudo pelo chão." },
-  { key:"bloqueio_alto", set:["voador","torre","volante"], formPts:2.0, condPts:1.5,
+  { key:"roubada_gol", set:["muro","motor","veloz"], pts:3.5,
+    nome:"Roubada e gol", ico:"🧱🔋⚡",
+    txt:"Muro rouba, Motor toca, Veloz define." },
+  { key:"saida_criativa", set:["paredao","maestro","veloz"], pts:3.5,
+    nome:"Saída criativa", ico:"🧤🪄⚡",
+    txt:"Paredão inicia, Maestro pensa, Veloz voa." },
+  { key:"muralha_ofensiva", set:["paredao","motor","matador"], pts:3.5,
+    nome:"Muralha ofensiva", ico:"🧤🔋🎯",
+    txt:"Paredão segura, Motor sustenta, Matador resolve." },
+  { key:"eixo_construtor", set:["goleiro_linha","torre","armador_avancado"], pts:3.5,
+    nome:"Eixo construtor", ico:"🦶🗼🎪",
+    txt:"Sai jogando limpo, Torre e Armador finalizam." },
+  { key:"trama_ponta", set:["voador","zagueiro_artista","armador_avancado"], pts:3.5,
+    nome:"Trama pela ponta", ico:"🦅🎻🎪",
+    txt:"Voador cobre, Zaga constrói, Armador inventa." },
+  { key:"base_solida", set:["goleiro_linha","zagueiro_artista","volante"], pts:3.5,
+    nome:"Base sólida", ico:"🦶🎻🛡️",
+    txt:"Goleiro-Linha inicia, Zaga apoia, Volante fecha." },
+  { key:"bloqueio_alto", set:["voador","torre","volante"], pts:3.5,
     nome:"Bloqueio alto", ico:"🦅🗼🛡️",
-    cond:function(s){return s.defesas>=2 && s.desarmes>=5;}, condTxt:"2+ defesas e 5+ desarmes do trio",
-    txt:"Voador no fundo, Torre e Volante travam tudo." },
-  { key:"muralha_viva", set:["voador","zagueiro_artista","volante"], formPts:2.0, condPts:1.5,
-    nome:"Muralha viva", ico:"🦅🎻🛡️",
-    cond:function(s){return s.defesas>=3 && s.desarmes>=4;}, condTxt:"3+ defesas e 4+ cortes do trio",
-    txt:"Três camadas: nada passa ileso." }
+    txt:"Voador no fundo, Torre e Volante travam tudo." }
 ];
 
 var QUIM_CAP = 5.0; // teto do bônus total de química por time (só trios agora)
@@ -180,58 +169,16 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
         hits.push({tipo:"reforco", nome:nrep+"× "+Q.PERSONAS[pe].nome, txt:"Time com identidade de "+Q.PERSONAS[pe].nome+".", pts:add, ico:Q.PERSONAS[pe].ico});
       }
     }
-    // helper: pega UM jogador de cada persona do trio (o que mais contribuiu, se houver 2)
-    // e soma os stats individuais deles. A condição do trio olha SÓ esses jogadores —
-    // por isso funciona mesmo misturando jogadores dos dois times.
-    function statsDoTrio(set){
-      var escolhidos=[], usados={};
-      for(var i=0;i<set.length;i++){
-        var pe=set[i], melhor=null;
-        for(var j=0;j<withPersona.length;j++){
-          var pl=withPersona[j];
-          if(pl.persona===pe && !usados[j]){
-            if(!melhor || contribui(pl.st)>contribui(melhor.st)){ melhor=pl; melhor._j=j; }
-          }
-        }
-        if(!melhor) return null; // falta alguém da persona
-        usados[melhor._j]=true; escolhidos.push(melhor);
-      }
-      var s={golsPart:0,gols:0,assists:0,chutesGol:0,criacoes:0,desarmes:0,defesas:0,recuperacoes:0};
-      escolhidos.forEach(function(pl){
-        var st=pl.st; if(!st) return;
-        var g=(st.goals&&st.goals.length)||0, a=(st.assists&&st.assists.length)||0;
-        s.gols+=g; s.assists+=a; s.golsPart+=g+a;
-        s.chutesGol+=(st.sots&&st.sots.length)||0;
-        s.criacoes+=(st.sca||0)+(st.gca||0);
-        s.desarmes+=(st.tklint||0)+(st.block||0);
-        s.defesas+=(st.gk&&st.gk.saves&&st.gk.saves.length)||0;
-        s.recuperacoes+=(st.recovery||0);
-      });
-      return s;
-    }
-    function contribui(st){ if(!st) return -1; return ((st.goals&&st.goals.length)||0)+((st.assists&&st.assists.length)||0)+((st.gk&&st.gk.saves&&st.gk.saves.length)||0)+((st.tklint||0)+(st.recovery||0))*0.1; }
-    // TRIOS em DUAS CAMADAS:
-    //  - FORMAR (as 3 personas escaladas) já dá +formPts (2.0).
-    //  - ATIVAR a condição (jogadores do trio produzem X) dá +condPts extra (1.5).
-    // trios[] guarda as keys dos trios que ATIVARAM (usado pelo bônus de capitão).
-    var trios=[], temStats=players.some(function(p){return p.st;});
+    // TRIOS (simples): formou as 3 personas do trio → soma o bônus cheio. Sem condição.
+    // trios[] guarda as keys dos trios formados (usado pelo bônus de capitão ×1.5).
+    var trios=[];
     (Q.TRIOS||[]).forEach(function(t){
       var temTodas = t.set.every(function(pe){return count[pe];});
       if(!temTodas) return;
-      var formPts = (t.formPts!=null?t.formPts:2.0);
-      var condPts = (t.condPts!=null?t.condPts:1.5);
-      var s = temStats ? statsDoTrio(t.set) : null;
-      var ativou = s ? !!t.cond(s) : false;
-      if(ativou){
-        // formado E condição batida: soma as duas camadas
-        bonus += formPts + condPts;
-        trios.push(t.key);
-        hits.push({tipo:"trio", key:t.key, nome:t.nome, txt:t.txt, pts:formPts+condPts, formPts:formPts, condPts:condPts, ico:t.ico, cond:t.condTxt, set:t.set, ativado:true});
-      }else{
-        // formado mas condição ainda não batida: soma só a camada de FORMAR
-        bonus += formPts;
-        hits.push({tipo:"trio", key:t.key, nome:t.nome, txt:t.txt, pts:formPts, formPts:formPts, condPts:condPts, ico:t.ico, cond:t.condTxt, set:t.set, ativado:false});
-      }
+      var pts = (t.pts!=null?t.pts:3.5);
+      bonus += pts;
+      trios.push(t.key);
+      hits.push({tipo:"trio", key:t.key, nome:t.nome, txt:t.txt, pts:pts, ico:t.ico, set:t.set});
     });
     bonus=Math.min(bonus, Q.CAP);
     return {bonus:Math.round(bonus*10)/10, hits:hits, personas:personas, count:count, trios:trios};
@@ -247,7 +194,7 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
       var tem=t.set.filter(function(pe){return count[pe];});
       var falta=t.set.filter(function(pe){return !count[pe];});
       if(tem.length===2 && falta.length===1){
-        sugg.push({pts:(t.formPts!=null?t.formPts:2.0), nome:t.nome, falta:Q.PERSONAS[falta[0]], ico:t.ico});
+        sugg.push({pts:(t.pts!=null?t.pts:3.5), nome:t.nome, falta:Q.PERSONAS[falta[0]], ico:t.ico});
       }
     });
     var bestByFalta={};
@@ -266,7 +213,7 @@ if(typeof module!=="undefined"&&module.exports){ module.exports={PERSONAS:PERSON
   window.ensurePersonaMap=function(){
     if(window.PERSONA_MAP) return Promise.resolve(window.PERSONA_MAP);
     if(_p) return _p;
-    _p=fetch("persona-map.json?v=20260701-triosonly")
+    _p=fetch("persona-map.json?v=20260701-trios3")
       .then(function(r){return r.ok?r.json():null;})
       .then(function(j){window.PERSONA_MAP=j||{};return window.PERSONA_MAP;})
       .catch(function(){window.PERSONA_MAP={};return window.PERSONA_MAP;});

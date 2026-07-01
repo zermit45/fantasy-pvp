@@ -269,20 +269,17 @@ function buildHTML(){
       const q=window.computeQuimica(tits.map(m=>({name:m.name,pos:m.pos})));
       const sugg=window.suggestQuimica?window.suggestQuimica(tits.map(m=>({name:m.name,pos:m.pos}))):[];
       headRight=`<span class="mono" style="color:${q.bonus>0?"#34d399":"var(--dim)"};font-weight:800;font-size:16px">+${q.bonus.toFixed(1)}</span>`;
-      // TRIOS formados: na montagem (previsão) todos aparecem "formados" (+2.0) com o
-      // potencial de virar +3.5 se a condição bater no jogo. Reforço também entra aqui.
+      // TRIOS formados: cada trio completo vale +3.5 direto. Reforço também entra aqui.
       let activeHTML="";
       const triosForm=q.hits.filter(h=>h.tipo==="trio");
       const reforcos=q.hits.filter(h=>h.tipo==="reforco");
       if(triosForm.length){
-        activeHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">🔺 TRIOS FORMADOS <span style="color:var(--dim);font-weight:400;letter-spacing:0">· +2.0 por formar, +1.5 se a condição bater</span></div>`
+        activeHTML=`<div style="font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin:10px 0 4px">🔺 TRIOS FORMADOS</div>`
           +triosForm.map(h=>{
-            const ativado=h.ativado;
-            const cor=ativado?"#34d399":"#FFC247";
-            return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;background:color-mix(in srgb,${cor} 12%,transparent);border:1px solid color-mix(in srgb,${cor} 35%,transparent);border-radius:8px;padding:6px 8px">`
+            return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px;background:color-mix(in srgb,#34d399 12%,transparent);border:1px solid color-mix(in srgb,#34d399 35%,transparent);border-radius:8px;padding:6px 8px">`
             +`<span style="font-size:15px">${h.ico}</span>`
-            +`<span style="flex:1;color:var(--chalk);font-weight:600">${esc(h.nome)} <span style="color:var(--dim);font-size:10px;font-weight:400">${ativado?esc(h.txt):("+1.5 se "+esc(h.cond))}</span></span>`
-            +`<span class="mono" style="color:${cor};font-weight:800">+${h.pts.toFixed(1)}</span></div>`;
+            +`<span style="flex:1;color:var(--chalk);font-weight:600">${esc(h.nome)} <span style="color:var(--dim);font-size:10px;font-weight:400">${esc(h.txt)}</span></span>`
+            +`<span class="mono" style="color:#34d399;font-weight:800">+${h.pts.toFixed(1)}</span></div>`;
           }).join("");
       }
       if(reforcos.length){
