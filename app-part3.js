@@ -459,15 +459,14 @@ function playerResultsHTML(){
     if(out.length>=22) return;
     if(normTxt(p.name).includes(q)){
       const k=normTxt(p.name);
-      if(seen[k]) return; seen[k]=1;
+      // dedupe por nome+TIME: homônimos de times diferentes (2 "Bruno Henrique") aparecem os dois
+      const kUniq=k+"|"+normTxt(p.team||p.club||"");
+      if(seen[kUniq]) return; seen[kUniq]=1;
       // tenta o overall por DESEMPENHO (stats reais, com fallback de nome + posição); senão usa o de mercado
       let ovrVal=null, statsOnly=false;
       const rs=resolveStats(p.name, p.pos);
       if(rs && (rs.obj.ovrFinal!=null||rs.obj.ovrStats!=null)){
         ovrVal=(rs.obj.ovrFinal!=null?rs.obj.ovrFinal:rs.obj.ovrStats); statsOnly=true;
-        // marca todas as grafias como vistas, pra não listar o mesmo jogador de novo via stats
-        rs.keys.forEach(c=>{ seen[c]=1; });
-        seen[normTxt(rs.obj.nm||"")]=1;
       }
       if(ovrVal==null) ovrVal=(Q?Q.overall(p):null);
       out.push({name:p.name, pos:p.pos, team:p.team, club:p.club||"", ovr:ovrVal, statsOnly:statsOnly, age:(p.age!=null?p.age:null), mv:(p.marketValue!=null?p.marketValue:null)});
@@ -485,7 +484,7 @@ function playerResultsHTML(){
       if(typeof v==="string" && v.charAt(0)==="@") v=DB[v.slice(1)];
       if(!v || typeof v!=="object") continue;
       // evita duplicar o mesmo jogador (várias grafias apontam pro mesmo objeto)
-      const realKey=normTxt(v.nm||k);
+      const realKey=normTxt(v.nm||k)+"|"+normTxt(v.team||"");
       if(seen[k]||seen[realKey]) continue;
       if(k.includes(q)){
         seen[k]=1; seen[realKey]=1;
