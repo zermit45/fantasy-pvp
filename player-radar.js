@@ -238,7 +238,15 @@
       // 5) só o sobrenome — só aceita se a posição bater (senão pega homônimo)
       hit=tryKey(last); if(hit) return hit;
     }
-    // se chegou aqui e havia um exato mas de outra posição, melhor não retornar nada
+    // 6) ÚLTIMO RECURSO: achou o jogador por nome exato mas a posição não bateu.
+    // Melhor mostrar o radar REAL dele (na posição que de fato jogou) do que cair na
+    // estimativa por mercado. Só quando: (a) não existe a chave nome|pos do lado pedido
+    // (sem risco de homônimo separado) e (b) nenhum dos lados é GK — goleiro nunca se
+    // confunde com jogador de linha, então cruzar GK↔linha seria sempre erro de homônimo.
+    if(pos && exact && !DB[k+"|"+pos] && pos!=="GK" && exact.pos!=="GK"){
+      return exact;
+    }
+    // se chegou aqui e havia um exato mas de outra posição (com risco de homônimo), não retorna nada
     return null;
   }
 
@@ -435,7 +443,10 @@
     // ── CAMINHO 2: estimativa (jogador fora das 12 ligas) ──
     var Q=window.playerQuality; if(!Q)return "";
     var mp=Q.findMaster(name, pos); if(!mp)return '<p style="color:#9aa4b2;text-align:center;padding:16px">Jogador não encontrado na base.</p>';
-    var a=Q.qualAttrs(mp);
+    // usa a posição do JOGO (pos) e não a do master: pontas/atacantes que atuaram recuados
+    // (ex.: Semenyo joga MID na seleção mas o master tem ATT) recebem atributos da posição real.
+    var mpPos = (pos && mp.pos!==pos) ? Object.assign({}, mp, {pos:pos}) : mp;
+    var a=Q.qualAttrs(mpPos);
     var rowsE=[["Ataque",a.ataque],["Criação",a.criacao],["Defesa",a.defesa],["Físico",a.fisico],["Técnica",a.tecnica]];
     var he='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:12px">'
       +'<div style="font-size:15px;font-weight:800;color:#e8edf2;margin-bottom:2px">📊 Atributos estimados</div>'
