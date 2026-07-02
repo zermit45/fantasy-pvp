@@ -204,7 +204,7 @@
   function ensureStats(){
     if(window.PLAYER_STATS) return Promise.resolve(window.PLAYER_STATS);
     if(_statsPromise) return _statsPromise;
-    _statsPromise = fetch("player-stats.json?v=20260701-homonimo")
+    _statsPromise = fetch("player-stats.json?v=20260702-override")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ window.PLAYER_STATS=j||{}; return window.PLAYER_STATS; })
       .catch(function(){ window.PLAYER_STATS={}; return window.PLAYER_STATS; });
@@ -220,6 +220,9 @@
     var okPos=function(rec){ return rec && (!pos || !rec.pos || rec.pos===pos); };
     var tryKey=function(key){ var h=deref(DB[key]); return okPos(h)?h:null; };
     var k=norm(name);
+    // 0) HOMÔNIMOS: tenta a chave "nome|pos" primeiro — separa os dois xarás
+    // (ex.: "bruno henrique|ATT" do Flamengo vs "bruno henrique|MID" do Inter).
+    if(pos){ var hk=deref(DB[k+"|"+pos]); if(hk && okPos(hk)) return hk; }
     // 1) match exato (nome completo) — mais confiável; aqui aceitamos mesmo sem bater posição
     var exact=deref(DB[k]);
     if(exact && okPos(exact)) return exact;
