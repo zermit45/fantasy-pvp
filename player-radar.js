@@ -255,19 +255,32 @@
   // detecta quais abas têm dado real para este jogador
   // match  = jogou no jogo aberto (_ctx.roomId)
   // season = tem stats reais (base) OU registros agregados de jogos finalizados
+  // resolve a chave de um jogador dentro de um resultado do collect(), tolerando
+  // posição desatualizada: tenta nome|pos e, se falhar (e não for GK), cai pra
+  // única posição de linha com dado (mesmo critério anti-homônimo do buildContent).
+  function resolveKey(coll, name, pos){
+    if(!coll) return null;
+    var nn=norm(name), k=nn+"|"+pos;
+    if(coll.byKey[k]) return k;
+    if(pos==="GK") return null;
+    var hits=[];
+    ["DEF","MID","ATT"].forEach(function(pp){ if(pp!==pos && coll.byKey[nn+"|"+pp]) hits.push(nn+"|"+pp); });
+    return hits.length===1 ? hits[0] : null;
+  }
   function availModes(){
-    var key = norm(_ctx.name)+"|"+_ctx.pos;
     var hasMatch=false, hasSeason=false;
     if(_ctx.roomId){
       var dm=collect(_ctx.roomId);
-      hasMatch = !!(dm && dm.byKey[key]);
+      var mk=resolveKey(dm, _ctx.name, _ctx.pos);
+      hasMatch = !!(dm && mk && dm.byKey[mk]);
     }
     // temporada: stats reais da base (sempre conta)
     if(findStats(_ctx.name, _ctx.pos)) hasSeason=true;
     // ou agregado de jogos finalizados — mas só se houver dado ALÉM do jogo aberto
     if(!hasSeason){
       var ds=collect(null);
-      var rs=ds && ds.byKey[key];
+      var sk=resolveKey(ds, _ctx.name, _ctx.pos);
+      var rs=ds && sk && ds.byKey[sk];
       if(rs){
         // se o único jogo da "temporada" é o próprio jogo aberto, não é temporada extra
         if(!hasMatch || rs.games>1) hasSeason=true;
@@ -474,6 +487,23 @@
     var key = norm(_ctx.name)+"|"+_ctx.pos;
     var rec = data ? data.byKey[key] : null;
 
+    // FALLBACK DE POSIÇÃO (espelha o "caso 6" do findStats): o card pode abrir o
+    // radar com uma posição desatualizada (ex.: Rollheiser aberto como ATT, mas
+    // apurado como MID). Se a chave nome|pos não existe, procura o MESMO jogador
+    // (por nome) apurado em OUTRA posição de linha e usa o rec real dele.
+    // Trava: nunca cruza GK↔linha (evita homônimo goleiro×linha) e só aceita se
+    // houver exatamente 1 posição de linha com dado (sem ambiguidade de homônimo).
+    var _recPos = _ctx.pos;
+    if(!rec && data && _ctx.pos!=="GK"){
+      var _nn=norm(_ctx.name), _altHits=[];
+      ["DEF","MID","ATT"].forEach(function(pp){
+        if(pp===_ctx.pos) return;
+        var r=data.byKey[_nn+"|"+pp];
+        if(r) _altHits.push(r);
+      });
+      if(_altHits.length===1){ rec=_altHits[0]; _recPos=rec.pos; }
+    }
+
     // sem dados de desempenho neste modo → mostra qualidade (overall + atributos estimados)
     if(!rec){
       var hq='';
@@ -490,8 +520,9 @@
       return hq;
     }
 
-    var pool = data.byPos[_ctx.pos] || [rec];
-    var isGK = _ctx.pos==="GK";
+    // usa a posição REAL do rec apurado (pode diferir de _ctx.pos após o fallback acima)
+    var pool = data.byPos[_recPos] || data.byPos[rec.pos] || [rec];
+    var isGK = rec.pos==="GK";
     var defs = isGK ? [RADAR_GK] : RADARS_LINE;
 
     var h='';
@@ -511,8 +542,8 @@
       +' · '+(_mode==="season"?(rec.games+" jogo"+(rec.games>1?"s":"")+" · "+Math.round(rec.min)+"′"):"esta partida")+'</div>'
       +'<div style="font-size:10px;color:#6b7280;margin-top:2px">percentis comparados a '+pool.length+' '+posFull+'</div></div>';
 
-    // overall + preço (qualidade)
-    h+=headerQuality(_ctx.name, _ctx.pos);
+    // overall + preço (qualidade) — usa a posição real apurada (rec.pos)
+    h+=headerQuality(_ctx.name, rec.pos);
 
     // toggle partida/temporada
     h+=modeToggle();
